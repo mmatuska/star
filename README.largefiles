@@ -1,32 +1,16 @@
 Big file strategy for star:
-According to Posix 1003.1, a 12 byte numeric field contains
+According to Posix 1003.1-1988, a 12 byte numeric field contains
 11 octal digits and a space or a null.
 
 	1)	Use unsigned 33 bit values conforming to Posix
 		to allow 8 GB Filesize.
 
-	2)	Use 'x' or 'h' prefix and hex digits instead
-		of octal digits to allow 40 bit values which 
-		will give 1 TB Filesize.
-		This will give 24 bits for the minor device number too.
+	2)	Set the top bit of theleftmost byte in the field
+		and use base '256' digits to allow 95 bit values inside
+		12 byte fields and 63 bit values inside 8 byte fields.
 
-		I currently prefer the 'x' prefix. A field could look as:
-		x12345678AB
-
-	3)	Use a new prefix and base 64 'digits' to allow
-		60 bit values. This will allow 1000000 TB Filesize,
-		or 1000 PB in other words.
-		This will give 36 bits for the minor device number.
-
-		I currently prefer the 'a' prefix. A field could look as:
-		a123ABv/wcv
-
-	4)	Use a new prefix and base 128 'digits' to allow
-		70 bit values.
-
-		I currently prefer the 'b' prefix. A field could look as:
-		b123öív/wcv
-
+	3)	Use POSIX.1-2001 extended headers to have values
+		without any limit.
 
 	Files in type 2) and 3) will not be extractable with
 	other tar implementations. Any files 'behind' such a file

@@ -1,4 +1,4 @@
-/* @(#)maxpath.h	1.3 98/09/13 Copyright 1985, 1995, 1998 J. Schilling */
+/* @(#)maxpath.h	1.4 01/11/18 Copyright 1985, 1995, 1998 J. Schilling */
 /*
  *	Definitions for dealing with statically limitations on pathnames
  *
@@ -29,13 +29,22 @@
 
 #ifdef	JOS
 #	define	MAXPATHNAME	128
+#	define	FOUND_MAXPATHNAME
+
 #	define	MAXFILENAME	30
+#	define	FOUND_MAXFILENAME
 #else
 
 #	ifdef	MAXPATHLEN
-#		define	MAXPATHNAME	MAXPATHLEN
+#		define	MAXPATHNAME	MAXPATHLEN	/* From sys/param.h  */
+#		define	FOUND_MAXPATHNAME
+#	else
+#	ifdef	PATH_MAX
+#		define	MAXPATHNAME	PATH_MAX	/* From limits.h     */
+#		define	FOUND_MAXPATHNAME
 #	else
 #		define	MAXPATHNAME	256		/* Is there a limit? */
+#	endif
 #	endif
 
 /*
@@ -43,13 +52,24 @@
  */
 #	ifdef	MAXNAMELEN
 #		define	MAXFILENAME	MAXNAMELEN	/* From sys/param.h  */
+#		define	FOUND_MAXFILENAME
 #	else
 #	ifdef	MAXNAMLEN
 #		define	MAXFILENAME	MAXNAMLEN	/* From dirent.h     */
+#		define	FOUND_MAXFILENAME
 #	else
+#	ifdef	DIRSIZ
 #		define	MAXFILENAME	DIRSIZ		/* From sys/dir.h    */
+#		define	FOUND_MAXFILENAME
 #	endif
 #	endif
+#	endif
+
+#if	!defined(FOUND_MAXFILENAME) && defined(FOUND_DIRSIZE)
+#	define	MAXFILENAME		DIRSIZE		/* From dirdefs.h    */
+#	define	FOUND_MAXFILENAME
+#endif
+
 #endif	/* JOS */
 
 #endif	/* _MAXPATH_H */

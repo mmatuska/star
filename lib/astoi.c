@@ -1,4 +1,4 @@
-/* @(#)astoi.c	1.6 00/05/07 Copyright 1985 J. Schilling */
+/* @(#)astoi.c	1.7 01/08/21 Copyright 1985 J. Schilling */
 /*
  *	astoi() converts a string to int
  *	astol() converts a string to long
@@ -75,9 +75,16 @@ char *astol(s, l)
 	register const char *s;
 	long *l;
 {
+	return (astolb(s, l, 0));
+}
+
+char *astolb(s, l, base)
+	register const char *s;
+	long *l;
+	register int base;
+{
 	int neg = 0;
 	register long ret = 0L;
-	register int base = 10;
 	register int digit;
 	register char c;
 	
@@ -91,12 +98,16 @@ char *astol(s, l)
 		neg++;
 	}
 
-	if (*s == '0') {
-		base = 8;
-		s++;
-		if (*s == 'x' || *s == 'X') {
+	if (base == 0) {
+		if (*s == '0') {
+			base = 8;
 			s++;
-			base = 16;
+			if (*s == 'x' || *s == 'X') {
+				s++;
+				base = 16;
+			}
+		} else {
+			base = 10;
 		}
 	}
 	for (;(c = *s) != 0; s++) {

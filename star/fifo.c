@@ -1,7 +1,7 @@
-/* @(#)fifo.c	1.21 01/02/25 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.29 02/01/01 Copyright 1989 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.21 01/02/25 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.29 02/01/01 Copyright 1989 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -30,23 +30,26 @@ static	char sccsid[] =
 #if	!defined(HAVE_SMMAP) && !defined(HAVE_USGSHM) && !defined(HAVE_DOSALLOCSHAREDMEM)
 #undef	FIFO			/* We cannot have a FIFO on this platform */
 #endif
+#if	!defined(HAVE_FORK)
+#undef	FIFO			/* We cannot have a FIFO on this platform */
+#endif
 #ifdef	FIFO
 #if !defined(USE_MMAP) && !defined(USE_USGSHM)
 #define	USE_MMAP
 #endif
+
+#include <stdio.h>
+#include <stdxlib.h>
+#include <unixstd.h>	/* includes <sys/types.h> */
 #include <fctldefs.h>
-#include <sys/types.h>
 #if defined(HAVE_SMMAP) && defined(USE_MMAP)
 #include <mmapdefs.h>
 #endif
-#include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>
 #include <standard.h>
 #include <errno.h>
-#include <schily.h>
 #include "star.h"
 #include "fifo.h"
+#include <schily.h>
 #include "starsubs.h"
 
 #ifndef	HAVE_SMMAP
@@ -127,8 +130,17 @@ initfifo()
 
 	if (obs == 0)
 		obs = bs;
-	if (fs == 0)
+	if (fs == 0) {
+#if	defined(sun) && defined(mc68000)
 		fs = 1*1024*1024;
+#else
+#if defined(__linux) && !defined(USE_MMAP)
+		fs = 4*1024*1024;
+#else
+		fs = 8*1024*1024;
+#endif
+#endif
+	}
 	if (fs < bs + obs)
 		fs = bs + obs;
 	if (fs < 2*obs)
@@ -185,6 +197,11 @@ initfifo()
 LOCAL void
 fifo_setparams()
 {
+	if (mp == NULL) {
+		comerrno(EX_BAD, "Panic: NULL fifo parameter structure.\n");
+		/* NOTREACHED */
+		return;
+	}
 	mp->end = &mp->base[fs];
 	mp->size = fs;
 	mp->ibs = ibs;
@@ -335,8 +352,8 @@ swait(f)
 	if (ret < 0 || (ret == 0 && pid)) {
 		if ((mp->flags & FIFO_EXIT) == 0)
 			errmsg("Sync pipe read error on pid %d.\n", pid);
-		prstats();
-		exit(1);
+		exprstats(1);
+		/* NOTREACHED */
 	}
 	if (ret == 0) {
 		/*
@@ -510,7 +527,8 @@ again:
 
 	if (rmp->getptr + cnt > rmp->end) {
 		errmsgno(EX_BAD, "getptr >: %p %p %d end: %p\n",
-				rmp->getptr, &rmp->getptr[cnt], cnt, rmp->end);
+				(void *)rmp->getptr, (void *)&rmp->getptr[cnt],
+				cnt, (void *)rmp->end);
 	}
 	{
 		/* Temporary until all modules know about mp->xxx */
@@ -573,10 +591,33 @@ fifo_sync()
 EXPORT void
 fifo_exit()
 {
-	mp->flags |= FIFO_EXIT;
+	extern	BOOL	cflag;
+
 	/*
-	 * XXX Wake up other side ???
+	 * Note that we may be called with fifo not active.
 	 */
+	if (mp == NULL)
+		return;
+
+	/*
+	 * Tell other side of FIFO to exit().
+	 */
+	mp->flags |= FIFO_EXIT;
+
+	/*
+	 * Wake up other side by closing the sync pipes.
+	 */
+	if ((pid != 0) ^ cflag) {
+		EDEBUG(("Fifo_exit() from get prozess: cflag: %d pid: %d\n", cflag, pid));
+		/* Get Prozess */
+		close(mp->gpin);
+		close(mp->ppout);
+	} else {
+		EDEBUG(("Fifo_exit() from put prozess: cflag: %d pid: %d\n", cflag, pid));
+		/* Put Prozess */
+		close(mp->gpout);
+		close(mp->ppin);
+	}
 }
 
 EXPORT void
@@ -626,7 +667,8 @@ do_out()
 
 		if (amt < 0)
 			comerr("write error getptr: %p, cnt: %d %p\n",
-					mp->getptr, cnt, &mp->getptr[cnt]);
+					(void *)mp->getptr, cnt,
+					(void *)&mp->getptr[cnt]);
 		if (amt < cnt)
 			error("wrote: %d (%d)\n", amt, cnt);
 
@@ -654,7 +696,13 @@ mkshare(size)
 		comerr("Cannot get mmap for %d Bytes on /dev/zero.\n", size);
 	close(f);
 
-	if (debug) errmsgno(EX_BAD, "shared memory segment attached: %p\n", (void *)addr);
+	if (debug) errmsgno(EX_BAD, "shared memory segment attached at: %p size %d\n",
+				(void *)addr, size);
+
+#ifdef	HAVE_MLOCK
+	if (getuid() == 0 && mlock(addr, size) < 0)
+		errmsg("Cannot lock fifo memory.\n");
+#endif
 
 	return (addr);
 }
@@ -691,10 +739,20 @@ mkshm(size)
 	if ((addr = shmat(id, (char *)0, 0600)) == (char *)-1)
 		comerr("shmat failed\n");
 
-	if (debug) errmsgno(EX_BAD, "shared memory segment attached: %p\n", addr);
+	if (debug) errmsgno(EX_BAD, "shared memory segment attached at: %p size %d\n",
+				(void *)addr, size);
 
 	if (shmctl(id, IPC_RMID, 0) < 0)
 		comerr("shmctl failed\n");
+
+#ifdef	SHM_LOCK
+	/*
+	 * Although SHM_LOCK is standard, it seems that all versions of AIX
+	 * ommit this definition.
+	 */
+	if (getuid() == 0 && shmctl(id, SHM_LOCK, 0) < 0)
+		errmsg("shmctl failed to lock shared memory segment\n");
+#endif
 
 	return (addr);
 }
@@ -715,8 +773,8 @@ mkos2shm(size)
 	if(DosAllocSharedMem(&addr,NULL,size,0X100L | 0x1L | 0x2L | 0x10L))
 		comerr("DosAllocSharedMem() failed\n");
 
-	if (debug)
-		errmsgno(EX_BAD, "shared memory allocated at address: %x\n", addr);
+	if (debug) errmsgno(EX_BAD, "shared memory allocated attached at: %p size %d\n",
+				(void *)addr, size);
 
 	return (addr);
 }

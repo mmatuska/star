@@ -1,4 +1,4 @@
-/* @(#)table.h	1.4 96/06/26 Copyright 1994 J. Schilling */
+/* @(#)table.h	1.8 02/05/09 Copyright 1994 J. Schilling */
 /*
  *	Conversion table definitions for efficient conversion
  *	of different file type representations
@@ -39,8 +39,11 @@ S_IFLNK		0120000	SLNK	/* Symbolic link	*/
 S_IFSHAD	0130000		/* Solaris shadow inode	*/
 S_IFSOCK	0140000	SOCK	/* UNIX domain socket	*/
 S_IFDOOR	0150000		/* Solaris DOOR		*/
-		0160000		/* UNUSED cpio acl	*/
-		0170000		/* UNUSED		*/
+S_IFWHT		0160000		/* BSD whiteout		*/
+		0160200		/* Solaris cpio acl	*/
+		0170000		/* UNUSED on UNIX	*/
+S_IFEVC		0170000		/* UNOS event count	*/
+				/* UNOS/UNIX compat only*/
 #endif
 
 /*
@@ -60,6 +63,13 @@ S_IFDOOR	0150000		/* Solaris DOOR		*/
 #define	XT_BLK		7	/* block special			*/
 #define	XT_FIFO		8	/* fifo (named pipe)			*/
 #define	XT_SOCK		9	/* unix domain socket			*/
+#define	XT_MPC		10	/* multiplexed character special	*/
+#define	XT_MPB		11	/* multiplexed block special		*/
+#define	XT_NSEM		12	/* XENIX named semaphore		*/
+#define	XT_NSHD		13	/* XENIX named shared data		*/
+#define	XT_DOOR		14	/* Solaris DOOR				*/
+#define	XT_EVENT	15	/* UNOS Event Count			*/
+#define	XT_WHT		16	/* BSD whiteout				*/
 				/* ... Reserved ...			*/
 #define	XT_DUMPDIR	20	/* Dir entry containing filenames	*/
 #define	XT_LONGLINK	21	/* Next file on tape has a long link	*/
@@ -68,23 +78,32 @@ S_IFDOOR	0150000		/* Solaris DOOR		*/
 #define	XT_NAMES	24	/* OLD					*/
 #define	XT_SPARSE	25	/* for files with holes in it		*/
 #define	XT_VOLHDR	26	/* Tape Volume header			*/
+#define	XT_META		27	/* Inode meta data only			*/
 #define	XT_BAD		31	/* illegal file type			*/
 
 extern char	iftoxt_tab[];
 extern char	ustoxt_tab[];
-extern char	gttoxt_tab[];
+extern char	vttoxt_tab[];
 
 extern int	xttoif_tab[];
 extern char	xttost_tab[];
 extern char	xttous_tab[];
+
+extern char	xttar_tab[];
+extern char	xtstar_tab[];
+extern char	xtustar_tab[];
+extern char	xtexustar_tab[];
+
 extern char	*xttostr_tab[];
+extern char	*xttoname_tab[];
 
 #define	IFTOXT(t)	(iftoxt_tab[((t)&S_IFMT) >> 12])/* UNIX to XT	*/
 #define	USTOXT(t)	(ustoxt(t))			/* ustar to XT	*/
 #define	_USTOXT(t)	(ustoxt_tab[(t)-REGTYPE])	/* ustar to XT	*/
-#define	_GTTOXT(t)	(gttoxt_tab[(t)-'A'])		/* gnutar to XT	*/
+#define	_VTTOXT(t)	(vttoxt_tab[(t)-'A'])		/* vendor to XT	*/
 
 #define	XTTOIF(t)	(xttoif_tab[(t)])		/* XT to UNIX	*/
 #define	XTTOST(t)	(xttost_tab[(t)])		/* XT to star	*/
 #define	XTTOUS(t)	(xttous_tab[(t)])		/* XT to ustar	*/
-#define	XTTOSTR(t)	(xttostr_tab[(t)])		/* XT to string */
+#define	XTTOSTR(t)	(xttostr_tab[(t)])		/* XT to string	*/
+#define	XTTONAME(t)	(xttoname_tab[(t)])		/* XT to name	*/

@@ -1,4 +1,4 @@
-/* @(#)fcons.c	2.12 00/12/04 Copyright 1986, 1995 J. Schilling */
+/* @(#)fcons.c	2.13 01/12/09 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995  J. Schilling
  */
@@ -21,8 +21,8 @@
 #include "io.h"
 
 /*
- * XXX We need to switch to fseeko()/ftello() sometime in the future.
- * XXX See io.h hack.
+ * Note that because of a definition in io.h we are using fseeko()/ftello()
+ * instead of fseek()/ftell() if available.
  */
 
 LOCAL	char	*fmtab[] = {

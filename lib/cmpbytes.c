@@ -1,7 +1,7 @@
-/* @(#)cmpbytes.c	1.13 00/05/07 Copyright 1988 J. Schilling */
+/* @(#)cmpbytes.c	1.14 02/02/28 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)cmpbytes.c	1.13 00/05/07 Copyright 1988 J. Schilling";
+	"@(#)cmpbytes.c	1.14 02/02/28 Copyright 1988 J. Schilling";
 #endif  /* lint */
 /*
  *	compare data
@@ -38,12 +38,23 @@ int cmpbytes(fromp, top, cnt)
 	register const char	*from	= (char *)fromp;
 	register const char	*to	= (char *)top;
 	register int		n;
+	register int		i;
 
 	/*
 	 * If we change cnt to be unsigned, check for == instead of <=
 	 */
 	if ((n = cnt) <= 0)
 		return (cnt);
+
+	/*
+	 * Compare byte-wise until properly aligned for a long pointer.
+	 */
+	i = sizeof(long) - 1;
+	while (--n >= 0 && --i >= 0 && !l2aligned(from, to)) {
+		if (*to++ != *from++)
+			goto cdiff;
+	}
+	n++;
 
 	if (n >= (int)(8 * sizeof(long))) {
 		if (l2aligned(from, to)) {

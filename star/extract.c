@@ -1,7 +1,7 @@
-/* @(#)extract.c	1.36 01/04/07 Copyright 1985 J. Schilling */
+/* @(#)extract.c	1.52 02/05/02 Copyright 1985 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)extract.c	1.36 01/04/07 Copyright 1985 J. Schilling";
+	"@(#)extract.c	1.52 02/05/02 Copyright 1985 J. Schilling";
 #endif
 /*
  *	extract files from archive
@@ -45,12 +45,15 @@ static	char sccsid[] =
 #include "dirtime.h"
 #include "starsubs.h"
 
+extern	FILE	*vpr;
+
 extern	char	*listfile;
 
 extern	int	bufsize;
 extern	char	*bigptr;
 
 extern	BOOL	havepat;
+extern	BOOL	prblockno;
 extern	BOOL	nflag;
 extern	BOOL	interactive;
 extern	BOOL	nodir;
@@ -65,17 +68,21 @@ extern	BOOL	force_hole;
 extern	BOOL	to_stdout;
 extern	BOOL	remove_first;
 extern	BOOL	copylinks;
+extern	BOOL	hardlinks;
+extern	BOOL	symlinks;
+extern	BOOL	dometa;
 
 EXPORT	void	extract		__PR((char *vhname));
 EXPORT	BOOL	newer		__PR((FINFO * info));
 LOCAL	BOOL	same_symlink	__PR((FINFO * info));
-LOCAL	BOOL	remove_file	__PR((char* name, BOOL isfirst));
 LOCAL	BOOL	create_dirs	__PR((char* name));
 LOCAL	BOOL	make_dir	__PR((FINFO * info));
 LOCAL	BOOL	make_link	__PR((FINFO * info));
 LOCAL	BOOL	make_symlink	__PR((FINFO * info));
-LOCAL	BOOL	make_copy	__PR((FINFO * info, BOOL emul_symlink));
-LOCAL	int	copy_file	__PR((char *from, char *to, BOOL emul_symlink));
+LOCAL	BOOL	emul_symlink	__PR((FINFO * info));
+LOCAL	BOOL	emul_link	__PR((FINFO * info));
+LOCAL	BOOL	make_copy	__PR((FINFO * info, BOOL do_symlink));
+LOCAL	int	copy_file	__PR((char *from, char *to, BOOL do_symlink));
 LOCAL	BOOL	make_fifo	__PR((FINFO * info));
 LOCAL	BOOL	make_special	__PR((FINFO * info));
 LOCAL	BOOL	get_file	__PR((FINFO * info));
@@ -104,12 +111,16 @@ extract(vhname)
 		finfo.f_name = name;
 		if (tcb_to_info(ptb, &finfo) == EOF)
 			return;
+		if (prblockno)
+			(void)tblocks();		/* set curblockno */
+
 		if (is_volhdr(&finfo)) {
 			if (!get_volhdr(&finfo, vhname)) {
 				excomerrno(EX_BAD,
 				"Volume Header '%s' does not match '%s'.\n",
 							finfo.f_name, vhname);
 			}
+			void_file(&finfo);
 			continue;
 		}
 		if (!abs_path &&	/* XXX VVV siehe skip_slash() */
@@ -143,7 +154,7 @@ extract(vhname)
 		}
 		if (interactive && !ia_change(ptb, &finfo)) {
 			if (!nflag)
-				printf("Skipping ...\n");
+				fprintf(vpr, "Skipping ...\n");
 			void_file(&finfo);
 			continue;
 		}
@@ -164,10 +175,23 @@ extract(vhname)
 			if (!make_symlink(&finfo))
 				continue;
 		} else if (is_special(&finfo)) {
-			if (is_fifo(&finfo) && !make_fifo(&finfo))
-				continue;
-			if (!make_special(&finfo))
-				continue;
+			if (is_door(&finfo)) {
+				if (!nowarn) {
+					errmsgno(EX_BAD,
+					"WARNING: Extracting door '%s' as plain file.\n",
+						finfo.f_name);
+				}
+				if (!get_file(&finfo))
+					continue;
+			} else if (is_fifo(&finfo)) {
+				if (!make_fifo(&finfo))
+					continue;
+			} else {
+				if (!make_special(&finfo))
+					continue;
+			}
+		} else if (is_meta(&finfo)) {
+			void_file(&finfo);
 		} else if (!get_file(&finfo))
 				continue;
 		if (!to_stdout)
@@ -201,7 +225,7 @@ newer(info)
 	 */
 	if (cinfo.f_mtime >= info->f_mtime) {
 
-	newer:
+	isnewer:
 		if (!nowarn)
 			errmsgno(EX_BAD, "current '%s' newer.\n", info->f_name);
 		return (TRUE);
@@ -211,7 +235,7 @@ newer(info)
 		 * of 2 seconds. So we need to be a bit more generous.
 		 * XXX We should be able to test the filesytem type.
 		 */
-		goto newer;
+		goto isnewer;
 	}
 	return (FALSE);
 }
@@ -261,64 +285,6 @@ same_symlink(info)
 #endif	/* XXX*/
 
 #endif
-	return (FALSE);
-}
-
-LOCAL BOOL
-remove_file(name, isfirst)
-	register char	*name;
-		 BOOL	isfirst;
-{
-	char	buf[32];
-	char	ans;
-	int	err = EX_BAD;
-extern	FILE	*tty;
-extern	BOOL	interactive;
-extern	BOOL	force_remove;
-extern	BOOL	ask_remove;
-
-	if (remove_first && !isfirst)
-		return (FALSE);
-	if (interactive || ask_remove) {
-		printf("remove '%s' ? Y(es)/N(o) :", name);flush();
-		fgetline(tty, buf, 2);
-	}
-	if (force_remove ||
-	    ((interactive || ask_remove) && (ans = toupper(buf[0])) == 'Y')) {
-
-		/*
-		 * only unlink non directories or empty
-		 * directories
-		 * XXX need to implement the -remove_recursive flag
-		 */
-		if (rmdir(name) < 0) {
-			err = geterrno();
-			if (err == EACCES)
-				goto cannot;
-
-#if	defined(__CYGWIN32__)
-			if (err == ENOTEMPTY) {
-				/*
-				 * Cygwin returns ENOTEMPTY if 'name'
-				 * is not a dir.
-				 * XXX Never do this on UNIX.
-				 * XXX If you are root, you may unlink
-				 * XXX even nonempty directories.
-				 */
-				err = ENOTDIR;
-			}
-#endif
-			if (err == ENOTDIR) {
-				if (unlink(name) < 0) {
-					err = geterrno();
-					goto cannot;
-				}
-			}
-		}
-		return (TRUE);
-	}
-cannot:
-	errmsgno(err, "File '%s' not removed.\n", name);
 	return (FALSE);
 }
 
@@ -376,6 +342,9 @@ make_dir(info)
 	FINFO	dinfo;
 	int	err;
 
+	if (dometa)
+		return (TRUE);
+
 	if (create_dirs(info->f_name)) {
 		if (getinfo(info->f_name, &dinfo) && is_dir(&dinfo))
 			return (TRUE);
@@ -401,8 +370,13 @@ make_link(info)
 {
 	int	err;
 
+	if (dometa)
+		return (TRUE);
+
 	if (copylinks)
 		return (make_copy(info, FALSE));
+	else if (hardlinks)
+		return (emul_link(info));
 
 #ifdef	HAVE_LINK
 	if (uncond)
@@ -421,12 +395,12 @@ make_link(info)
 			return (TRUE);
 	}
 	xstats.s_openerrs++;
-	errmsg("Cannot create '%s'.\n", info->f_name);
+	errmsg("Cannot link '%s' to '%s'.\n", info->f_name, info->f_lname);
 	return(FALSE);
 #else	/* HAVE_LINK */
 	xstats.s_isspecial++;
-	errmsgno(EX_BAD, "Not supported. Cannot create link '%s'.\n",
-							info->f_name);
+	errmsgno(EX_BAD, "Not supported. Cannot link '%s' to '%s'.\n",
+						info->f_name, info->f_lname);
 	return (FALSE);
 #endif	/* HAVE_LINK */
 }
@@ -437,8 +411,13 @@ make_symlink(info)
 {
 	int	err;
 
+	if (dometa)
+		return (TRUE);
+
 	if (copylinks)
 		return (make_copy(info, TRUE));
+	else if (symlinks)
+		return (emul_symlink(info));
 
 #ifdef	S_IFLNK
 	if (uncond)
@@ -457,20 +436,44 @@ make_symlink(info)
 			return (TRUE);
 	}
 	xstats.s_openerrs++;
-	errmsg("Cannot create symbolic link '%s'.\n", info->f_name);
+	errmsg("Cannot create symbolic link '%s' to '%s'.\n",
+						info->f_name, info->f_lname);
 	return (FALSE);
 #else	/* S_IFLNK */
 	xstats.s_isspecial++;
-	errmsgno(EX_BAD, "Not supported. Cannot create symbolic link '%s'.\n",
-							info->f_name);
+	errmsgno(EX_BAD, "Not supported. Cannot create symbolic link '%s' to '%s'.\n",
+						info->f_name, info->f_lname);
 	return (FALSE);
 #endif	/* S_IFLNK */
 }
 
 LOCAL BOOL
-make_copy(info, emul_symlink)
+emul_symlink(info)
 	FINFO	*info;
-	BOOL	emul_symlink;
+{
+	errmsgno(EX_BAD, "Option -symlinks not yet implemented.\n");
+	errmsgno(EX_BAD, "Cannot create symbolic link '%s' to '%s'.\n",
+						info->f_name, info->f_lname);
+	return (FALSE);
+}
+
+LOCAL BOOL
+emul_link(info)
+	FINFO	*info;
+{
+	errmsgno(EX_BAD, "Option -hardlinks not yet implemented.\n");
+	errmsgno(EX_BAD, "Cannot link '%s' to '%s'.\n", info->f_name, info->f_lname);
+#ifdef	HAVE_LINK
+	return (FALSE);
+#else
+	return (FALSE);
+#endif	/* S_IFLNK */
+}
+
+LOCAL BOOL
+make_copy(info, do_symlink)
+	FINFO	*info;
+	BOOL	do_symlink;
 {
 	int	ret;
 	int	err;
@@ -478,29 +481,30 @@ make_copy(info, emul_symlink)
 	if (uncond)
 		unlink(info->f_name);
 
-	if ((ret = copy_file(info->f_lname, info->f_name, emul_symlink)) >= 0)
+	if ((ret = copy_file(info->f_lname, info->f_name, do_symlink)) >= 0)
 		return (TRUE);
 	err = geterrno();
 	if (ret != -2 && create_dirs(info->f_name)) {
-		if (copy_file(info->f_lname, info->f_name, emul_symlink) >= 0)
+		if (copy_file(info->f_lname, info->f_name, do_symlink) >= 0)
 			return (TRUE);
 		err = geterrno();
 	}
-	if ((err == EACCES || err == EEXIST) &&
+	if ((err == EACCES || err == EEXIST || err == EISDIR) &&
 			remove_file(info->f_name, FALSE)) {
-		if (copy_file(info->f_lname, info->f_name, emul_symlink) >= 0)
+		if (copy_file(info->f_lname, info->f_name, do_symlink) >= 0)
 			return (TRUE);
 	}
 	xstats.s_openerrs++;
-	errmsg("Cannot create '%s'.\n", info->f_name);
+	errmsg("Cannot create link copy '%s' from '%s'.\n",
+					info->f_name, info->f_lname);
 	return(FALSE);
 }
 
 LOCAL int
-copy_file(from, to, emul_symlink)
+copy_file(from, to, do_symlink)
 	char	*from;
 	char	*to;
-	BOOL	emul_symlink;
+	BOOL	do_symlink;
 {
 	FINFO	finfo;
 	FILE	*fin;
@@ -509,7 +513,18 @@ copy_file(from, to, emul_symlink)
 	char	buf[8192];
 	char	nbuf[PATH_MAX+1];
 
-	if (emul_symlink && from[0] != '/') {
+	/*
+	 * When tar archives hard links, both names (from/to) are relative to
+	 * the current directory. With symlinks this does not work. Symlinks
+	 * are always evaluated relative to the directory they reside in.
+	 * For this reason, we cannot simply open the from/to files if we
+	 * like to emulate a symbolic link. To emulate the behavior of a
+	 * symbolic link, we concat the the directory part of the 'to' name
+	 * (which is the path that becomes the sombolic link) to the complete
+	 * 'from' name (which is the path the symbolic linkc pints to) in case
+	 * the 'from' name is a relative path name.
+	 */
+	if (do_symlink && from[0] != '/') {
 		char	*p = strrchr(to, '/');
 		int	len;
 
@@ -533,7 +548,7 @@ copy_file(from, to, emul_symlink)
 	}
 	if (!is_file(&finfo)) {
 		errmsgno(EX_BAD, "Not a file. Cannot copy from '%s'.\n", from);
-		errno = EINVAL;
+		seterrno(EINVAL);
 		return (-2);
 	}
 
@@ -559,6 +574,9 @@ make_fifo(info)
 {
 	int	mode;
 	int	err;
+
+	if (dometa)
+		return (TRUE);
 
 #ifdef	HAVE_MKFIFO
 	mode = info->f_mode | info->f_type;
@@ -598,6 +616,9 @@ make_special(info)
 	int	mode;
 	int	dev;
 	int	err;
+
+	if (dometa)
+		return (TRUE);
 
 #ifdef	HAVE_MKNOD
 	mode = info->f_mode | info->f_type;
@@ -639,13 +660,16 @@ get_file(info)
 		int	err;
 		int	ret;
 
+	if (dometa)
+		return (TRUE);
+
 	if (to_stdout) {
 		f = stdout;
 	} else if ((f = fileopen(info->f_name, "wctub")) == (FILE *)NULL) {
 		err = geterrno();
 		if (err == EMISSDIR && create_dirs(info->f_name))
 			return get_file(info);
-		if ((err == EACCES || err == EEXIST) &&
+		if ((err == EACCES || err == EEXIST || err == EISDIR) &&
 					remove_file(info->f_name, FALSE)) {
 			return get_file(info);
 		}
@@ -670,13 +694,25 @@ get_file(info)
 		die(EX_BAD);
 	}
 	if (!to_stdout) {
+#ifdef	HAVE_FSYNC
+		int	cnt;
+#endif
 		if (ret == FALSE)
 			xstats.s_rwerrs--;	/* Compensate overshoot below */
 
 		if (fflush(f) != 0)
 			ret = FALSE;
 #ifdef	HAVE_FSYNC
-		if (fsync(fdown(f)) != 0)
+		err = 0;
+		cnt = 0;
+		do {
+			if (fsync(fdown(f)) != 0)
+				err = geterrno();
+
+			if (err == EINVAL)
+				err = 0;
+		} while (err == EINTR && ++cnt < 10);
+		if (err != 0)
 			ret = FALSE;
 #endif
 		if (fclose(f) != 0)
@@ -726,9 +762,9 @@ xt_file(info, func, arg, amt, text)
 		int	amt;
 		char	*text;
 {
-	register int	amount;
-	register long	size;
-	register int	tsize;
+	register int	amount; /* XXX ??? */
+	register off_t	size;
+	register int	tasize;
 		 BOOL	ret = TRUE;
 
 	size = info->f_rsize;
@@ -747,7 +783,7 @@ xt_file(info, func, arg, amt, text)
 		amount = (amount / TBLOCK) * TBLOCK;
 		amount = min(size, amount);
 		amount = min(amount, amt);
-		tsize = tarsize(amount);
+		tasize = tarsize(amount);
 
 		if ((*func)(arg, bigptr, amount) != amount) {
 			ret = FALSE;
@@ -757,7 +793,7 @@ xt_file(info, func, arg, amt, text)
 		}
 
 		size -= amount;
-		buf_rwake(tsize);
+		buf_rwake(tasize);
 	}
 	return (ret);
 }
@@ -769,7 +805,7 @@ skip_slash(info)
 	static	BOOL	warned = FALSE;
 
 	if (!warned && !nowarn) {
-		errmsgno(EX_BAD, "Warning: skipping leading '/' on filenames.\n");
+		errmsgno(EX_BAD, "WARNING: skipping leading '/' on filenames.\n");
 		warned = TRUE;
 	}
 	/* XXX

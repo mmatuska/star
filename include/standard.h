@@ -1,4 +1,4 @@
-/* @(#)standard.h	1.27 01/02/23 Copyright 1985 J. Schilling */
+/* @(#)standard.h	1.29 01/11/11 Copyright 1985 J. Schilling */
 /*
  *	standard definitions
  *
@@ -8,6 +8,8 @@
  *	stdio.h
  *	stdlib.h	(better use stdxlib.h)
  *	unistd.h	(better use unixstd.h) needed LARGEFILE support
+ *
+ *	If you need stdio.h, you must include it before standard.h
  *
  *	Copyright (c) 1985 J. Schilling
  */
@@ -112,6 +114,16 @@ typedef int BOOL;
 #	endif
 #endif
 
+#ifdef	__never_def__
+/*
+ * It turns out that we cannot use the folloginw definition because there are
+ * some platforms that do not behave application friendly. These are mainly
+ * BSD-4.4 based systems (which #undef a definition when size_t is available.
+ * We actually removed this code because of a problem with QNX Neutrino.
+ * For this reason, it is important not to include <sys/types.h> directly but
+ * via the Schily SING include files so we know whether it has been included
+ * before we come here.
+ */
 #if	defined(_SIZE_T)     || defined(_T_SIZE_) || defined(_T_SIZE) || \
 	defined(__SIZE_T)    || defined(_SIZE_T_) || \
 	defined(_GCC_SIZE_T) || defined(_SIZET_)  || \
@@ -121,11 +133,20 @@ typedef int BOOL;
 #	define	FOUND_SIZE_T	/* We already included a size_t definition */
 #endif
 #endif
+#endif	/* __never_def__ */
 
 #if defined(_JOS) || defined(JOS)
+#	ifndef	_SCHILY_H
 #	include <schily.h>
+#	endif
+
+#	ifndef	_JOS_DEFS_H
 #	include <jos_defs.h>
+#	endif
+
+#	ifndef	_JOS_IO_H
 #	include <jos_io.h>
+#	endif
 #endif
 
 #endif	/* _STANDARD_H */

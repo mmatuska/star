@@ -1,4 +1,4 @@
-#ident "@(#)rules1.top	1.22 01/02/04 "
+#ident "@(#)rules1.top	1.23 02/01/27 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -29,6 +29,13 @@
 #
 ###########################################################################
 _UNIQ= .XxZzy-
+
+###########################################################################
+#
+# Make sure this becomes the default target
+#
+###########################################################################
+all:
 
 ###########################################################################
 #
@@ -158,17 +165,12 @@ INCDIRS=	$(__INCDIRS:$(_UNIQ)%=%)
 
 ###########################################################################
 #
-# Build $(ARCHDIR) which occupies a central role in the whole
-# make file system. ARCHDIR is used as a sub directory name to keep
-# platform dependent files on different places.
+# Prepare come macros needed to build $(ARCHDIR)
 #
-# It is built from:
+# Build macros for:
 #	- processor type
 #	- operating system
 #	- compiler identification
-#
-# A possible name could be:
-#	mc68020-sunos4-cc
 #
 ###########################################################################
 KARCH_DEF=	$(K_ARCH)
@@ -185,11 +187,51 @@ _PARCH=		$(_UNIQ)$(ARCH)
 __PARCH=	$(_PARCH:$(_UNIQ)=$(PARCH_DEF))
 PARCH=		$(__PARCH:$(_UNIQ)%=%)
 
+###########################################################################
+#
+# Now include the file $(SRCROOT)/incs/Dcc.$(PARCH)$(-O_ARCH) 
+# which is needed if the C-complier from the manual default configutration 
+# is not present on the current system. We try to use GCC as fallback
+# in this case.
+#
+# Due to a serious bug in SunPRO make we need to do some tricks to make
+# the following code working.
+# SunPRO make inconsistsently shortens rules that start with "./"
+# and thus will not find existing rules for a file to be included.
+# We use pattern matching macro expansions to consistently shorten the
+# name if it starts with "./".
+# Note that Thus bug has been reported to Sun in 1998 but Sun seems not
+# interested to fix the bug.
+#
+###########################################################################
+__DCC= $(SRCROOT)/incs/Dcc.$(PARCH)$(-O_ARCH)
+_DCC=  $(__DCC:./%=%)
+
+$(_DCC):
+	sh $(SRCROOT)/conf/cc-config.sh $(C_ARCH) $@
+
+include		$(_DCC)
+
+###########################################################################
+#
+# Build $(ARCHDIR) which occupies a central role in the whole
+# make file system. ARCHDIR is used as a sub directory name to keep
+# platform dependent files on different places.
+#
+# It is built from:
+#	- processor type
+#	- operating system
+#	- compiler identification
+#
+# A possible name could be:
+#	mc68020-sunos4-cc
+#
+###########################################################################
 #OARCH=		$(MARCH)$(-O_ARCH)-$(C_ARCH)
 OARCH=		$(PARCH)$(-O_ARCH)-$(C_ARCH)
 XARCH=		$(K_ARCH)$(-O_ARCH)-$(C_ARCH)
 .print:
-	echo $(XP_ARCH) $(P_ARCH)
+	echo $(XP_ARCH) $(P_ARCH) $(OARCH) $(XARCH)
 
 ###########################################################################
 #

@@ -1,4 +1,4 @@
-/* @(#)fillbytes.c	1.11 00/05/07 Copyright 1987 J. Schilling */
+/* @(#)fillbytes.c	1.12 02/02/28 Copyright 1987 J. Schilling */
 /*
  *	fill memory with data
  *
@@ -49,10 +49,13 @@ char *fillbytes(tov, cnt, val)
 
 	lval = val & 0xFF;
 
-	while (!laligned(to)) {
+	/*
+	 * Assign byte-wise until properly aligned for a long pointer.
+	 */
+	while (--n >= 0 && !laligned(to)) {
 		*to++ = cval;
-		n--;
 	}
+	n++;
 
 	if (n >= (int)(8 * sizeof(long))) {
 		register int rem = n % (8 * sizeof (long));

@@ -1,4 +1,4 @@
-/* @(#)getcwd.h	1.2 99/11/14 Copyright 1998 J. Schilling */
+/* @(#)getcwd.h	1.3 01/07/15 Copyright 1998 J. Schilling */
 /*
  *	Definitions for getcwd()
  *
@@ -28,7 +28,10 @@
 #endif
 
 #ifdef JOS
+#	ifndef	_INCL_SYS_STYPES_H
 #	include <sys/stypes.h>
+#	define	_INCL_SYS_STYPES_H
+#	endif
 	extern char	*gwd();
 #	define		getcwd(b, len)	gwd(b)
 #else

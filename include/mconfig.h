@@ -1,4 +1,4 @@
-/* @(#)mconfig.h	1.38 00/12/04 Copyright 1995 J. Schilling */
+/* @(#)mconfig.h	1.39 01/10/27 Copyright 1995 J. Schilling */
 /*
  *	definitions for machine configuration
  *
@@ -30,6 +30,11 @@
 
 #ifndef _MCONFIG_H
 #define _MCONFIG_H
+
+/*
+ * Tell our users that this is a Schily SING compile environment.
+ */
+#define	IS_SCHILY
 
 /*
  * This hack that is needed as long as VMS has no POSIX shell.
@@ -254,7 +259,9 @@ extern "C" {
 #define LOCK_UN         8       /* unlock */
 #endif
 
+#ifndef	_PROTOTYP_H
 #include <prototyp.h>
+#endif
 
 /*
  * gcc 2.x generally implements the long long type.

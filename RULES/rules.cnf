@@ -1,4 +1,4 @@
-#ident @(#)rules.cnf	1.6 01/02/25 
+#ident @(#)rules.cnf	1.7 02/01/27 
 ###########################################################################
 # Written 1998 by J. Schilling
 ###########################################################################
@@ -41,8 +41,6 @@ __CCCOM=	$(_CCCOM:$(_UNIQ)=$(HCCCOM))
 XCCCOM=		$(__CCCOM:$(_UNIQ)%=%)
 
 #CONFFLAGS +=	-cc=$(XCCCOM)
-
-include		$(DEFLTSROOT)/$(DEFLTSDIR)/Defaults
 
 $(OINCSDIR)/rules.cnf $(OINCSDIR)/xconfig.h: $(OINCSDIR)/Inull \
 						$(SRCROOT)/conf/configure \

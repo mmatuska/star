@@ -1,4 +1,4 @@
-/* @(#)fctldefs.h	1.8 00/12/17 Copyright 1996 J. Schilling */
+/* @(#)fctldefs.h	1.11 01/12/05 Copyright 1996 J. Schilling */
 /*
  *	Generic header for users of open(), creat() and chmod()
  *
@@ -27,23 +27,24 @@
 #include <mconfig.h>
 #endif
 
-#ifndef	_INCL_SYS_TYPES_H
-#include <sys/types.h>		/* Needed for sys/stat.h		*/
-#define	_INCL_SYS_TYPES_H
-#endif
-#ifndef	_INCL_SYS_STAT_H
-#include <sys/stat.h>		/* For 3rd arg of open() and chmod()	*/
-#define	_INCL_SYS_STAT_H
+#ifndef	_STATDEFS_H
+#include <statdefs.h>		/* For 3rd arg of open() and chmod()	*/
 #endif
 
 #ifdef	HAVE_SYS_FILE_H
 /*
  * Historical systems with flock() only need sys/file.h
  */
+#	ifndef	_INCL_SYS_FILE_H
 #	include <sys/file.h>
+#	define	_INCL_SYS_FILE_H
+#	endif
 #endif
 #ifdef	HAVE_FCNTL_H
+#	ifndef	_INCL_FCNTL_H
 #	include <fcntl.h>
+#	define	_INCL_FCNTL_H
+#endif
 #endif
 
 /*
@@ -64,6 +65,9 @@
 #endif
 #ifndef	O_BINARY			/* Only present on DOS or similar */
 #	define	O_BINARY	0
+#endif
+#ifndef	O_NDELAY			/* This is undefined on BeOS :-( */
+#	define	O_NDELAY	0
 #endif
 
 #ifndef	O_ACCMODE

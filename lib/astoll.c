@@ -1,4 +1,4 @@
-/* @(#)astoll.c	1.1 00/12/03 Copyright 1985,2000 J. Schilling */
+/* @(#)astoll.c	1.2 01/08/21 Copyright 1985,2000 J. Schilling */
 /*
  *	astoll() converts a string to long long
  *
@@ -47,9 +47,16 @@ char *astoll(s, l)
 	register const char *s;
 	Llong *l;
 {
+	return (astollb(s, l, 0));
+}
+
+char *astollb(s, l, base)
+	register const char *s;
+	Llong *l;
+	register int base;
+{
 	int neg = 0;
 	register Llong ret = (Llong)0;
-	register int base = 10;
 	register int digit;
 	register char c;
 	
@@ -63,12 +70,16 @@ char *astoll(s, l)
 		neg++;
 	}
 
-	if (*s == '0') {
-		base = 8;
-		s++;
-		if (*s == 'x' || *s == 'X') {
+	if (base == 0) {
+		if (*s == '0') {
+			base = 8;
 			s++;
-			base = 16;
+			if (*s == 'x' || *s == 'X') {
+				s++;
+				base = 16;
+			}
+		} else {
+			base = 10;
 		}
 	}
 	for (;(c = *s) != 0; s++) {

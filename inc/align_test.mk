@@ -8,6 +8,7 @@ include		$(SRCROOT)/$(RULESDIR)/rules.top
 INSDIR=		include
 TARGET=		align.h
 TARGETC=	align_test
+CPPOPTS +=	-D__OPRINTF__
 CFILES=		align_test.c
 
 ###########################################################################

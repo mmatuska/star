@@ -1,4 +1,4 @@
-/* @(#)fexec.c	1.18 00/05/07 Copyright 1985 J. Schilling */
+/* @(#)fexec.c	1.20 02/04/20 Copyright 1985 J. Schilling */
 /*
  *	Execute a program with stdio redirection
  *
@@ -234,7 +234,9 @@ int fexecve(name, in, out, err, av, env)
 		}
 	}
 	return(ret);
-#else
+
+#else	/* JOS */
+
 	if (fin != 0) {
 		f[0] = fcntl(0, F_GETFD, 0);
 		o[0] = dup(0);
@@ -265,12 +267,16 @@ int fexecve(name, in, out, err, av, env)
 	 * or name is too long ...
 	 * try exec without path search.
 	 */
+#ifdef	FOUND_MAXFILENAME
 	if (strchr(name, '/') || strlen(name) > (unsigned)MAXFILENAME) {
+#else
+	if (strchr(name, '/')) {
+#endif
 		ret = execve (name, av, env);
 
 	} else if ((path = getpath(env)) == NULL) {
 		ret = execve (name, av, env);
-		if ((errno == ENOENT) && strlen (name) <= (sizeof(nbuf) - 6)) {
+		if ((geterrno() == ENOENT) && strlen (name) <= (sizeof(nbuf) - 6)) {
 			strcatl(nbuf, "/bin/", name, NULL);
 			ret = execve (nbuf, av, env);
 		}
@@ -288,12 +294,12 @@ int fexecve(name, in, out, err, av, env)
 			else
 				strcatl(nbuf, nbuf, "/", name, NULL);
 			ret = execve (nbuf, av, env);
-			if (errno != ENOENT || *path == '\0')
+			if (geterrno() != ENOENT || *path == '\0')
 				break;
 			path++;
 		}
 	}
-	errsav = errno;
+	errsav = geterrno();
 			/* reestablish old files */
 	if (ferr != 2) {
 		fdmove(2, ferr);
@@ -313,9 +319,10 @@ int fexecve(name, in, out, err, av, env)
 		if(f[0] == 0)
 			fcntl(0, F_SETFD, 0);
 	}
-	errno = errsav;
+	seterrno(errsav);
 	return(ret);
-#endif
+
+#endif	/* JOS */
 }
 
 #ifndef	JOS

@@ -1,4 +1,4 @@
-/* @(#)jssnprintf.c	1.6 00/05/07 Copyright 1985 J. Schilling */
+/* @(#)jssnprintf.c	1.7 01/10/29 Copyright 1985 J. Schilling */
 /*
  *	Copyright (c) 1985 J. Schilling
  */
@@ -19,7 +19,7 @@
  */
 
 #include <mconfig.h>
-#include <sys/types.h>		/* Try to get size_t	*/
+#include <unixstd.h>		/* include <sys/types.h> try to get size_t */
 #include <stdio.h>		/* Try again for size_t	*/
 #include <stdxlib.h>		/* Try again for size_t	*/
 #include <vadefs.h>

@@ -690,10 +690,11 @@ EOF
 		echo ${UNAME_MACHINE}-pc-sysv${UNAME_RELEASE}
 	fi
 	exit 0 ;;
-    i?86:*:5:7*)
+    i?86:*:5:*)
         # Fixed at (any) Pentium or better
         UNAME_MACHINE=i586
-        if [ ${UNAME_SYSTEM} = "UnixWare" ] ; then
+        if [ ${UNAME_SYSTEM} = "UnixWare" ] ||
+	   [ ${UNAME_SYSTEM} = "OpenUNIX" ]; then
             echo ${UNAME_MACHINE}-sco-sysv${UNAME_RELEASE}uw${UNAME_VERSION}
         else
             echo ${UNAME_MACHINE}-pc-sysv${UNAME_RELEASE}

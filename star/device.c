@@ -1,7 +1,7 @@
-/* @(#)device.c	1.7 01/02/15 Copyright 1996 J. Schilling */
+/* @(#)device.c	1.8 01/10/29 Copyright 1996 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)device.c	1.7 01/02/15 Copyright 1996 J. Schilling";
+	"@(#)device.c	1.8 01/10/29 Copyright 1996 J. Schilling";
 #endif
 /*
  *	Handle local and remote device major/minor mappings
@@ -25,7 +25,6 @@ static	char sccsid[] =
  */
 
 #include <mconfig.h>
-#include <sys/types.h>
 #include <standard.h>
 #include <schily.h>
 #define	__XDEV__	/* Needed to activate XDEV_T definitions */

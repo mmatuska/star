@@ -1,4 +1,4 @@
-/* @(#)fconv.c	1.29 01/03/04 Copyright 1985 J. Schilling */
+/* @(#)fconv.c	1.31 01/11/11 Copyright 1985 J. Schilling */
 /*
  *	Convert floating point numbers to strings for format.c
  *	Should rather use the MT-safe routines [efg]convert()
@@ -73,8 +73,12 @@ extern	char	*fcvt __PR((double, int, int *, int *));
  * SVR4
  */
 #include <ieeefp.h>
+#ifndef	isnan
 #define	isnan	isnand
+#endif
+#ifndef	isinf
 #define	isinf	!finite
+#endif
 #define	FOUND_ISXX
 #endif
 
@@ -82,7 +86,7 @@ extern	char	*fcvt __PR((double, int, int *, int *));
  * WAS:
  * #if	defined(__hpux) || defined(VMS) || defined(_SCO_DS) || defined(__QNX__)
  */
-#if	defined(__hpux)
+#if	defined(__hpux) || defined(__QNX__)
 #undef	isnan
 #undef	isinf
 #endif
@@ -98,8 +102,8 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 #include "cvt.c"
 #endif
 
-static	char	_nan[] = "(NaN)";
-static	char	_inf[] = "(Infinity)";
+static	char	_js_nan[] = "(NaN)";
+static	char	_js_inf[] = "(Infinity)";
 
 static	int	_ferr __PR((char *, double));
 
@@ -248,16 +252,16 @@ _ferr(s, val)
 	double	val;
 {
 	if (isnan(val)){
-		strcpy(s, _nan);
-		return (sizeof (_nan) - 1);
+		strcpy(s, _js_nan);
+		return (sizeof (_js_nan) - 1);
 	}
 
 	/*
 	 * Check first for NaN because finite() will return 1 on Nan too.
 	 */
 	if (isinf(val)){
-		strcpy(s, _inf);
-		return (sizeof (_inf) - 1);
+		strcpy(s, _js_inf);
+		return (sizeof (_js_inf) - 1);
 	}
 	return 0;
 }

@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident "%W% %E% %Q%"
+#ident "@(#)mkdep-sco.sh	1.2 01/09/05 "
 ###########################################################################
 # Copyright 1999 by J. Schilling
 ###########################################################################
@@ -44,4 +44,4 @@ done
 
 OFILES=`echo "$FILES" | sed 's;\(.*\).c;\1.o;'`
 
-cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | sed -e "s;^;$OFILES: ;"
+cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | grep -hv '^UX:' | sed -e "s;^;$OFILES: ;"

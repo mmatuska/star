@@ -7,9 +7,12 @@
 #
 # Compiler stuff
 #
+# When QNX support started in december 1999, there was only the watcom
+# C-compler (cc). Now, in novemver 2001 we switch to gcc.
+#
 ###########################################################################
-DEFCCOM=	cc
-#DEFCCOM=	gcc
+#DEFCCOM=	cc
+DEFCCOM=	gcc
 ###########################################################################
 #
 # If the next line is commented out, compilattion is done with max warn level

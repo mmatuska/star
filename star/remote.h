@@ -1,4 +1,4 @@
-/* @(#)remote.h	1.1 00/11/12 Copyright 1996 J. Schilling */
+/* @(#)remote.h	1.7 01/08/02 Copyright 1996 J. Schilling */
 /*
  *	Prototypes for rmt client subroutines
  *
@@ -23,16 +23,63 @@
 #ifndef	_REMOTE_H
 #define	_REMOTE_H
 
+#ifndef	_INCL_SYS_TYPES_H
+#include <sys/types.h>
+#define	_INCL_SYS_TYPES_H
+#endif
+
+/*
+ * Definitions for the new RMT Protocol version 1
+ *
+ * The new Protocol version tries to make the use
+ * of rmtioctl() more portable between different platforms.
+ */
+#define	RMTIVERSION	-1
+#define	RMT_NOVERSION	-1
+#define	RMT_VERSION	1
+
+/*
+ * Support for commands bejond MTWEOF..MTNOP (0..7)
+ */
+#define	RMTICACHE	0
+#define	RMTINOCACHE	1
+#define	RMTIRETEN	2
+#define	RMTIERASE	3
+#define	RMTIEOM		4
+#define	RMTINBSF	5
+
+/*
+ * Old MTIOCGET copies a binary version of struct mtget back
+ * over the wire. This is highly non portable.
+ * MTS_* retrieves ascii versions (%d format) of a single
+ * field in the struct mtget.
+ * NOTE: MTS_ERREG may only be valid on the first call and
+ *	 must be retrived first.
+ */
+#define	MTS_TYPE	'T'		/* mtget.mt_type */
+#define	MTS_DSREG	'D'		/* mtget.mt_dsreg */
+#define	MTS_ERREG	'E'		/* mtget.mt_erreg */
+#define	MTS_RESID	'R'		/* mtget.mt_resid */
+#define	MTS_FILENO	'F'		/* mtget.mt_fileno */
+#define	MTS_BLKNO	'B'		/* mtget.mt_blkno */
+#define	MTS_FLAGS	'f'		/* mtget.mt_flags */
+#define	MTS_BF		'b'		/* mtget.mt_bf */
+
 /*
  * remote.c
  */
+extern	int		rmtdebug	__PR((int dlevel));
+extern	char		*rmtfilename	__PR((char *name));
+extern	char		*rmthostname	__PR((char *hostname, char *rmtspec, int size));
 extern	int		rmtgetconn	__PR((char* host, int size));
 extern	int		rmtopen		__PR((int fd, char* fname, int fmode));
 extern	int		rmtclose	__PR((int fd));
 extern	int		rmtread		__PR((int fd, char* buf, int count));
 extern	int		rmtwrite	__PR((int fd, char* buf, int count));
-extern	int		rmtseek		__PR((int fd, long offset, int whence));
+extern	off_t		rmtseek		__PR((int fd, off_t offset, int whence));
 extern	int		rmtioctl	__PR((int fd, int cmd, int count));
-extern	struct	mtget* rmtstatus	__PR((int fd));
+#ifdef	MTWEOF
+extern	int		rmtstatus	__PR((int fd, struct mtget* mtp));
+#endif
 
 #endif	/* _REMOTE_H */

@@ -1,6 +1,6 @@
 Never compile anything in a locale other than "C" unless you are sure
 that your C-compiler and the program 'nm' has been patched.
-This is not needed with Solrais 2.6 or later and with the Workshop 5.0
+This is not needed with Solaris 2.6 or later and with the Workshop 5.0
 compiler or later.
 
 To ensure that locale "C"' is set, do

@@ -1,4 +1,4 @@
-/* @(#)unixstd.h	1.6 01/02/20 Copyright 1996 J. Schilling */
+/* @(#)unixstd.h	1.8 01/10/27 Copyright 1996 J. Schilling */
 /*
  *	Definitions for unix system interface
  *
@@ -33,7 +33,10 @@
 #include <sys/types.h>
 #define	_INCL_SYS_TYPES_H
 #endif
+#ifndef	_INCL_UNISTD_H
 #include <unistd.h>
+#define	_INCL_UNISTD_H
+#endif
 
 #ifndef	_SC_PAGESIZE
 #ifdef	_SC_PAGE_SIZE	/* HP/UX & OSF */
@@ -55,7 +58,9 @@
 
 #ifndef	STDIN_FILENO
 #	ifdef	JOS
+#		ifndef	_JOS_IO_H
 #		include <jos_io.h>
+#		endif
 #	else
 #		define	STDIN_FILENO	0
 #		define	STDOUT_FILENO	1

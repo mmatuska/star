@@ -1,4 +1,4 @@
-#ident @(#)bemac-beos-mwcc.rul	1.2 01/02/25 
+#ident @(#)bemac-beos-mwcc.rul	1.3 01/11/26 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -27,10 +27,13 @@ CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
 CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
 
 #
-# XXX -DNO_FLOATINGPOINT use the printf() stuff of libroot.so
-# XXX In order to do so, disable the (f,s)printf() code in libschily.
+# XXX Old BeOS needs libroot.so to get [efg]cvt()
+# XXX New BeOS seems to have this in libc and in addition we include
+# XXX strtod.c for floating point conversion on OS without such code.
+# XXX For this reason, -DNO_FLOATINGPOINT -DUSE_FLOATINGARGS has been
+# XXX removed and printing floating numbers will work with old/new BeOS
 #
-OSDEFS +=	-DNO_FLOATINGPOINT -DUSE_FLOATINGARGS
+#OSDEFS +=	-DNO_FLOATINGPOINT -DUSE_FLOATINGARGS
 
 CPPOPTS=	-relax_pointers -opt all -sym on -g -i- -I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=

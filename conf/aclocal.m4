@@ -1,4 +1,4 @@
-dnl @(#)aclocal.m4	1.18 01/02/24 Copyright 1998 J. Schilling
+dnl @(#)aclocal.m4	1.26 02/05/20 Copyright 1998 J. Schilling
 
 dnl Set VARIABLE to VALUE in C-string form, verbatim, or 1.
 dnl AC_DEFINE_STRING(VARIABLE [, VALUE])
@@ -17,7 +17,7 @@ EOF
 
 dnl Checks if structure 'stat' have field 'st_spare1'.
 dnl Defines HAVE_ST_SPARE1 on success.
-AC_DEFUN(AC_STRUCT_ST_SPARE1,
+AC_DEFUN([AC_STRUCT_ST_SPARE1],
 [AC_CACHE_CHECK([if struct stat contains st_spare1], ac_cv_struct_st_spare1,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/stat.h>],
@@ -30,7 +30,7 @@ fi])
 
 dnl Checks if structure 'stat' have field 'st_atim.tv_nsec'.
 dnl Defines HAVE_ST_NSEC on success.
-AC_DEFUN(AC_STRUCT_ST_NSEC,
+AC_DEFUN([AC_STRUCT_ST_NSEC],
 [AC_CACHE_CHECK([if struct stat contains st_atim.tv_nsec], ac_cv_struct_st_nsec,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/stat.h>],
@@ -41,9 +41,22 @@ if test $ac_cv_struct_st_nsec = yes; then
   AC_DEFINE(HAVE_ST_NSEC)
 fi])
 
+dnl Checks if structure 'stat' have field 'st_flags'.
+dnl Defines HAVE_ST_FLAGS on success.
+AC_DEFUN([AC_STRUCT_ST_FLAGS],
+[AC_CACHE_CHECK([if struct stat contains st_flags], ac_cv_struct_st_flags,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_flags = 0;],
+                                [ac_cv_struct_st_flags=yes],
+                                [ac_cv_struct_st_flags=no])])
+if test $ac_cv_struct_st_flags = yes; then
+  AC_DEFINE(HAVE_ST_FLAGS)
+fi])
+
 dnl Checks if structure 'mtget' have field 'mt_type'.
 dnl Defines HAVE_MTGET_TYPE on success.
-AC_DEFUN(AC_STRUCT_MTGET_TYPE,
+AC_DEFUN([AC_STRUCT_MTGET_TYPE],
 [AC_CACHE_CHECK([if struct mtget contains mt_type], ac_cv_struct_mtget_type,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -56,7 +69,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_dsreg'.
 dnl Defines HAVE_MTGET_DSREG on success.
-AC_DEFUN(AC_STRUCT_MTGET_DSREG,
+AC_DEFUN([AC_STRUCT_MTGET_DSREG],
 [AC_CACHE_CHECK([if struct mtget contains mt_dsreg], ac_cv_struct_mtget_dsreg,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -69,7 +82,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_erreg'.
 dnl Defines HAVE_MTGET_ERREG on success.
-AC_DEFUN(AC_STRUCT_MTGET_ERREG,
+AC_DEFUN([AC_STRUCT_MTGET_ERREG],
 [AC_CACHE_CHECK([if struct mtget contains mt_erreg], ac_cv_struct_mtget_erreg,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -82,7 +95,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_resid'.
 dnl Defines HAVE_MTGET_RESID on success.
-AC_DEFUN(AC_STRUCT_MTGET_RESID,
+AC_DEFUN([AC_STRUCT_MTGET_RESID],
 [AC_CACHE_CHECK([if struct mtget contains mt_resid], ac_cv_struct_mtget_resid,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -95,7 +108,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_fileno'.
 dnl Defines HAVE_MTGET_FILENO on success.
-AC_DEFUN(AC_STRUCT_MTGET_FILENO,
+AC_DEFUN([AC_STRUCT_MTGET_FILENO],
 [AC_CACHE_CHECK([if struct mtget contains mt_fileno],
                 ac_cv_struct_mtget_fileno,
                 [AC_TRY_COMPILE([#include <sys/types.h>
@@ -109,7 +122,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_blkno'.
 dnl Defines HAVE_MTGET_BLKNO on success.
-AC_DEFUN(AC_STRUCT_MTGET_BLKNO,
+AC_DEFUN([AC_STRUCT_MTGET_BLKNO],
 [AC_CACHE_CHECK([if struct mtget contains mt_blkno], ac_cv_struct_mtget_blkno,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -122,7 +135,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_flags'.
 dnl Defines HAVE_MTGET_FLAGS on success.
-AC_DEFUN(AC_STRUCT_MTGET_FLAGS,
+AC_DEFUN([AC_STRUCT_MTGET_FLAGS],
 [AC_CACHE_CHECK([if struct mtget contains mt_flags], ac_cv_struct_mtget_flags,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -135,7 +148,7 @@ fi])
 
 dnl Checks if structure 'mtget' have field 'mt_bf'.
 dnl Defines HAVE_MTGET_BF on success.
-AC_DEFUN(AC_STRUCT_MTGET_BF,
+AC_DEFUN([AC_STRUCT_MTGET_BF],
 [AC_CACHE_CHECK([if struct mtget contains mt_bf], ac_cv_struct_mtget_bf,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/mtio.h>],
@@ -148,7 +161,7 @@ fi])
 
 dnl Checks for illegal declaration of 'union semun' in sys/sem.h.
 dnl Defines HAVE_UNION_SEMUN on success.
-AC_DEFUN(AC_STRUCT_UNION_SEMUN,
+AC_DEFUN([AC_STRUCT_UNION_SEMUN],
 [AC_CACHE_CHECK([if an illegal declaration for union semun in sys/sem.h exists], ac_cv_struct_union_semun,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/ipc.h>
@@ -161,7 +174,7 @@ fi])
 
 dnl Checks if 'union wait' is declared in 'wait.h' or 'sys/wait.h'.
 dnl Defines HAVE_UNION_WAIT on success.
-AC_DEFUN(AC_STRUCT_UNION_WAIT,
+AC_DEFUN([AC_STRUCT_UNION_WAIT],
 [AC_CACHE_CHECK([if union wait is declared in wait.h or sys/wait.h], ac_cv_struct_union_wait,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #if	defined(HAVE_WAIT_H)
@@ -177,7 +190,7 @@ fi])
 
 dnl Checks if 'struct rusage' is declared in sys/resource.h.
 dnl Defines HAVE_STRUCT_RUSAGE on success.
-AC_DEFUN(AC_STRUCT_RUSAGE,
+AC_DEFUN([AC_STRUCT_RUSAGE],
 [AC_CACHE_CHECK([if struct rusage is declared in sys/resource.h], ac_cv_struct_rusage,
                 [AC_TRY_COMPILE([#include <sys/time.h>
 #include <sys/resource.h>], [struct rusage r;],
@@ -190,7 +203,7 @@ fi])
 dnl Checks wether major(), minor() and makedev() are defined in
 dnl 'sys/mkdev.h' or in 'sys/sysmacros.h. Defines MAJOR_IN_MKDEV or
 dnl MAJOR_IN_SYSMACROS or nothing.
-AC_DEFUN(AC_HEADER_MAKEDEV,
+AC_DEFUN([AC_HEADER_MAKEDEV],
 [AC_CACHE_CHECK([for header file containing  major(), minor() and makedev()],
                ac_cv_header_makedev,
 [ac_cv_header_makedev=none
@@ -213,8 +226,8 @@ fi])
 
 dnl Checks for USG derived STDIO that uses _filbuf()
 dnl Defines HAVE__FILBUF on success.
-AC_DEFUN(AC_HEADER__FILBUF,
-[AC_CACHE_CHECK([for _filbuf()], ac_cv_header__filbuf,
+AC_DEFUN([AC_HEADER__FILBUF],
+[AC_CACHE_CHECK([for _filbuf()], ac_cv_func__filbuf,
                 [AC_TRY_LINK([#include <stdio.h>],
 [FILE    *f;
 int     flag;
@@ -230,16 +243,16 @@ flag |= f->_flag & _IOEOF;
 count = f->_cnt;
 ptr = (char *)f->_ptr;
 fclose(f);],
-                [ac_cv_header__filbuf=yes],
-                [ac_cv_header__filbuf=no])])
-if test $ac_cv_header__filbuf = yes; then
+                [ac_cv_func__filbuf=yes],
+                [ac_cv_func__filbuf=no])])
+if test $ac_cv_func__filbuf = yes; then
   AC_DEFINE(HAVE__FILBUF)
 fi])
 
 dnl Checks for USG derived STDIO that uses __filbuf()
 dnl Defines HAVE___FILBUF on success.
-AC_DEFUN(AC_HEADER___FILBUF,
-[AC_CACHE_CHECK([for __filbuf()], ac_cv_header___filbuf,
+AC_DEFUN([AC_HEADER___FILBUF],
+[AC_CACHE_CHECK([for __filbuf()], ac_cv_func___filbuf,
                 [AC_TRY_LINK([#include <stdio.h>],
 [FILE    *f;
 int     flag;
@@ -255,15 +268,15 @@ flag |= f->_flag & _IOEOF;
 count = f->_cnt;
 ptr = (char *)f->_ptr;
 fclose(f);],
-                [ac_cv_header___filbuf=yes],
-                [ac_cv_header___filbuf=no])])
-if test $ac_cv_header___filbuf = yes; then
+                [ac_cv_func___filbuf=yes],
+                [ac_cv_func___filbuf=no])])
+if test $ac_cv_func___filbuf = yes; then
   AC_DEFINE(HAVE___FILBUF)
 fi])
 
 dnl Checks for USG derived STDIO
 dnl Defines HAVE_USG_STDIO on success.
-AC_DEFUN(AC_HEADER_USG_STDIO,
+AC_DEFUN([AC_HEADER_USG_STDIO],
 [AC_REQUIRE([AC_HEADER__FILBUF])AC_REQUIRE([AC_HEADER___FILBUF])dnl
 AC_CACHE_CHECK([for USG derived STDIO], ac_cv_header_usg_stdio,
                 [AC_TRY_LINK([#include <stdio.h>],
@@ -298,7 +311,7 @@ fi])
 
 dnl Checks for errno definition in <errno.h>
 dnl Defines HAVE_ERRNO_DEF on success.
-AC_DEFUN(AC_HEADER_ERRNO_DEF,
+AC_DEFUN([AC_HEADER_ERRNO_DEF],
 [AC_CACHE_CHECK([for errno definition in errno.h], ac_cv_header_errno_def,
                 [AC_TRY_COMPILE([#include <errno.h>],
 [errno = 0;],
@@ -310,7 +323,7 @@ fi])
 
 dnl Checks for UNIX-98 compliant <inttypes.h>
 dnl Defines HAVE_INTTYPES_H on success.
-AC_DEFUN(AC_HEADER_INTTYPES,
+AC_DEFUN([AC_HEADER_INTTYPES],
 [AC_CACHE_CHECK([for UNIX-98 compliant inttypes.h], ac_cv_header_inttypes,
                 [AC_TRY_COMPILE([#include <inttypes.h>],
 [int8_t c; uint8_t uc; int16_t s; uint16_t us; int32_t i; uint32_t ui;
@@ -324,7 +337,7 @@ fi])
 
 dnl Checks for type time_t
 dnl Defines time_t to long on failure.
-AC_DEFUN(AC_TYPE_TIME_T,
+AC_DEFUN([AC_TYPE_TIME_T],
 [AC_REQUIRE([AC_HEADER_TIME])dnl
 AC_CACHE_CHECK([for time_t], ac_cv_type_time_t,
                 [AC_TRY_COMPILE([
@@ -347,7 +360,7 @@ fi])
 
 dnl Checks for type socklen_t
 dnl Defines socklen_t to int on failure.
-AC_DEFUN(AC_TYPE_SOCKLEN_T,
+AC_DEFUN([AC_TYPE_SOCKLEN_T],
 [AC_REQUIRE([AC_HEADER_STDC])dnl
 AC_MSG_CHECKING(for socklen_t)
 AC_CACHE_VAL(ac_cv_type_socklen_t,
@@ -367,7 +380,7 @@ fi])
 
 dnl Checks for type long long
 dnl Defines HAVE_LONGLONG on success.
-AC_DEFUN(AC_TYPE_LONGLONG,
+AC_DEFUN([AC_TYPE_LONGLONG],
 [AC_CACHE_CHECK([for type long long], ac_cv_type_longlong,
                 [AC_TRY_COMPILE([], [long long i;],
                 [ac_cv_type_longlong=yes],
@@ -378,7 +391,7 @@ fi])
 
 dnl Checks if C-compiler orders bitfields htol
 dnl Defines BITFIELDS_HTOL on success.
-AC_DEFUN(AC_C_BITFIELDS,
+AC_DEFUN([AC_C_BITFIELDS],
 [AC_CACHE_CHECK([whether bitorder in bitfields is htol], ac_cv_c_bitfields_htol,
                 [AC_TRY_RUN([
 struct {
@@ -401,7 +414,7 @@ fi])
 
 dnl Checks if C-compiler understands prototypes
 dnl Defines PROTOTYPES on success.
-AC_DEFUN(AC_TYPE_PROTOTYPES,
+AC_DEFUN([AC_TYPE_PROTOTYPES],
 [AC_CACHE_CHECK([for prototypes], ac_cv_type_prototypes,
                 [AC_TRY_RUN([
 doit(int i, ...)
@@ -418,7 +431,7 @@ fi])
 
 dnl Checks for type size_t
 dnl Defines HAVE_SIZE_T_ on success.
-AC_DEFUN(AC_TYPE_SIZE_T_,
+AC_DEFUN([AC_TYPE_SIZE_T_],
 [AC_CACHE_CHECK([for type size_t], ac_cv_type_size_t_,
                 [AC_TRY_COMPILE([#include <sys/types.h>], [size_t s;],
                 [ac_cv_type_size_t_=yes],
@@ -431,7 +444,7 @@ fi])
 
 dnl Checks if type char is unsigned
 dnl Defines CHAR_IS_UNSIGNED on success.
-AC_DEFUN(AC_TYPE_CHAR,
+AC_DEFUN([AC_TYPE_CHAR],
 [AC_CACHE_CHECK([if char is unsigned], ac_cv_type_char_unsigned,
                 [AC_TRY_RUN([
 int
@@ -450,7 +463,7 @@ fi])
 
 dnl Checks if function/macro va_copy() is available
 dnl Defines HAVE_VA_COPY on success.
-AC_DEFUN(AC_FUNC_VA_COPY,
+AC_DEFUN([AC_FUNC_VA_COPY],
 [AC_CACHE_CHECK([for va_copy], ac_cv_func_va_copy,
                 [AC_TRY_LINK([
 #ifdef	HAVE_STDARG_H
@@ -470,7 +483,7 @@ fi])
 
 dnl Checks if function/macro __va_copy() is available
 dnl Defines HAVE__VA_COPY on success.
-AC_DEFUN(AC_FUNC__VA_COPY,
+AC_DEFUN([AC_FUNC__VA_COPY],
 [AC_CACHE_CHECK([for __va_copy], ac_cv_func__va_copy,
                 [AC_TRY_LINK([
 #ifdef	HAVE_STDARG_H
@@ -491,7 +504,7 @@ fi])
 
 dnl Checks if va_list is an array
 dnl Defines VA_LIST_IS_ARRAY on success.
-AC_DEFUN(AC_TYPE_VA_LIST,
+AC_DEFUN([AC_TYPE_VA_LIST],
 [AC_CACHE_CHECK([if va_list is an array], ac_cv_type_va_list_array,
                 [AC_TRY_LINK([
 #ifdef	HAVE_STDARG_H
@@ -512,7 +525,7 @@ fi])
 
 dnl Checks if quotactl is present as ioctl
 dnl Defines HAVE_QUOTAIOCTL on success.
-AC_DEFUN(AC_FUNC_QUOTAIOCTL,
+AC_DEFUN([AC_FUNC_QUOTAIOCTL],
 [AC_CACHE_CHECK([if quotactl is an ioctl], ac_cv_func_quotaioctl,
                 [AC_TRY_LINK([#include <sys/types.h>
 #include <sys/fs/ufs_quota.h>],
@@ -525,7 +538,7 @@ fi])
 
 dnl Checks if function __dtoa() is available
 dnl Defines HAVE_DTOA on success.
-AC_DEFUN(AC_FUNC_DTOA,
+AC_DEFUN([AC_FUNC_DTOA],
 [AC_CACHE_CHECK([for __dtoa], ac_cv_func_dtoa,
                 [AC_TRY_LINK([extern  char *__dtoa();], 
 [int decpt; int sign; char *ep; char *bp;
@@ -538,7 +551,7 @@ fi])
 
 dnl Checks if reentrant __dtoa() exists (needs a result prt)
 dnl Defines HAVE_DTOA_R on success.
-AC_DEFUN(AC_FUNC_DTOA_R,
+AC_DEFUN([AC_FUNC_DTOA_R],
 [AC_REQUIRE([AC_FUNC_DTOA])dnl
 AC_CACHE_CHECK([for __dtoa that needs result ptr], ac_cv_func_dtoa_r,
                 [AC_TRY_RUN([
@@ -567,7 +580,7 @@ fi])
 
 dnl Checks if working ecvt() exists
 dnl Defines HAVE_ECVT on success.
-AC_DEFUN(AC_FUNC_ECVT,
+AC_DEFUN([AC_FUNC_ECVT],
 [AC_CACHE_CHECK([for working ecvt() ], ac_cv_func_ecvt,
                 [AC_TRY_RUN([
 extern	char *ecvt();
@@ -594,7 +607,7 @@ fi])
 
 dnl Checks if working fcvt() exists
 dnl Defines HAVE_FCVT on success.
-AC_DEFUN(AC_FUNC_FCVT,
+AC_DEFUN([AC_FUNC_FCVT],
 [AC_CACHE_CHECK([for working fcvt() ], ac_cv_func_fcvt,
                 [AC_TRY_RUN([
 extern	char *fcvt();
@@ -621,7 +634,7 @@ fi])
 
 dnl Checks if working gcvt() exists
 dnl Defines HAVE_GCVT on success.
-AC_DEFUN(AC_FUNC_GCVT,
+AC_DEFUN([AC_FUNC_GCVT],
 [AC_CACHE_CHECK([for working gcvt() ], ac_cv_func_gcvt,
                 [AC_TRY_RUN([
 extern	char *gcvt();
@@ -648,7 +661,7 @@ fi])
 
 dnl Checks if function uname() is available
 dnl Defines HAVE_UNAME on success.
-AC_DEFUN(AC_FUNC_UNAME,
+AC_DEFUN([AC_FUNC_UNAME],
 [AC_CACHE_CHECK([for uname], ac_cv_func_uname,
                 [AC_TRY_LINK([#include <sys/utsname.h>], 
 [struct	utsname un;
@@ -661,19 +674,53 @@ fi])
 
 dnl Checks if function mlockall() is available
 dnl beware HP-UX 10.x it contains a bad mlockall() in libc
+dnl Defines HAVE_MLOCK on success.
+AC_DEFUN([AC_FUNC_MLOCK],
+[AC_REQUIRE([AC_HEADER_ERRNO_DEF])dnl
+AC_CACHE_CHECK([for mlock], ac_cv_func_mlock,
+                [AC_TRY_RUN([
+#include <sys/types.h>
+#include <errno.h>
+#ifndef	HAVE_ERRNO_DEF
+extern	int	errno;
+#endif
+
+main()
+{
+	if (mlock(0, 0) < 0) {
+		if (errno == EINVAL || errno ==  ENOMEM ||
+		    errno == EPERM  || errno ==  EACCES)
+			exit(0);
+		exit(-1);
+	}
+	exit(0);
+}],
+                [ac_cv_func_mlock=yes],
+                [ac_cv_func_mlock=no])])
+if test $ac_cv_func_mlock = yes; then
+  AC_DEFINE(HAVE_MLOCK)
+fi])
+
+dnl Checks if function mlockall() is available
+dnl beware HP-UX 10.x it contains a bad mlockall() in libc
 dnl Defines HAVE_MLOCKALL on success.
-AC_DEFUN(AC_FUNC_MLOCKALL,
-[AC_CACHE_CHECK([for mlockall], ac_cv_func_mlockall,
+AC_DEFUN([AC_FUNC_MLOCKALL],
+[AC_REQUIRE([AC_HEADER_ERRNO_DEF])dnl
+AC_CACHE_CHECK([for mlockall], ac_cv_func_mlockall,
                 [AC_TRY_RUN([
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <errno.h>
+#ifndef	HAVE_ERRNO_DEF
+extern	int	errno;
+#endif
 
 int
 main()
 {
 	if (mlockall(MCL_CURRENT|MCL_FUTURE) < 0) {
-		if (errno == EPERM || errno ==  EACCES)
+		if (errno == EINVAL || errno ==  ENOMEM ||
+		    errno == EPERM  || errno ==  EACCES)
 			exit(0);
 		exit(-1);
 	}
@@ -686,7 +733,7 @@ if test $ac_cv_func_mlockall = yes; then
   AC_DEFINE(HAVE_MLOCKALL)
 fi])
 
-AC_DEFUN(jsAC_FUNC_MMAP,
+AC_DEFUN([jsAC_FUNC_MMAP],
 [AC_REQUIRE([AC_MMAP_SIZEP])dnl
 AC_CHECK_HEADERS(unistd.h)
 AC_CHECK_FUNCS(getpagesize)
@@ -843,7 +890,7 @@ if test $ac_cv_func_mmap_fixed_mapped = yes; then
 fi
 ])
 
-AC_DEFUN(AC_MMAP_SIZEP,
+AC_DEFUN([AC_MMAP_SIZEP],
 [AC_CHECK_HEADERS(unistd.h)
 AC_CHECK_FUNCS(getpagesize)
 AC_CACHE_CHECK(for mmap that needs ptr to size, ac_cv_func_mmap_sizep,
@@ -993,7 +1040,7 @@ fi
 
 dnl Checks if mmap() works to get shared memory
 dnl Defines HAVE_SMMAP on success.
-AC_DEFUN(AC_FUNC_SMMAP,
+AC_DEFUN([AC_FUNC_SMMAP],
 [AC_CACHE_CHECK([if mmap works to get shared memory], ac_cv_func_smmap,
                 [AC_TRY_RUN([
 #include <sys/types.h>
@@ -1073,7 +1120,7 @@ fi])
 
 dnl Checks if sys_siglist[] exists
 dnl Defines HAVE_SYS_SIGLIST on success.
-AC_DEFUN(AC_FUNC_SYS_SIGLIST,
+AC_DEFUN([AC_FUNC_SYS_SIGLIST],
 [AC_CACHE_CHECK([for sys_siglist], ac_cv_func_sys_siglist,
                 [AC_TRY_RUN([
 int
@@ -1089,7 +1136,7 @@ if test $ac_cv_func_sys_siglist = yes; then
 fi])
 
 dnl Checks for maximum number of bits in minor device number
-AC_DEFUN(AC_CHECK_MINOR_BITS,
+AC_DEFUN([AC_CHECK_MINOR_BITS],
 [AC_REQUIRE([AC_HEADER_MAKEDEV])dnl
 changequote(<<, >>)dnl
 define(<<AC_MACRO_NAME>>, DEV_MINOR_BITS)dnl
@@ -1156,7 +1203,7 @@ undefine([AC_CV_NAME])dnl
 
 dnl Checks for maximum number of bits in minor device numbers are non contiguous
 dnl Defines DEV_MINOR_NONCONTIG on success.
-AC_DEFUN(AC_CHECK_MINOR_NONCONTIG,
+AC_DEFUN([AC_CHECK_MINOR_NONCONTIG],
 [AC_REQUIRE([AC_HEADER_MAKEDEV])dnl
 AC_CACHE_CHECK([whether bits in minor device numbers are non contiguous], ac_cv_dev_minor_noncontig,
                 [AC_TRY_RUN([
@@ -1212,7 +1259,7 @@ fi])
 
 dnl Checks if we may not define our own malloc()
 dnl Defines NO_USER_MALLOC if we cannot.
-AC_DEFUN(AC_USER_MALLOC,
+AC_DEFUN([AC_USER_MALLOC],
 [AC_CACHE_CHECK([if we may not define our own malloc()], ac_cv_no_user_malloc,
                 [AC_TRY_LINK([
 char * malloc(x)
@@ -1229,7 +1276,7 @@ fi])
 
 dnl Checks if BSD-4.2 compliant getpgrp() exists
 dnl Defines HAVE_BSD_GETPGRP on success.
-AC_DEFUN(AC_FUNC_BSD_GETPGRP,
+AC_DEFUN([AC_FUNC_BSD_GETPGRP],
 [AC_CACHE_CHECK([for BSD compliant getpgrp], ac_cv_func_bsd_getpgrp,
                 [AC_TRY_RUN([
 int
@@ -1250,7 +1297,7 @@ fi])
 
 dnl Checks if BSD-4.2 compliant setpgrp() exists
 dnl Defines HAVE_BSD_SETPGRP on success.
-AC_DEFUN(AC_FUNC_BSD_SETPGRP,
+AC_DEFUN([AC_FUNC_BSD_SETPGRP],
 [AC_REQUIRE([AC_HEADER_ERRNO_DEF])dnl
 AC_CACHE_CHECK([for BSD compliant setpgrp], ac_cv_func_bsd_setpgrp,
                 [AC_TRY_RUN([
@@ -1275,7 +1322,7 @@ fi])
 
 dnl Checks if select() needs more than sys/time.h & sys/types.h
 dnl Defines SELECT_NONSTD_HDR on success.
-AC_DEFUN(AC_HEADER_SELECT_NONSTD,
+AC_DEFUN([AC_HEADER_SELECT_NONSTD],
 [AC_CACHE_CHECK([if select needs nonstd include files], ac_cv_header_slect_nonstd_hdr,
                 [AC_TRY_COMPILE([#include <sys/types.h>
 #include <sys/time.h>],
@@ -1288,7 +1335,7 @@ fi])
 
 dnl Checks if select() needs sys/select.h
 dnl Defines NEED_SYS_SELECT_H on success.
-AC_DEFUN(AC_HEADER_SYS_SELECT,
+AC_DEFUN([AC_HEADER_SYS_SELECT],
 [AC_REQUIRE([AC_HEADER_SELECT_NONSTD])dnl
 AC_CACHE_CHECK([if sys/select.h is needed for select], ac_cv_header_need_sys_select_h,
                 [AC_TRY_COMPILE([#include <sys/types.h>
@@ -1304,9 +1351,27 @@ if test $ac_cv_header_need_sys_select_h = yes; then
   AC_DEFINE(NEED_SYS_SELECT_H)
 fi])
 
+dnl Checks if select() needs sys/socket.h
+dnl Defines NEED_SYS_SOCKET_H on success.
+AC_DEFUN([AC_HEADER_SELECT2],
+[AC_REQUIRE([AC_HEADER_SELECT_NONSTD])dnl
+AC_CACHE_CHECK([if sys/socket.h is needed for select], ac_cv_header_need_sys_socket_h,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#ifndef	SELECT_NONSTD_HDR
+do not compile if we do not need nonstandard headers
+#endif],
+			[fd_set rfd; FD_ZERO(&rfd); select(1, &rfd, 0, 0, 0);],
+				[ac_cv_header_need_sys_socket_h=yes],
+				[ac_cv_header_need_sys_socket_h=no])])
+if test $ac_cv_header_need_sys_socket_h = yes; then
+  AC_DEFINE(NEED_SYS_SOCKET_H)
+fi])
+
 dnl Checks if file locking via fcntl() is available
 dnl Defines HAVE_FCNTL_LOCKF on success.
-AC_DEFUN(AC_FUNC_FCNTL_LOCKF,
+AC_DEFUN([AC_FUNC_FCNTL_LOCKF],
 [AC_CACHE_CHECK([for file locking via fcntl], ac_cv_func_fcntl_lock,
                 [AC_TRY_LINK([
 #include <sys/types.h>
@@ -1321,9 +1386,17 @@ if test $ac_cv_func_fcntl_lock = yes; then
 fi])
 
 
-dnl XXXXXXXXXXXXXXXXXX Begin Stolen from GNU tar XXXXXXXXXXXXXXXXXXXXXXXXXXX
-dnl One line has been changed to:    [ac_save_CC="${CC-cc}"
+dnl XXXXXXXXXXXXXXXXXX Begin Stolen (but modified) from GNU tar XXXXXXXXXXXXXXXXXXXXXXXXXXX
+dnl Changes:
 
+dnl One line has been changed to:    [ac_save_CC="${CC-cc}" to default to "'cc"
+
+dnl AC_SYS_LARGEFILE_MACRO_VALUE test moved from AC_FUNC_FSEEKO into AC_SYS_LARGEFILE
+dnl Do not call AC_FUNC_FSEEKO because it does not check whether fseeko() is
+dnl available on non Large File mode. There are additionoal tests for fseeko()/ftello()
+dnl inside the AC_HAVE_LARGEFILES test.
+
+dnl largefile_cc_opt definition added
 
 #serial 18
 
@@ -1336,7 +1409,7 @@ dnl Written by Paul Eggert <eggert@twinsun.com>.
 
 dnl Internal subroutine of AC_SYS_LARGEFILE.
 dnl AC_SYS_LARGEFILE_TEST_INCLUDES
-AC_DEFUN(AC_SYS_LARGEFILE_TEST_INCLUDES,
+AC_DEFUN([AC_SYS_LARGEFILE_TEST_INCLUDES],
   [[#include <sys/types.h>
     /* Check that off_t can represent 2**63 - 1 correctly.
        We can't simply "#define LARGE_OFF_T 9223372036854775807",
@@ -1350,7 +1423,7 @@ AC_DEFUN(AC_SYS_LARGEFILE_TEST_INCLUDES,
 
 dnl Internal subroutine of AC_SYS_LARGEFILE.
 dnl AC_SYS_LARGEFILE_MACRO_VALUE(C-MACRO, VALUE, CACHE-VAR, COMMENT, INCLUDES, FUNCTION-BODY)
-AC_DEFUN(AC_SYS_LARGEFILE_MACRO_VALUE,
+AC_DEFUN([AC_SYS_LARGEFILE_MACRO_VALUE],
   [AC_CACHE_CHECK([for $1 value needed for large files], $3,
      [$3=no
       AC_TRY_COMPILE([$5],
@@ -1365,7 +1438,7 @@ AC_DEFUN(AC_SYS_LARGEFILE_MACRO_VALUE,
      AC_DEFINE_UNQUOTED([$1], [$]$3, [$4])
    fi])
 
-AC_DEFUN(AC_SYS_LARGEFILE,
+AC_DEFUN([AC_SYS_LARGEFILE],
   [AC_ARG_ENABLE(largefile,
      [  --disable-largefile     omit support for large files])
    if test "$enable_largefile" != no; then
@@ -1373,6 +1446,7 @@ AC_DEFUN(AC_SYS_LARGEFILE,
      AC_CACHE_CHECK([for special C compiler options needed for large files],
        ac_cv_sys_largefile_CC,
        [ac_cv_sys_largefile_CC=no
+        largefile_cc_opt=""
         if test "$GCC" != yes; then
 	  # IRIX 6.2 and later do not support large files by default,
 	  # so use the C compiler's -n32 option if that helps.
@@ -1385,6 +1459,7 @@ AC_DEFUN(AC_SYS_LARGEFILE,
         fi])
      if test "$ac_cv_sys_largefile_CC" != no; then
        CC="$CC$ac_cv_sys_largefile_CC"
+       largefile_cc_opt="$ac_cv_sys_largefile_CC"
      fi
 
      AC_SYS_LARGEFILE_MACRO_VALUE(_FILE_OFFSET_BITS, 64,
@@ -1395,11 +1470,15 @@ AC_DEFUN(AC_SYS_LARGEFILE,
        ac_cv_sys_large_files,
        [Define for large files, on AIX-style hosts.],
        AC_SYS_LARGEFILE_TEST_INCLUDES)
+     AC_SYS_LARGEFILE_MACRO_VALUE(_LARGEFILE_SOURCE, 1,
+       ac_cv_sys_largefile_source,
+       [Define to make fseeko visible on some hosts (e.g. glibc 2.2).],
+       [#include <stdio.h>], [return !fseeko;])
    fi
   ])
 
 
-AC_DEFUN(AC_FUNC_FSEEKO,
+AC_DEFUN([AC_FUNC_FSEEKO],
   [AC_SYS_LARGEFILE_MACRO_VALUE(_LARGEFILE_SOURCE, 1,
      ac_cv_sys_largefile_source,
      [Define to make fseeko visible on some hosts (e.g. glibc 2.2).],
@@ -1419,9 +1498,9 @@ AC_DEFUN(AC_FUNC_FSEEKO,
    fi])
 
 
-dnl XXXXXXXXXXXXXXXXXX End Stolen from GNU tar XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+dnl XXXXXXXXXXXXXXXXXX End Stolen (but modified) from GNU tar XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
-AC_DEFUN(AC_HAVE_LARGEFILES,
+AC_DEFUN([AC_HAVE_LARGEFILES],
 [AC_CACHE_CHECK([if system supports Large Files at all], ac_cv_largefiles,
      	[AC_TRY_COMPILE([#include <stdio.h>
 #include <sys/types.h>],
@@ -1436,9 +1515,49 @@ AC_DEFUN(AC_HAVE_LARGEFILES,
     int off_t_is_large[(LARGE_OFF_T % 2147483629 == 721
 			&& LARGE_OFF_T % 2147483647 == 1)
 		       ? 1 : -1];
+return !fseeko;
 return !ftello;],
      		[ac_cv_largefiles=yes],
      		[ac_cv_largefiles=no])])
 	if test $ac_cv_largefiles = yes; then
 		AC_DEFINE(HAVE_LARGEFILES)
 	fi])
+
+dnl Checks for whether fseeko() is available in non large file mode
+dnl and whether there is a prototype for fseeko()
+dnl Defines HAVE_FSEEKO on success.
+AC_DEFUN([AC_SMALL_FSEEKO],
+[AC_CACHE_CHECK([for fseeko()], ac_cv_func_fseeko,
+                [AC_TRY_LINK([#include <stdio.h>],
+[return !fseeko;],
+                [ac_cv_func_fseeko=yes],
+                [ac_cv_func_fseeko=no])])
+if test $ac_cv_func_fseeko = yes; then
+  AC_DEFINE(HAVE_FSEEKO)
+fi])
+
+dnl Checks for whether ftello() is available in non large file mode
+dnl and whether there is a prototype for ftello()
+dnl Defines HAVE_FTELLO on success.
+AC_DEFUN([AC_SMALL_FTELLO],
+[AC_CACHE_CHECK([for ftello()], ac_cv_func_ftello,
+                [AC_TRY_LINK([#include <stdio.h>],
+[return !ftello;],
+                [ac_cv_func_ftello=yes],
+                [ac_cv_func_ftello=no])])
+if test $ac_cv_func_ftello = yes; then
+  AC_DEFINE(HAVE_FTELLO)
+fi])
+
+dnl Checks if compiler allows dynamic arrays.
+dnl Defines HAVE_DYN_ARRAYS on success.
+AC_DEFUN([AC_DYN_ARRAYS],
+[AC_CACHE_CHECK([if compiler allows dynamic arrays], ac_cv_dyn_arrays,
+                [AC_TRY_COMPILE([],
+                                [extern int __aa(); int len = __aa(); char some_array[len];],
+                                [ac_cv_dyn_arrays=yes],
+                                [ac_cv_dyn_arrays=no])])
+if test $ac_cv_dyn_arrays = yes; then
+  AC_DEFINE(HAVE_DYN_ARRAYS)
+fi])
+

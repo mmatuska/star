@@ -1,7 +1,7 @@
-/* @(#)lhash.c	1.8 00/05/07 Copyright 1988 J. Schilling */
+/* @(#)lhash.c	1.9 02/05/17 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)lhash.c	1.8 00/05/07 Copyright 1988 J. Schilling";
+	"@(#)lhash.c	1.9 02/05/17 Copyright 1988 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1988 J. Schilling
@@ -45,11 +45,13 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
+#include <stdxlib.h>
+#include <unixstd.h>
 #include <standard.h>
 #include "star.h"
-#include <stdxlib.h>
 #include <strdefs.h>
 #include <schily.h>
+#include "starsubs.h"
 
 extern	BOOL	notpat;
 
@@ -60,15 +62,14 @@ static struct h_elem {
 
 static unsigned	h_size;
 
-EXPORT	void	hash_build	__PR((FILE * fp, unsigned int size));
+EXPORT	void	hash_build	__PR((FILE * fp, size_t size));
 EXPORT	BOOL	hash_lookup	__PR((char* str));
 LOCAL	int	hashval		__PR((unsigned char* str, unsigned int maxsize));
-LOCAL	struct h_elem* _malloc	__PR((unsigned int len));
 
 EXPORT void
 hash_build(fp, size)
 	FILE	*fp;
-	unsigned size;
+	size_t	size;
 {
 	register struct h_elem	*hp;
 	register	int	i;
@@ -77,7 +78,7 @@ hash_build(fp, size)
 			char	buf[PATH_MAX+1];
 
 	h_size = size;
-	h_tab = (struct h_elem **)_malloc(size * sizeof (struct h_elem *));
+	h_tab = __malloc(size * sizeof (struct h_elem *), "list option");
 	for (i=0; i<size; i++) h_tab[i] = 0;
 	while ((len = fgetline(fp, buf, sizeof buf)) >= 0) {
 		if (len == 0)
@@ -87,7 +88,7 @@ hash_build(fp, size)
 							buf, len, PATH_MAX);
 			continue;
 		}
-		hp = _malloc((unsigned)len + 1 + sizeof (struct h_elem *));
+		hp = __malloc((size_t)len + 1 + sizeof (struct h_elem *), "list option");
 		strcpy(hp->h_data, buf);
 		hv = hashval((unsigned char *)buf, size);
 		hp->h_next = h_tab[hv];
@@ -121,15 +122,4 @@ hashval(str, maxsize)
 	for (i=0; (c = *str++) != '\0'; i++)
 		sum ^= (c << (i&7));
 	return sum % maxsize;
-}
-
-LOCAL struct h_elem *
-_malloc(len)
-	unsigned len;
-{
-	char *ret;
-
-	if ((ret = malloc(len)) == NULL)
-		comerr("No memory for list option.\n");
-	return (struct h_elem *)ret;
 }

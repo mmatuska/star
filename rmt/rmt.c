@@ -1,7 +1,7 @@
-/* @(#)rmt.c	1.5 00/11/14 Copyright 1994,2000 J. Schilling*/
+/* @(#)rmt.c	1.16 02/05/21 Copyright 1994,2000-2002 J. Schilling*/
 #ifndef lint
 static	char sccsid[] =
-	"@(#)rmt.c	1.5 00/11/14 Copyright 1994,2000 J. Schilling";
+	"@(#)rmt.c	1.16 02/05/21 Copyright 1994,2000-2002 J. Schilling";
 #endif
 /*
  *	Remote tape server
@@ -21,7 +21,7 @@ static	char sccsid[] =
  *	seems that the curent interface supports all what we need over the
  *	wire.
  *
- *	Copyright (c) 1994,2000 J. Schilling
+ *	Copyright (c) 1994,2000-2002 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -44,10 +44,9 @@ static	char sccsid[] =
 #include <mconfig.h>
 #include <stdio.h>
 #include <stdxlib.h>
-#include <unixstd.h>
+#include <unixstd.h>	/* includes sys/types.h */
 #include <fctldefs.h>
 #include <strdefs.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #ifdef	 HAVE_SYS_PARAM_H
 #include <sys/param.h>	/* BSD-4.2 & Linux need this for MAXHOSTNAMELEN */
@@ -59,18 +58,17 @@ static	char sccsid[] =
 #include <errno.h>
 #include <pwd.h>
 
+#include <utypes.h>
 #include <standard.h>
 #include <deflts.h>
 #include <patmatch.h>
 #include <schily.h>
 
 #include <netinet/in.h>
-#include <arpa/inet.h>
+#ifdef	HAVE_ARPA_INET_H
+#include <arpa/inet.h>		/* BeOS does not have <arpa/inet.h> */
+#endif				/* but inet_ntaoa() is in <netdb.h> */
 #include <netdb.h>
-
-#ifndef	HAVE_ERRNO_DEF
-extern	int	errno;
-#endif
 
 EXPORT	int	main		__PR((int argc, char **argv));
 LOCAL	void	checkuser	__PR((void));
@@ -91,11 +89,13 @@ LOCAL	int	rmtmapnew	__PR((int cmd));
 LOCAL	void	statustape	__PR((int cmd));
 LOCAL	void	seektape	__PR((void));
 LOCAL	void	doversion	__PR((void));
+LOCAL	int	fillrdbuf	__PR((void));
+LOCAL	int	readchar	__PR((char *cp));
 LOCAL	void	readbuf		__PR((char *buf, int n));
 LOCAL	void	readarg		__PR((char *buf, int n));
 LOCAL	char *	preparebuffer	__PR((int size));
 LOCAL	int	checktape	__PR((char *decive));
-LOCAL	void	rmtrespond	__PR((int ret, int err));
+LOCAL	void	rmtrespond	__PR((long ret, int err));
 LOCAL	void	rmterror	__PR((char *str));
 
 #define	CMD_SIZE	80
@@ -113,6 +113,7 @@ LOCAL	BOOL	found_dfltfile;
 #define	DEBUG1(fmt,a)		if (debug_file) js_fprintf(debug_file, fmt, a)
 #define	DEBUG2(fmt,a1,a2)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2)
 #define	DEBUG3(fmt,a1,a2,a3)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3)
+#define	DEBUG4(fmt,a1,a2,a3,a4)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3, a4)
 
 EXPORT int
 main(argc, argv)
@@ -132,6 +133,17 @@ main(argc, argv)
 	 * If we are running as root, the existance of /etc/default/rmt
 	 * is required. If we are not root and there is no /etc/default/rmt
 	 * we will only allow to access files in /dev (see below).
+	*
+	 * WARNING you are only allowed to change the defaults configuration
+	 * filename if you also change the documentation and add a statement
+	 * that makes clear where the official location of the file is, why you
+	 * did choose a nonstandard location and that the nonstandard location
+	 * only refers to inofficial rmt versions.
+	 *
+	 * I was forced to add this because some people change cdrecord without
+	 * rational reason and then publish the result. As those people
+	 * don't contribute work and don't give support, they are causing extra
+	 * work for me and this way slow down the development.
 	 */
 	if (defltopen("/etc/default/rmt") < 0) {
 		if (geteuid() == 0) {
@@ -154,7 +166,7 @@ main(argc, argv)
 		
 	if (argc > 0) {
 		if (debug_file == 0) {
-			rmtrespond(-1, errno);
+			rmtrespond((long)-1, geterrno());
 			exit(EX_BAD);
 		}
 		(void) setbuf(debug_file, (char *)0);
@@ -199,24 +211,32 @@ getpeer()
 {
 	struct	sockaddr sa;
 	struct	sockaddr_in *s;
-	int		 sasize = sizeof(sa);
+	socklen_t	 sasize = sizeof(sa);
 	struct hostent	*he;
+#ifdef	MAXHOSTNAMELEN			/* XXX remove this and sys/param.h */
 static	char		buffer[MAXHOSTNAMELEN];
+#else
+static	char		buffer[64];
+#endif
 
 	if (getpeername(STDIN_FILENO, &sa, &sasize) < 0) {
-		DEBUG1("rmt: peername %s\n", errmsgstr(errno));
+		DEBUG1("rmt: peername %s\n", errmsgstr(geterrno()));
 		return ("ILLEGAL_SOCKET");
 	} else {
 		s = (struct sockaddr_in *)&sa;
 		if (s->sin_family != AF_INET)
 			return ("NOT_IP");
-               
+
+#ifdef	HAVE_INET_NTOA
 		(void) js_snprintf(buffer, sizeof(buffer), "%s", inet_ntoa(s->sin_addr));
+#else
+		(void) js_snprintf(buffer, sizeof(buffer), "%x", s->sin_addr.s_addr);
+#endif
 		DEBUG1("rmt: peername %s\n", buffer);
 		he = gethostbyaddr((char *)&s->sin_addr.s_addr, 4, AF_INET);
+		DEBUG1("rmt: peername %s\n", he!=NULL?he->h_name:buffer);
 		if (he != NULL)
-			(void) js_snprintf(buffer, sizeof(buffer), "%s", he->h_name);
-		DEBUG1("rmt: peername %s\n", buffer);
+			return (he->h_name);
 		return (buffer);
 	}
 }
@@ -312,8 +332,8 @@ dormt()
 {
 	char	c;
 
-	while (read(STDIN_FILENO, &c, 1) == 1) {
-		errno = 0;
+	while (readchar(&c) == 1) {
+		seterrno(0);
 
 		switch (c) {
 
@@ -382,19 +402,19 @@ opentape()
 	 * Default to O_BINARY the client may not know that we need it.
 	 */
 	if ((omodes & O_TEXT) == 0)
-		omodes |= O_BINARY
+		omodes |= O_BINARY;
 #endif
 	DEBUG2("rmtd: O %s %s\n", device, omode);
 	if (!checktape(device)) {
 		tape_fd = -1;
-		errno = EACCES;
+		seterrno(EACCES);
 	} else {
 		tape_fd = open(device, omodes, 0666);
 	}
-	rmtrespond(tape_fd, errno);
+	rmtrespond((long)tape_fd, geterrno());
 }
 
-struct oflags {
+LOCAL struct oflags {
 	char	*fname;
 	int	fval;
 } oflags[] = {
@@ -489,7 +509,7 @@ closetape()
 	DEBUG("rmtd: C\n");
 	readarg(device, sizeof(device));
 	ret = close(tape_fd);
-	rmtrespond(ret, errno);
+	rmtrespond((long)ret, geterrno());
 	tape_fd = -1;
 }
 
@@ -497,18 +517,18 @@ LOCAL void
 readtape()
 {
 	int	n;
-	int	ret;
+	long	ret;
 	char	*buf;
 	char	count[CMD_SIZE];
 
 	readarg(count, sizeof(count));
 	DEBUG1("rmtd: R %s\n", count);
-	n = atoi(count);
+	n = atoi(count);		/* Only an int because of setsockopt */
 	buf = preparebuffer(n);
-	ret = read(tape_fd, buf, n);
-	rmtrespond(ret, errno);
+	ret = _niread(tape_fd, buf, n);
+	rmtrespond(ret, geterrno());
 	if (ret >= 0) {
-		(void) write(STDOUT_FILENO, buf, ret);
+		(void) _nixwrite(STDOUT_FILENO, buf, ret);
 	}
 }
 
@@ -516,17 +536,17 @@ LOCAL void
 writetape()
 {
 	int	n;
-	int	ret;
+	long	ret;
 	char	*buf;
 	char	count[CMD_SIZE];
 
 	readarg(count, sizeof(count));
-	n = atoi(count);
+	n = atoi(count);		/* Only an int because of setsockopt */
 	DEBUG1("rmtd: W %s\n", count);
 	buf = preparebuffer(n);
 	readbuf(buf, n);
-	ret = write(tape_fd, buf, n);
-	rmtrespond(ret, errno);
+	ret = _niwrite(tape_fd, buf, n);
+	rmtrespond(ret, geterrno());
 }
 
 /*
@@ -560,9 +580,9 @@ ioctape(cmd)
 	readarg(count, sizeof(count));
 	DEBUG3("rmtd: %c %s %s\n", cmd, opcode, count);
 	if (atoi(opcode) == RMTIVERSION) {
-		rmtrespond(RMT_VERSION, 0);
+		rmtrespond((long)RMT_VERSION, 0);
 	} else {
-		rmtrespond(-1, ENOTTY);
+		rmtrespond((long)-1, ENOTTY);
 	}
 }
 #else
@@ -571,7 +591,7 @@ LOCAL void
 ioctape(cmd)
 	int	cmd;
 {
-	int	ret = 0;
+	long	ret = 0;
 	int	i;
 	char	count[CMD_SIZE];
 	char	opcode[CMD_SIZE];
@@ -582,7 +602,12 @@ static	BOOL	version_seen = FALSE;
 	readarg(count, sizeof(count));
 	DEBUG3("rmtd: %c %s %s\n", cmd, opcode, count);
 	mtop.mt_op = atoi(opcode);
-	mtop.mt_count = atoi(count);
+	ret = atol(count);
+	mtop.mt_count = ret;
+	if (mtop.mt_count != ret) {
+		rmtrespond((long)-1, EINVAL);
+		return;		
+	}
 
 	/*
 	 * Only Opcodes 0..7 are unique across different architectures.
@@ -591,6 +616,7 @@ static	BOOL	version_seen = FALSE;
 	 * we may safely assume that the client is not using Linux mapping
 	 * but the standard mapping.
 	 */
+	ret = 0;
 	if (cmd == 'I' && version_seen && (mtop.mt_op != RMTIVERSION)) {
 		i = rmtmapold(mtop.mt_op);
 		if (i < 0) {
@@ -598,7 +624,7 @@ static	BOOL	version_seen = FALSE;
 			 * Should we rather give it a chance instead
 			 * of aborting the command?
 			 */
-			rmtrespond(-1, EINVAL);
+			rmtrespond((long)-1, EINVAL);
 			return;
 		}
 		mtop.mt_op = i;
@@ -607,11 +633,12 @@ static	BOOL	version_seen = FALSE;
 		i = rmtmapnew(mtop.mt_op);
 		if (i < 0) {
 			ret = -1;
-			errno = EINVAL;
+			seterrno(EINVAL);
 		} else {
 			mtop.mt_op = i;
 		}
 	}
+	DEBUG4("rmtd: %c %d %ld ret: %ld (mapped)\n", cmd, mtop.mt_op, (long)mtop.mt_count, ret);
 	if (ret == 0) {
 		if (mtop.mt_op == RMTIVERSION) {
 			/*
@@ -625,10 +652,10 @@ static	BOOL	version_seen = FALSE;
 		}
 	}
 	if (ret < 0) {
-		rmtrespond(ret, errno);
+		rmtrespond(ret, geterrno());
 	} else {
 		ret = mtop.mt_count;
-		rmtrespond(ret, errno);
+		rmtrespond(ret, geterrno());
 	}
 }
 
@@ -761,13 +788,13 @@ statustape(cmd)
 	char	subcmd;
 
 	if (cmd == 's') {
-		if (read(STDIN_FILENO, &subcmd, 1) != 1)
+		if (readchar(&subcmd) != 1)
 			return;
 		DEBUG2("rmtd: %c%c\n", cmd, subcmd);
 	} else {
 		DEBUG1("rmtd: %c\n", cmd);
 	}
-	rmtrespond(-1, ENOTTY);
+	rmtrespond((long)-1, ENOTTY);
 }
 #else
 
@@ -788,7 +815,7 @@ statustape(cmd)
 	 * In addition, there are byte order problems.
 	 */
 	if (cmd == 's') {
-		if (read(STDIN_FILENO, &subcmd, 1) != 1)
+		if (readchar(&subcmd) != 1)
 			return;
 		DEBUG2("rmtd: %c%c\n", cmd, subcmd);
 	} else {
@@ -796,44 +823,44 @@ statustape(cmd)
 	}
 	ret = ioctl(tape_fd, MTIOCGET, (char *)&mtget);
 	if (ret < 0) {
-		rmtrespond(ret, errno);
+		rmtrespond((long)ret, geterrno());
 	} else {
 		if (cmd == 's') switch (subcmd) {
 
 #ifdef	HAVE_MTGET_TYPE
 		case MTS_TYPE:
-			rmtrespond(mtget.mt_type, errno);	break;
+			rmtrespond(mtget.mt_type, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_DSREG
 		case MTS_DSREG:
-			rmtrespond(mtget.mt_dsreg, errno);	break;
+			rmtrespond(mtget.mt_dsreg, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_ERREG
 		case MTS_ERREG:
-			rmtrespond(mtget.mt_erreg, errno);	break;
+			rmtrespond(mtget.mt_erreg, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_RESID
 		case MTS_RESID:
-			rmtrespond(mtget.mt_resid, errno);	break;
+			rmtrespond(mtget.mt_resid, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_FILENO
 		case MTS_FILENO:
-			rmtrespond(mtget.mt_fileno, errno);	break;
+			rmtrespond(mtget.mt_fileno, geterrno());break;
 #endif
 #ifdef	HAVE_MTGET_BLKNO
 		case MTS_BLKNO:
-			rmtrespond(mtget.mt_blkno, errno);	break;
+			rmtrespond(mtget.mt_blkno, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_FLAGS
 		case MTS_FLAGS:
-			rmtrespond(mtget.mt_flags, errno);	break;
+			rmtrespond(mtget.mt_flags, geterrno());	break;
 #endif
 #ifdef	HAVE_MTGET_BF
 		case MTS_BF:
-			rmtrespond(mtget.mt_bf, errno);		break;
+			rmtrespond(mtget.mt_bf, geterrno());	break;
 #endif
 		default:
-			rmtrespond(-1, EINVAL);			break;
+			rmtrespond((long)-1, EINVAL);		break;
 		} else {
 			/*
 			 * Do not expect that this interface makes any sense.
@@ -841,8 +868,8 @@ statustape(cmd)
 			 * struct members, but Linux is completely incompatible
 			 */
 			ret = sizeof (mtget);
-			rmtrespond(ret, errno);
-			(void) write(STDOUT_FILENO, (char *)&mtget, sizeof (mtget));
+			rmtrespond((long)ret, geterrno());
+			(void) _nixwrite(STDOUT_FILENO, (char *)&mtget, sizeof (mtget));
 		}
 	}
 }
@@ -851,15 +878,42 @@ statustape(cmd)
 LOCAL void
 seektape()
 {
-	int	ret;
+	off_t	ret;
 	char	count[CMD_SIZE];
-	char	pos[CMD_SIZE];
+	char	whence[CMD_SIZE];
+	Llong	offset = (Llong)0;
+	int	iwhence;
 
 	readarg(count, sizeof(count));
-	readarg(pos, sizeof(pos));
-	DEBUG2("rmtd: L %s %s\n", count, pos);
-	ret = lseek(tape_fd, (off_t)atoi(count), atoi(pos));
-	rmtrespond(ret, errno);
+	readarg(whence, sizeof(whence));
+	DEBUG2("rmtd: L %s %s\n", count, whence);
+	(void)astoll(count, &offset);
+	iwhence = atoi(whence);
+	switch(iwhence) {
+
+	case 0:	iwhence = SEEK_SET; break;
+	case 1:	iwhence = SEEK_CUR; break;
+	case 2:	iwhence = SEEK_END; break;
+
+	default:
+		DEBUG1("rmtd: Illegal lseek() whence %d\n", iwhence);
+		rmtrespond((long)-1, EINVAL);
+		return;
+	}
+	ret = (off_t)offset;
+	if (ret != offset) {
+		DEBUG1("rmtd: Illegal seek offset %lld\n", offset);
+		rmtrespond((long)-1, EINVAL);
+		return;
+	}
+	ret = lseek(tape_fd, (off_t)offset, iwhence);
+	if ((ret != (off_t)-1) &&  (sizeof(ret) > sizeof(long))) {
+		DEBUG1("rmtd: A %lld\n", (Llong)ret);
+		(void) js_snprintf(count, sizeof(count), "A%lld\n", (Llong)ret);
+		(void) _nixwrite(STDOUT_FILENO, count, strlen(count));
+		return;
+	}
+	rmtrespond((long)ret, geterrno());
 }
 
 LOCAL void
@@ -869,7 +923,33 @@ doversion()
 
 	readarg(arg, sizeof(arg));	/* In case we like to add an arg later */
 	DEBUG1("rmtd: v %s\n", arg);
-	rmtrespond(RMT_VERSION, 0);
+	rmtrespond((long)RMT_VERSION, 0);
+}
+
+#define	READB_SIZE	128
+LOCAL	char		readb[READB_SIZE];
+LOCAL	char		*readbptr;
+LOCAL	int		readbcnt;
+
+LOCAL int
+fillrdbuf()
+{
+	readbptr = readb;
+
+	return (readbcnt = _niread(STDIN_FILENO, readb, READB_SIZE));
+}
+
+LOCAL int
+readchar(cp)
+	char	*cp;
+{
+	if (--readbcnt < 0) {
+		if (fillrdbuf() <= 0)
+			return (readbcnt);
+		--readbcnt;
+	}
+	*cp = *readbptr++;
+	return (1);
 }
 
 LOCAL void
@@ -877,11 +957,21 @@ readbuf(buf, n)
 	register char	*buf;
 	register int	n;
 {
-	register int	i;
+	register int	i = 0;
 	register int	amt;
 
-	for (i = 0; i < n; i += amt) {
-		amt = read(STDIN_FILENO, &buf[i], n - i);
+	if (readbcnt > 0) {
+		amt = readbcnt;
+		if (amt > n)
+			amt = n;
+		movebytes(readbptr, buf, amt);
+		readbptr += amt;
+		readbcnt -= amt;
+		i += amt;
+	}
+
+	for (; i < n; i += amt) {
+		amt = _niread(STDIN_FILENO, &buf[i], n - i);
 		if (amt <= 0) {
 			DEBUG("rmtd: premature eof\n");
 			rmterror("Premature eof");
@@ -898,7 +988,7 @@ readarg(buf, n)
 	int	i;
 
 	for (i = 0; i < n; i++) {
-		if (read(STDIN_FILENO, &buf[i], 1) != 1)
+		if (readchar(&buf[i]) != 1)
 			exit(0);
 		if (buf[i] == '\n')
 			break;
@@ -962,19 +1052,19 @@ checktape(device)
 
 LOCAL void
 rmtrespond(ret, err)
-	int	ret;
+	long	ret;
 	int	err;
 {
 	char	rbuf[2*CMD_SIZE];
 
 	if (ret >= 0) {
-		DEBUG1("rmtd: A %d\n", ret);
-		(void) js_snprintf(rbuf, sizeof(rbuf), "A%d\n", ret);
+		DEBUG1("rmtd: A %ld\n", ret);
+		(void) js_snprintf(rbuf, sizeof(rbuf), "A%ld\n", ret);
 	} else {
 		DEBUG2("rmtd: E %d (%s)\n", err, errmsgstr(err));
 		(void) js_snprintf(rbuf, sizeof(rbuf), "E%d\n%s\n", err, errmsgstr(err));
 	}
-	(void) write(STDOUT_FILENO, rbuf, strlen(rbuf));
+	(void) _nixwrite(STDOUT_FILENO, rbuf, strlen(rbuf));
 }
 
 LOCAL void
@@ -985,5 +1075,5 @@ rmterror(str)
 
 	DEBUG1("rmtd: E 0 (%s)\n", str);
 	(void) js_snprintf(rbuf, sizeof(rbuf), "E0\n%s\n", str);
-	(void) write(STDOUT_FILENO, rbuf, strlen(rbuf));
+	(void) _nixwrite(STDOUT_FILENO, rbuf, strlen(rbuf));
 }

@@ -1,4 +1,4 @@
-/* @(#)waitdefs.h	1.8 00/11/08 Copyright 1995 J. Schilling */
+/* @(#)waitdefs.h	1.9 01/07/15 Copyright 1995 J. Schilling */
 /*
  *	Definitions to deal with various kinds of wait flavour
  *
@@ -28,14 +28,20 @@
 #endif
 
 #if	defined(HAVE_WAIT_H)
+#	ifndef	_INCL_WAIT_H
 #	include <wait.h>
+#	define	_INCL_WAIT_H
+#	endif
 #else
 /*
  * K&R Compiler doesn't like #elif
  */
 #	if	defined(HAVE_SYS_WAIT_H)	/* POSIX.1 compat sys/wait.h */
 #	undef	HAVE_UNION_WAIT			/* POSIX.1 doesn't use U_W   */
+#		ifndef	_INCL_SYS_WAIT_H
 #		include <sys/wait.h>
+#		define	_INCL_SYS_WAIT_H
+#		endif
 #	endif
 #endif
 

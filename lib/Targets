@@ -3,9 +3,12 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 		fgetline.c file_raise.c \
 		fileopen.c \
 		fileread.c fileseek.c  \
+		filesize.c \
 		filewrite.c flag.c flush.c  \
 		fpipe.c \
-		niread.c openfd.c
+		niread.c niwrite.c nixread.c nixwrite.c openfd.c \
+		fcons64.c fileopen64.c filesize64.c \
+		openfd64.c
 
 #
 # Note: getfp.c must be before getav0.c
@@ -13,17 +16,18 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 #
 
 CFILES_REST=	astoi.c astoll.c \
-		comerr.c cmpbytes.c \
+		comerr.c cmpbytes.c cmpnullbytes.c \
 		error.c \
 		fconv.c fexec.c fillbytes.c \
 		format.c \
 		getfp.c \
 		getargs.c getav0.c geterrno.c \
+		getpagesize.c \
 		jsprintf.c jssnprintf.c jssprintf.c \
 		match.c movebytes.c \
 		printf.c \
 		raisecond.c \
-		saveargs.c \
+		saveargs.c seterrno.c \
 		sprintf.c strcatl.c streql.c \
 		swabbytes.c
 

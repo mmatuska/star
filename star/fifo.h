@@ -1,4 +1,4 @@
-/* @(#)fifo.h	1.6 00/11/09 Copyright 1989 J. Schilling */
+/* @(#)fifo.h	1.8 01/08/14 Copyright 1989 J. Schilling */
 /*
  *	Definitions for a "fifo" that uses
  *	shared memory between two processes
@@ -24,13 +24,14 @@
 typedef	struct	{
 	BOOL	reading;	/* true if currently reading from tape	*/
 	int	swapflg;	/* -1: init, 0: FALSE, 1: TRUE		*/
-	long	blocksize;	/* Blocksize for each transfer		*/
-	long	blocks;		/* Full blocks transfered on Volume	*/
-	long	parts;		/* Bytes fom partial transferes on Volume */
-	long	lastsize;	/* Size of last transfer (for backtape)	*/
-	long	Tblocks;	/* Total blocks transfered		*/
-	long	Tparts;		/* Total Bytes fom parttial transferes	*/
 	int	volno;		/* Volume #				*/
+	int	nblocks;	/* Blocksize for each transfer in TBLOCK*/
+	long	blocksize;	/* Blocksize for each transfer in bytes	*/
+	long	lastsize;	/* Size of last transfer (for backtape)	*/
+	Llong	blocks;		/* Full blocks transfered on Volume	*/
+	Llong	parts;		/* Bytes fom partial transferes on Volume */
+	Llong	Tblocks;	/* Total blocks transfered		*/
+	Llong	Tparts;		/* Total Bytes fom parttial transferes	*/
 } m_stats;
 
 typedef struct {

@@ -1,4 +1,4 @@
-/* @(#)stdxlib.h	1.3 01/02/19 Copyright 1996 J. Schilling */
+/* @(#)stdxlib.h	1.6 01/07/15 Copyright 1996 J. Schilling */
 /*
  *	Definitions for stdlib
  *
@@ -28,7 +28,10 @@
 #endif
 
 #ifdef	HAVE_STDLIB_H
+#ifndef	_INCL_STDLIB_H
 #include <stdlib.h>
+#define	_INCL_STDLIB_H
+#endif
 #else
 
 extern	char	*malloc();
@@ -37,5 +40,15 @@ extern	char	*realloc();
 extern	double	atof();
 
 #endif	/* HAVE_STDLIB_H */
+
+#ifndef	EXIT_FAILURE
+#define	EXIT_FAILURE	1
+#endif
+#ifndef	EXIT_SUCCESS
+#define	EXIT_SUCCESS	0
+#endif
+#ifndef	RAND_MAX
+#define	RAND_MAX	32767
+#endif
 
 #endif	/* _STDXLIB_H */

@@ -1,4 +1,5 @@
-/* @(#)starsubs.h	1.14 00/11/12 Copyright 1996 J. Schilling */
+
+/* @(#)starsubs.h	1.24 02/05/20 Copyright 1996 J. Schilling */
 /*
  *	Prototypes for star subroutines
  *
@@ -22,13 +23,19 @@
 
 #include <ccomdefs.h>
 
+#ifndef	_INCL_SYS_TYPES_H
+#include <sys/types.h>
+#define	_INCL_SYS_TYPES_H
+#endif
+
 /*
  * star.c
  */
 extern	int	main		__PR((int ac, char** av));
 extern	const char *filename	__PR((const char* name));
 extern	BOOL	match		__PR((const char* name));
-extern	void	*__malloc	__PR((unsigned int size));
+extern	void	*__malloc	__PR((size_t size, char *msg));
+extern	void	*__realloc	__PR((void *ptr, size_t size, char *msg));
 extern	char	*__savestr	__PR((char *s));
 
 /*
@@ -44,6 +51,8 @@ extern	void	markeof		__PR((void));
 extern	void	syncbuf		__PR((void));
 extern	int	readblock	__PR((char* buf));
 extern	int	readtape	__PR((char* buf, int amount));
+extern	void	filltcb		__PR((TCB *ptb));
+extern	void	movetcb		__PR((TCB *from_ptb, TCB *to_ptb));
 extern	void	*get_block	__PR((void));
 extern	void	put_block	__PR((void));
 extern	void	writeblock	__PR((char* buf));
@@ -59,8 +68,8 @@ extern	void	buf_rwake	__PR((int amount));
 extern	void	buf_resume	__PR((void));
 extern	void	backtape	__PR((void));
 extern	int	mtioctl		__PR((int cmd, int count));
-extern	long	mtseek		__PR((long offset, int whence));
-extern	int	tblocks		__PR((void));
+extern	off_t	mtseek		__PR((off_t offset, int whence));
+extern	Llong	tblocks		__PR((void));
 extern	void	prstats		__PR((void));
 extern	BOOL	checkerrs	__PR((void));
 extern	void	exprstats	__PR((int ret));
@@ -134,6 +143,8 @@ extern	void	fifo_chtape	__PR((void));
 /*
  * header.c
  */
+extern	int	get_hdrtype	__PR((TCB * ptb, BOOL isrecurse));
+extern	int	get_compression	__PR((TCB * ptb));
 extern	int	get_tcb		__PR((TCB * ptb));
 extern	void	put_tcb		__PR((TCB * ptb, FINFO * info));
 extern	void	write_tcb	__PR((TCB * ptb, FINFO * info));
@@ -142,9 +153,15 @@ extern	BOOL	get_volhdr	__PR((FINFO * info, char *vhname));
 extern	void	info_to_tcb	__PR((register FINFO * info, register TCB * ptb));
 extern	int	tcb_to_info	__PR((register TCB * ptb, register FINFO * info));
 extern	BOOL	ia_change	__PR((TCB * ptb, FINFO * info));
-extern	void	astoo_cpio	__PR((register char* s, Ulong * l, register int cnt));
-extern	void	astoo		__PR((register char* s, Ulong * l));
-extern	void	otoa		__PR((char* s, register Ulong  l, register int fieldw));
+extern	void	stolli		__PR((register char* s, Ullong * ull));
+extern	void	llitos		__PR((char* s, Ullong ull, int fieldw));
+
+/*
+ * xheader.c
+ */
+extern	void	xbinit		__PR((void));
+extern	void	info_to_xhdr	__PR((FINFO * info, TCB * ptb));
+extern	int	tcb_to_xhdr	__PR((TCB * ptb, FINFO * info));
 
 /*
  * hole.c
@@ -161,7 +178,7 @@ extern	int	gnu_skip_extended	__PR((TCB * ptb));
  * lhash.c
  */
 #ifdef	EOF
-extern	void	hash_build	__PR((FILE * fp, unsigned int size));
+extern	void	hash_build	__PR((FILE * fp, size_t size));
 #endif
 extern	BOOL	hash_lookup	__PR((char* str));
 
@@ -196,6 +213,11 @@ extern	void	setprops	__PR((long htype));
 extern	void	printprops	__PR((void));
 
 /*
+ * remove.c
+ */
+extern	BOOL	remove_file	__PR((char* name, BOOL isfirst));
+
+/*
  * star_unix.c
  */
 extern	BOOL	getinfo		__PR((char* name, FINFO * info));
@@ -206,3 +228,23 @@ extern	void	setmodes	__PR((FINFO * info));
 extern	int	snulltimes	__PR((char* name, FINFO * info));
 extern	int	sxsymlink	__PR((FINFO * info));
 extern	int	rs_acctime	__PR((int fd, FINFO * info));
+
+/*
+ * acl_unix.c
+ */
+extern	BOOL	get_acls	__PR((FINFO *info));
+extern	void	set_acls	__PR((FINFO *info));
+
+/*
+ * unicode.c
+ */
+extern	void	to_utf8		__PR((Uchar *to, Uchar *from));
+extern	BOOL	from_utf8	__PR((Uchar *to, Uchar *from));
+
+/*
+ * fflags.c
+ */
+extern	void	get_fflags	__PR((FINFO *info));
+extern	void	set_fflags	__PR((FINFO *info));
+extern	char	*textfromflags	__PR((FINFO *info, char *buf));
+extern	int	texttoflags	__PR((FINFO *info, char *buf));

@@ -22,7 +22,7 @@
 #
 # Add entries for all valid remote users to /export/home/tape/.rhosts
 #
-USER=tape
+USER=rtape
 USER=joerg
 #USER=*
 
@@ -43,4 +43,5 @@ USER=joerg
 #
 ACCESS=rtape	sparky	/dev/rmt/*
 ACCESS=*	*	/dev/rmt/*
+ACCESS=*	*	/dev/null
 #ACCESS=*	*	*

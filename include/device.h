@@ -1,8 +1,6 @@
-/* @(#)device.h	1.8 01/02/17 Copyright 1995 J. Schilling */
+/* @(#)device.h	1.10 01/10/27 Copyright 1995 J. Schilling */
 /*
  *	Generic header for users of major(), minor() and makedev()
- *
- *	NOTE: You need to include <sys/types.h> before <device.h>
  *
  *	Copyright (c) 1995 J. Schilling
  */
@@ -52,13 +50,19 @@
 #endif
 
 #ifdef MAJOR_IN_MKDEV
+#	ifndef	_INCL_SYS_MKDEV_H
 #	include <sys/mkdev.h>
+#	define	_INCL_SYS_MKDEV_H
+#	endif
 #	define _FOUND_MAJOR_
 #endif
 
 #ifndef _FOUND_MAJOR_
 #	ifdef MAJOR_IN_SYSMACROS
+#		ifndef	_INCL_SYS_SYSMACROS_H
 #		include <sys/sysmacros.h>
+#		define	_INCL_SYS_SYSMACROS_H
+#		endif
 #		define _FOUND_MAJOR_
 #	endif
 #endif
@@ -69,7 +73,10 @@
  */
 #ifndef _FOUND_MAJOR_
 #	if defined(hpux) || defined(__hpux__) || defined(__hpux)
+#		ifndef	_INCL_SYS_MKOD_H
 #		include <sys/mknod.h>
+#		define	_INCL_SYS_MKOD_H
+#		endif
 #		define _FOUND_MAJOR_
 #	endif
 #endif

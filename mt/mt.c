@@ -1,7 +1,7 @@
-/* %Z%%M%	%I% %E% Copyright 2000 J. Schilling */
+/* @(#)mt.c	1.11 02/04/20 Copyright 2000 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"%Z%%M%	%I% %E% Copyright 2000 J. Schilling";
+	"@(#)mt.c	1.11 02/04/20 Copyright 2000 J. Schilling";
 #endif
 /*
  *	Magnetic tape manipulation program
@@ -25,12 +25,16 @@ static	char sccsid[] =
  */
 
 #include <mconfig.h>
+
+#if !defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)
+#undef	USE_REMOTE				/* There is no rcmd() */
+#endif
+
 #include <stdio.h>
 #include <stdxlib.h>
 #include <unixstd.h>
 #include <strdefs.h>
 #include <utypes.h>
-#include <sys/types.h>
 #include <fctldefs.h>
 #include <sys/ioctl.h>
 /*#undef	HAVE_SYS_MTIO_H*/
@@ -40,20 +44,17 @@ static	char sccsid[] =
 #include "mtio.h"
 #endif
 #include <errno.h>
-#ifndef	HAVE_ERRNO_DEF
-extern	int	errno;
-#endif
 
 #include <schily.h>
 #include <standard.h>
 #include "remote.h"
 
-BOOL	help;
-BOOL	prvers;
-int	debug;
+LOCAL BOOL	help;
+LOCAL BOOL	prvers;
+LOCAL int	debug;
 
-struct mtop	mt_op;
-struct mtget	mt_status;
+LOCAL struct mtop	mt_op;
+LOCAL struct mtget	mt_status;
 
 #define	NO_ASF		1000
 #define	NO_NBSF		1001
@@ -70,7 +71,7 @@ struct mtget	mt_status;
 #define	MTC_CNT		2	/* This command uses the count arg	*/
 
 
-struct mt_cmds {
+LOCAL struct mt_cmds {
 	char *mtc_name;		/* The name of the command		*/
 	char *mtc_text;		/* Description of the command		*/
 	int mtc_opcode;		/* The opcode for mtio			*/
@@ -148,7 +149,7 @@ usage(ex)
 	exit(ex);
 }
 
-char	opts[] = "f*,t*,version,help,h";
+LOCAL char	opts[] = "f*,t*,version,help,h";
 
 int
 main(ac, av)
@@ -175,7 +176,7 @@ main(ac, av)
 	}
 	if (help) usage(0);
 	if (prvers) {
-		printf("mt %s (%s-%s-%s)\n\n", "%I%", HOST_CPU, HOST_VENDOR, HOST_OS);
+		printf("mt %s (%s-%s-%s)\n\n", "1.11", HOST_CPU, HOST_VENDOR, HOST_OS);
 		printf("Copyright (C) 2000 Jörg Schilling\n");
 		printf("This is free software; see the source for copying conditions.  There is NO\n");
 		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
@@ -237,7 +238,10 @@ main(ac, av)
 	if ((cp->mtc_flags & MTC_CNT) == 0)
 		count = 1;
 
+#ifdef	USE_REMOTE
+	rmtdebug(debug);
 	(void)openremote(tape);		/* This needs super user privilleges */
+#endif
 #ifdef	HAVE_SETREUID
 	if (setreuid(-1, getuid()) < 0)
 #else
@@ -250,10 +254,10 @@ main(ac, av)
 		comerr("Panic cannot set back efective uid.\n");
 
 	if (opentape(tape, cp) < 0) {
-		if (errno == EIO) {
+		if (geterrno() == EIO) {
 			comerrno(EX_BAD, "'%s': no tape loaded or drive offline.\n",
 				tape);
-		} else if (errno == EACCES) {
+		} else if (geterrno() == EACCES) {
 			comerrno(EX_BAD, "'%s': tape is write protected.\n", tape);
 		} else {
 			comerr("Cannot open '%s'.\n", tape); 
@@ -335,7 +339,7 @@ main(ac, av)
  * in an OS independant way.
  * Don't use it for now.
  */
-struct tape_info {
+LOCAL struct tape_info {
 	short	t_type;		/* type of magnetic tape device	*/
 	char	*t_name;	/* name for prining		*/
 	char	*t_dsbits;	/* "drive status" register	*/
@@ -376,15 +380,12 @@ mtstatus(sp)
 		else
 			printf("%s tape drive:\n", "SCSI");
 #else
-		printf("unknown tape drive:\n");
+		printf("unknown SCSI tape drive:\n");
 #endif
 
 		printf("   sense key(0x%x)= %s   residual= %ld   ",
 			sp->mt_erreg, print_key(sp->mt_erreg), (long)sp->mt_resid);
 		printf("retries= %ld\n", (long)sp->mt_dsreg);
-		printf("   file no= %ld   block no= %lld\n",
-			(long)sp->mt_fileno, (Llong)sp->mt_blkno);
-
 	} else
 #endif	/* HAVE_MTGET_FLAGS */
 		{
@@ -416,6 +417,23 @@ mtstatus(sp)
 #endif
 		putchar('\n');
 	}
+	printf("   file no= %lld   block no= %lld\n",
+#ifdef	HAVE_MTGET_FILENO
+			(Llong)sp->mt_fileno,
+#else
+			(Llong)-1,
+#endif
+#ifdef	HAVE_MTGET_BLKNO
+			(Llong)sp->mt_blkno);
+#else
+			(Llong)-1);
+#endif
+#ifdef	 HAVE_MTGET_BF
+	printf("   optimum blocking factor= %ld\n", (long)sp->mt_bf);
+#endif
+#ifdef	 HAVE_MTGET_FLAGS
+	printf("   flags= 0x%lX\n", (long)sp->mt_flags);
+#endif
 }
 
 static char *sense_keys[] = {
@@ -450,30 +468,25 @@ print_key(key)
 }
 
 /*--------------------------------------------------------------------------*/
-int	isremote;
-int	remfd	= -1;
-int	mtfd;
-char	*remfn;
-char	host[64];
+LOCAL int	isremote;
+LOCAL int	remfd	= -1;
+LOCAL int	mtfd;
+LOCAL char	*remfn;
 
+#ifdef	USE_REMOTE
 LOCAL int
 openremote(tape)
 	char	*tape;
 {
-	register char *hp;
-	register char *fp;
-	register int  i;
+	char	host[128];
 
-	if (strchr(tape, ':')) {
-
+	if ((remfn = rmtfilename(tape)) != NULL) {
+		rmthostname(host, tape, sizeof(host));
 		isremote++;
-		remfn = strchr(tape, ':');
-		for (fp = tape, hp = host, i = 1;
-				fp < remfn && i < sizeof(host); i++) {
-			*hp++ = *fp++;
-		}
-		*hp = '\0';
-		remfn++;
+
+		if (debug)
+			errmsgno(EX_BAD, "Remote: %s Host: %s file: %s\n",
+							tape, host, remfn);
 
 		if ((remfd = rmtgetconn(host, 4096)) < 0)
 			comerrno(EX_BAD, "Cannot get connection to '%s'.\n",
@@ -481,6 +494,7 @@ openremote(tape)
 	}
 	return (isremote);
 }
+#endif
 
 LOCAL int
 opentape(tape, cp)
@@ -488,8 +502,12 @@ opentape(tape, cp)
 	register struct mt_cmds *cp;
 {
 	if (isremote) {
+#ifdef	USE_REMOTE
 		if (rmtopen(remfd, remfn, (cp->mtc_flags&MTC_RDO) ? 0 : 2) < 0)
 			return (-1);
+#else
+		comerrno(EX_BAD, "Remote tape support not present.\n");
+#endif
 	} else if ((mtfd = open(tape, (cp->mtc_flags&MTC_RDO) ? 0 : 2)) < 0) {
 			return (-1);
 	}
@@ -506,14 +524,15 @@ mtioctl(cmd, arg)
 	struct mtop *mop;
 
 	if (isremote) {
+#ifdef	USE_REMOTE
 		switch (cmd) {
 
 		case MTIOCGET:
-			mtp = rmtstatus(remfd);
-			if (mtp == NULL)
-				return (-1);
-			ret = 0;
-			*(struct mtget *)arg = *mtp;
+			ret = rmtstatus(remfd, (struct mtget *)arg);
+			if (ret < 0)
+				return (ret);
+
+			mtp = (struct mtget *)arg;
 #ifdef	DEBUG
 error("type: %X ds: %X er: %X resid: %d fileno: %d blkno: %d flags: %X bf: %d\n",
 mtp->mt_type, mtp->mt_dsreg, mtp->mt_erreg, mtp->mt_resid, mtp->mt_fileno,
@@ -528,6 +547,9 @@ mtp->mt_blkno, mtp->mt_flags, mtp->mt_bf);
 			comerrno(ENOTTY, "Invalid mtioctl.\n");
 			/* NOTREACHED */
 		}
+#else
+		comerrno(EX_BAD, "Remote tape support not present.\n");
+#endif
 	} else {
 		ret = ioctl(mtfd, cmd, arg);
 	}

@@ -1,4 +1,4 @@
-/* @(#)io.h	2.16 01/02/17 Copyright 1986, 1995 J. Schilling */
+/* @(#)io.h	2.17 01/12/09 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995 J. Schilling
  */
@@ -37,12 +37,33 @@
 /*#if	_LFS_LARGEFILE*/
 #ifdef	HAVE_LARGEFILES
 /*
- * XXX Hack until fseeko()/ftello() are available everywhere or until
- * XXX we know a secure way to let autoconf ckeck for fseeko()/ftello()
- * XXX without defining FILE_OFFSETBITS to 64 in confdefs.h
+ * XXX We may need to put this code to a more global place to allow all
+ * XXX users of fseek()/ftell() to automaticaly use fseeko()/ftello()
+ * XXX if the latter are available.
+ *
+ * If HAVE_LARGEFILES is defined, it is guaranteed that fseeko()/ftello()
+ * both are available.
  */
 #	define	fseek	fseeko
 #	define	ftell	ftello
+
+#else	/* !HAVE_LARGEFILES */
+/*
+ * If HAVE_LARGEFILES is not defined, we depend on specific tests for
+ * fseeko()/ftello() which must have been done before the tests for
+ * Large File support have been done.
+ * Note that this only works if the tests used below are really done before
+ * the Large File autoconf test is run. This is because autoconf does no
+ * clean testing but instead cumulatively modifes the envivonment used for
+ * testing.
+ */
+#ifdef	HAVE_FSEEKO
+#	define	fseek	fseeko
+#endif
+#ifdef	HAVE_FTELLO
+#	define	ftell	ftello
+#endif
+
 #endif
 
 /*

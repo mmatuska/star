@@ -1,7 +1,7 @@
-/* @(#)diff.c	1.33 01/04/07 Copyright 1993 J. Schilling */
+/* @(#)diff.c	1.41 02/05/17 Copyright 1993 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)diff.c	1.33 01/04/07 Copyright 1993 J. Schilling";
+	"@(#)diff.c	1.41 02/05/17 Copyright 1993 J. Schilling";
 #endif
 /*
  *	List differences between a (tape) archive and
@@ -27,12 +27,13 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
+#include <stdxlib.h>
+#include <unixstd.h>
 #include <standard.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
 #include "diff.h"
-#include <stdxlib.h>
 #include <schily.h>
 #include <dirdefs.h>	/*XXX Wegen S_IFLNK */
 #include "starsubs.h"
@@ -47,7 +48,7 @@ extern	FILE	*tarf;
 extern	char	*listfile;
 extern	int	version;
 
-extern	int	bigcnt;
+extern	long	bigcnt;
 extern	int	bigsize;
 extern	char	*bigptr;
 
@@ -56,7 +57,7 @@ extern	long	hdrtype;
 extern	BOOL	debug;
 extern	BOOL	no_stats;
 extern	BOOL	abs_path;
-extern	BOOL	verbose;
+extern	int	verbose;
 extern	BOOL	tpath;
 extern	BOOL	interactive;
 
@@ -121,7 +122,7 @@ diff_tcb(info)
 		int	diffs = 0;
 		BOOL	do_void;
 
-	f = tarf == stdout ? stderr : stdout;
+	f = tarf == stdout ? stderr : stdout; /* XXX FILE *vpr is the same */
 
 	finfo.f_lname = lname;
 	finfo.f_lnamelen = 0;
@@ -130,6 +131,10 @@ diff_tcb(info)
 	    (info->f_name[0] == '/' /*|| info->f_lname[0] == '/'*/))
 		skip_slash(info);
 
+	if (is_volhdr(info)) {
+		void_file(info);
+		return;
+	}
 	if (!getinfo(info->f_name, &finfo)) {
 		xstats.s_staterrs++;
 		errmsg("Cannot stat '%s'.\n", info->f_name);
@@ -147,8 +152,12 @@ diff_tcb(info)
 	if ((diffopts & D_PERM) &&
 			(info->f_mode & 07777) != (finfo.f_mode & 07777)) {
 		diffs |= D_PERM;
+	/*
+	 * XXX Diff ACLs not yet implemented.
+	 */
+
 /* XXX hat ustar modes incl. filetype ???? */
-/*printf("%o %o\n", info->f_mode, finfo.f_mode);*/
+/*error("%o %o\n", info->f_mode, finfo.f_mode);*/
 	}
 	if ((diffopts & D_UID) && info->f_uid != finfo.f_uid) {
 		diffs |= D_UID;
@@ -175,32 +184,58 @@ diff_tcb(info)
 	if ((diffopts & D_TYPE) &&
 			(info->f_filetype != finfo.f_filetype ||
 			 (is_special(info) && info->f_type != finfo.f_type))
-			 && (!is_link(info) || H_TYPE(hdrtype) == H_STAR)) {
+			 && (!fis_link(info) || H_TYPE(hdrtype) == H_STAR)) {
 
-		if (debug)
-			fprintf(f, "%s: different filetype  %lo != %lo\n",
+		if (fis_meta(info) && is_file(&finfo)) {
+			/* EMPTY */
+			;
+		} else {
+			if (debug) {
+				fprintf(f,
+				"%s: different filetype  %lo != %lo\n",
 				info->f_name, info->f_type, finfo.f_type);
-		diffs |= D_TYPE;
+			}
+			diffs |= D_TYPE;
+		}
 	}
 
 	/*
 	 * XXX nsec beachten wenn im Archiv!
 	 */
-	if ((diffopts & D_ATIME) && info->f_atime != finfo.f_atime) {
-		diffs |= D_ATIME;
+	if ((diffopts & D_ATIME) != 0) {
+		if (info->f_atime != finfo.f_atime)
+			diffs |= D_ATIME;
+/*#define	should_we*/
+#ifdef	should_we
+		if ((info->f_xflags & XF_ATIME) && (finfo.f_flags & F_NSECS) &&
+		    info->f_ansec != finfo.f_ansec)
+			diffs |= D_ATIME;
+#endif
 	}
-	if ((diffopts & D_MTIME) && info->f_mtime != finfo.f_mtime) {
-		diffs |= D_MTIME;
+	if ((diffopts & D_MTIME) != 0) {
+		if (info->f_mtime != finfo.f_mtime)
+			diffs |= D_MTIME;
+#ifdef	should_we
+		if ((info->f_xflags & XF_MTIME) && (finfo.f_flags & F_NSECS) &&
+		    info->f_mnsec != finfo.f_mnsec)
+			diffs |= D_MTIME;
+#endif
 	}
-	if ((diffopts & D_CTIME) && info->f_ctime != finfo.f_ctime) {
-		diffs |= D_CTIME;
+	if ((diffopts & D_CTIME) != 0) {
+		if (info->f_ctime != finfo.f_ctime)
+			diffs |= D_CTIME;
+#ifdef	should_we
+		if ((info->f_xflags & XF_CTIME) && (finfo.f_flags & F_NSECS) &&
+		    info->f_cnsec != finfo.f_cnsec)
+			diffs |= D_CTIME;
+#endif
 	}
 
 	if ((diffopts & D_HLINK) && is_link(info)) {
 		if (!getinfo(info->f_lname, &linfo)) {
 			xstats.s_staterrs++;
 			errmsg("Cannot stat '%s'.\n", info->f_lname);
-			linfo.f_ino = 0;
+			linfo.f_ino = (ino_t)0;
 		}
 		if ((finfo.f_ino != linfo.f_ino) ||
 		    (finfo.f_dev != linfo.f_dev)) {
@@ -246,9 +281,9 @@ diff_tcb(info)
 					&& info->f_rdev != finfo.f_rdev) {
 		diffs |= D_RDEV;
 	}
-	if ((diffopts & D_DATA) && is_file(info) && is_file(&finfo)
+	if ((diffopts & D_DATA) && !is_meta(info) && is_file(info) && is_file(&finfo)
 					/* avoid permission denied error */
-					&& info->f_size > 0
+					&& info->f_size > (off_t)0
 					&& info->f_size == finfo.f_size) {
 		if (!cmp_file(info)) {
 			diffs |= D_DATA;
@@ -310,10 +345,16 @@ cmp_file(info)
 	cmp_t	cmp;
 
 	if (!diffbuf) {
-		diffbuf = malloc((unsigned)bigsize);
+		/*
+		 * If we have no diffbuf, we cannot diff - abort.
+		 */
+		diffbuf = __malloc((size_t)bigsize, "diff buffer");
+#ifdef	__notneeded
 		if (diffbuf == (char *)0) {
-			errmsg("Cannot alloc diffbuf.\n");
+			void_file(info);
+			return (FALSE);
 		}
+#endif
 	}
 
 	if ((f = fileopen(info->f_name, "rub")) == (FILE *)NULL) {
@@ -347,6 +388,9 @@ prdiffopts(f, label, flags)
 	fprintf(f, "%s", label);
 	if (flags & D_PERM)
 		prdopt(f, "perm", printed++);
+	/*
+	 * XXX Diff ACLs not yet implemented.
+	 */
 	if (flags & D_TYPE)
 		prdopt(f, "type", printed++);
 	if (flags & D_NLINK)

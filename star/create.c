@@ -1,10 +1,10 @@
-/* @(#)create.c	1.40 01/04/07 Copyright 1985, 1995 J. Schilling */
+/* @(#)create.c	1.65 02/05/17 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)create.c	1.40 01/04/07 Copyright 1985, 1995 J. Schilling";
+	"@(#)create.c	1.65 02/05/17 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 1995 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -38,12 +38,16 @@ static	char sccsid[] =
 
 typedef	struct	links {
 	struct	links	*l_next;
-		long	l_ino;
-		long	l_dev;
+		ino_t	l_ino;
+		dev_t	l_dev;
 		long	l_nlink;
 		short	l_namlen;
+		Uchar	l_flags;
 		char	l_name[1];	/* actually longer */
 } LINKS;
+
+#define	L_ISDIR		1		/* This entry refers to a directory  */
+#define	L_ISLDIR	2		/* A dir, hard linked to another dir */
 
 #define	L_HSIZE		256		/* must be a power of two */
 
@@ -51,21 +55,25 @@ typedef	struct	links {
 
 LOCAL	LINKS	*links[L_HSIZE];
 
+extern	FILE	*vpr;
 extern	FILE	*listf;
 
-extern	long	tape_dev;
-extern	long	tape_ino;
+extern	BOOL	tape_isreg;
+extern	dev_t	tape_dev;
+extern	ino_t	tape_ino;
 #define	is_tape(info)		((info)->f_dev == tape_dev && (info)->f_ino == tape_ino)
 
 extern	int	bufsize;
 extern	char	*bigptr;
 
 extern	BOOL	havepat;
-extern	Ulong	curfs;
-extern	Ulong	maxsize;
-extern	Ulong	Newer;
-extern	Ulong	tsize;
+extern	dev_t	curfs;
+extern	Ullong	maxsize;
+extern	time_t	Newer;
+extern	Ullong	tsize;
+extern	BOOL	prblockno;
 extern	BOOL	debug;
+extern	BOOL	silent;
 extern	BOOL	uflag;
 extern	BOOL	nodir;
 extern	BOOL	acctime;
@@ -79,7 +87,10 @@ extern	BOOL	abs_path;
 extern	BOOL	nowarn;
 extern	BOOL	sparse;
 extern	BOOL	Ctime;
+extern	BOOL	nodump;
 extern	BOOL	nullout;
+extern	BOOL	link_dirs;
+extern	BOOL	dometa;
 
 extern	int	intr;
 
@@ -112,6 +123,8 @@ checklinks()
 	register int	curlen;
 	register int	maxlen	= 0;
 	register int	nlinks	= 0;
+	register int	ndirs	= 0;
+	register int	nldirs	= 0;
 
 	for(i=0; i < L_HSIZE; i++) {
 		if (links[i] == (LINKS *)NULL)
@@ -123,7 +136,25 @@ checklinks()
 		for(lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
 			curlen++;
 			nlinks++;
-			if (lp->l_nlink != 0) {
+			if ((lp->l_flags & L_ISDIR) != 0) {
+				ndirs++;
+				if ((lp->l_flags & L_ISLDIR) != 0)
+					nldirs++;
+			} else if (lp->l_nlink != 0) {
+				/*
+				 * The fact that UNIX uses '.' and '..' as hard
+				 * links to directories on all known file
+				 * systems is a design bug. It makes it hard to
+				 * find hard links to directories. Note that
+				 * POSIX neither requires '.' and '..' to be
+				 * implemented as hard links nor that these
+				 * directories are physical present in the
+				 * directory content.
+				 * As it is hard to find all links (we would
+				 * need top stat all directories as well as all
+				 * '.' and '..' entries, we only warn for non
+				 * directories.
+				 */
 				xstats.s_misslinks++;
 				errmsgno(EX_BAD, "Missing links to '%s'.\n",
 								lp->l_name);
@@ -133,8 +164,15 @@ checklinks()
 			maxlen = curlen;
 	}
 	if (debug) {
-		errmsgno(EX_BAD, "hardlinks: %d hashents: %d/%d maxlen: %d\n",
+		if (link_dirs) {
+			errmsgno(EX_BAD, "entries: %d hashents: %d/%d maxlen: %d\n",
 						nlinks, used, L_HSIZE, maxlen);
+			errmsgno(EX_BAD, "hardlinks total: %d linked dirs: %d/%d linked files: %d \n",
+						nlinks+nldirs-ndirs, nldirs, ndirs, nlinks-ndirs);
+		} else {
+			errmsgno(EX_BAD, "hardlinks: %d hashents: %d/%d maxlen: %d\n",
+						nlinks, used, L_HSIZE, maxlen);
+		}
 	}
 }
 
@@ -143,10 +181,13 @@ take_file(name, info)
 	register char	*name;
 	register FINFO	*info;
 {
+	if (nodump && (info->f_flags & F_NODUMP) != 0)
+		return (FALSE);
+
 	if (havepat && !match(name)) {
 		return (FALSE);
 			/* Bei Directories ist f_size == 0 */
-	} else if (maxsize && info->f_size/1024 > maxsize) {
+	} else if (maxsize && info->f_size > maxsize) {
 		return (FALSE);
 	} else if (Newer && (Ctime ? info->f_ctime:info->f_mtime) <= Newer) {
 		/*
@@ -158,15 +199,40 @@ take_file(name, info)
 	} else if (tsize > 0 && tsize < (tarblocks(info->f_size)+1+2)) {
 		xstats.s_toobig++;
 		errmsgno(EX_BAD, "'%s' does not fit on tape. Not dumped.\n",
-								name) ;
+								name);
+		return (FALSE);
+	} else if (props.pr_maxsize > 0 && info->f_size > props.pr_maxsize) {
+		xstats.s_toobig++;
+		errmsgno(EX_BAD, "'%s' file too big for current mode. Not dumped.\n",
+								name);
+		return (FALSE);
+	} else if (pr_unsuptype(info)) {
+		xstats.s_isspecial++;
+		errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+				name,  XTTONAME(info->f_xftype));
 		return (FALSE);
 	} else if (is_special(info) && nospec) {
 		xstats.s_isspecial++;
-		errmsgno(EX_BAD, "'%s' is not a file. Not dumped.\n", name) ;
+		errmsgno(EX_BAD, "'%s' is not a file. Not dumped.\n", name);
 		return (FALSE);
-	} else if (is_tape(info)) {
-		errmsgno(EX_BAD, "'%s' is the archive. Not dumped.\n", name) ;
+	} else if (tape_isreg && is_tape(info)) {
+		errmsgno(EX_BAD, "'%s' is the archive. Not dumped.\n", name);
 		return (FALSE);
+	}
+	if (is_file(info) && dometa) {
+		/*
+		 * This is the right place for this code although it does not
+		 * look correct. Later in star-1.5 we decide here, based on
+		 * mtime and ctime of the file, whether we archive a file at
+		 * all and whether we only add the file's metadata.
+		 */
+		info->f_xftype = XT_META;
+		if (pr_unsuptype(info)) {
+			xstats.s_isspecial++;
+			errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+				name,  XTTONAME(info->f_xftype));
+			return (FALSE);
+		}
 	}
 	return (TRUE);
 }
@@ -196,9 +262,34 @@ int _fileread(fp, buf, len)
 {
 	register int	fd = *fp;
 	register int	ret;
+		 int	errcnt = 0;
 
-	while((ret = read(fd, buf, len)) < 0 && errno == EINTR)
+retry:
+	while((ret = read(fd, buf, len)) < 0 && geterrno() == EINTR)
 		;
+	if (ret < 0 && geterrno() == EINVAL && ++errcnt < 100) {
+		off_t oo;
+		off_t si;
+
+		/*
+		 * Work around the problem that we cannot read()
+		 * if the buffer crosses 2 GB in non large file mode.
+		 */
+		oo = lseek(fd, (off_t)0, SEEK_CUR);
+		if (oo == (off_t)-1)
+			return (ret);
+		si = lseek(fd, (off_t)0, SEEK_END);
+		if (oo == (off_t)-1)
+			return (ret);
+		if (lseek(fd, oo, SEEK_SET) == (off_t)-1)
+			return (ret);
+		if (oo >= si) {	/* EOF */
+			ret = 0;
+		} else if ((si - oo) <= len) {
+			len = si - oo;
+			goto retry;
+		}
+	}
 	return(ret);
 }
 
@@ -254,6 +345,8 @@ createi(name, namlen, info)
 	info->f_lname = lname;	/*XXX nur Übergangsweise!!!!!*/
 	info->f_lnamelen = 0;
 
+	if (prblockno)
+		(void)tblocks();		/* set curblockno */
 	if (!(dirmode && is_dir(info)) &&
 				(info->f_namelen <= props.pr_maxsname)) {
 		/*
@@ -270,20 +363,67 @@ createi(name, namlen, info)
 		info->f_flags |= F_TCB_BUF;
 	}
 	info->f_tcb = ptb;
-	fillbytes((char *)ptb, TBLOCK, '\0');
+	filltcb(ptb);
 	if (!name_to_tcb(info, ptb))	/* Name too long */
 		return;
 
 	info_to_tcb(info, ptb);
-	if (is_dir(info))
-		put_dir(name, namlen, info, ptb);
-	else if (!take_file(name, info))
+	if (is_dir(info)) {
+		/*
+		 * If we have been requested to check for hard linked
+		 * directories, first look for possible hard links.
+		 */
+		if (link_dirs && /* info->f_nlink > 1 &&*/ read_link(name, namlen, info, ptb))
+			was_link = TRUE;
+
+		if (was_link && !is_link(info))	/* link name too long */
+			return;
+
+		if (was_link) {
+			put_tcb(ptb, info);
+			vprint(info);
+		} else {
+			put_dir(name, namlen, info, ptb);
+		}
+	} else if (!take_file(name, info)) {
 		return;
-	else if (interactive && !ia_change(ptb, info))
-		printf("Skipping ...\n");
-	else if (is_symlink(info) && !read_symlink(name, info, ptb))
+	} else if (interactive && !ia_change(ptb, info)) {
+		fprintf(vpr, "Skipping ...\n");
+	} else if (is_symlink(info) && !read_symlink(name, info, ptb)) {
+		/* EMPTY */
 		;
-	else if (is_file(info) && info->f_size != 0 && !nullout &&
+	} else if (is_meta(info)) {
+		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
+			was_link = TRUE;
+
+		if (was_link && !is_link(info))	/* link name too long */
+			return;
+
+		if (!was_link) {
+			/*
+			 * XXX We definitely do not want that other tar
+			 * XXX implementations are able to read tar archives
+			 * XXX that contain meta files.
+			 * XXX If a tar implementation that does not understand
+			 * XXX meta files extracts archives with meta files,
+			 * XXX it will most likely destroy old files on disk.
+			 */
+			ptb->dbuf.t_linkflag = LF_META;
+			info->f_flags &= ~F_SPLIT_NAME;
+			if (ptb->dbuf.t_prefix[0] != '\0')
+				fillbytes(ptb->dbuf.t_prefix, props.pr_maxprefix, '\0');
+			if (props.pr_flags & PR_XHDR)
+				info->f_xflags |= XF_PATH;
+			else
+				info->f_flags |= F_LONGNAME;
+			ptb->dbuf.t_name[0] = 0;	/* Hide P-1988 name */
+			info_to_tcb(info, ptb);
+		}
+		put_tcb(ptb, info);
+		vprint(info);
+		return;
+
+	} else if (is_file(info) && info->f_size != 0 && !nullout &&
 				(fd = _fileopen(name,"rb")) < 0) {
 		xstats.s_openerrs++;
 		errmsg("Cannot open '%s'.\n", name);
@@ -314,7 +454,8 @@ createi(name, namlen, info)
 			 * Hardlinks have f_rsize == 0 !
 			 */
 			if (do_sparse) {
-				error("%s is sparse\n", info->f_name);
+				if (!silent)
+					error("%s is sparse\n", info->f_name);
 				put_sparse(&fd, info);
 			} else {
 				put_file(&fd, info);
@@ -343,8 +484,7 @@ createlist()
 		char	*name;
 		int	nsize = PATH_MAX+1;	/* wegen laenge !!! */
 
-	if ((name = malloc(nsize)) == 0)
-		comerr("Cannot alloc name buffer.\n");
+	name = __malloc(nsize, "name buffer");
 
 	for (nlen = 1; nlen > 0;) {
 		if ((nlen = fgetline(listf, name, nsize)) < 0)
@@ -359,7 +499,7 @@ createlist()
 		}
 		if (intr)
 			break;
-		curfs = -1L;
+		curfs = NODEV;
 		create(name);
 	}
 }
@@ -384,8 +524,12 @@ read_symlink(name, info, ptb)
 		errmsgno(EX_BAD, "%s: Symbolic link too long.\n", name);
 		return (FALSE);
 	}
-	if (len > props.pr_maxslname)
-		info->f_flags |= F_LONGLINK;
+	if (len > props.pr_maxslname) {
+		if (props.pr_flags & PR_XHDR)
+			info->f_xflags |= XF_LINKPATH;
+		else
+			info->f_flags |= F_LONGLINK;
+	}
 	/*
 	 * string from readlink is not null terminated
 	 */
@@ -420,14 +564,25 @@ read_link(name, namlen, info, ptb)
 								lp->l_name);
 				return (TRUE);
 			}
-			if (lp->l_namlen > props.pr_maxslname)
-				info->f_flags |= F_LONGLINK;
+			if (lp->l_namlen > props.pr_maxslname) {
+				if (props.pr_flags & PR_XHDR)
+					info->f_xflags |= XF_LINKPATH;
+				else
+					info->f_flags |= F_LONGLINK;
+			}
 			if (--lp->l_nlink < 0) {
 				if (!nowarn)
 					errmsgno(EX_BAD,
 					"%s: Linkcount below zero (%ld)\n",
 						lp->l_name, lp->l_nlink);
 			}
+			/*
+			 * We found a hard link to a directory that is already
+			 * known in the link cache. Mark it for later
+			 * statistical analysis.
+			 */
+			if (lp->l_flags & L_ISDIR)
+				lp->l_flags |= L_ISLDIR;
 			/*
 			 * if linkname is not longer than props.pr_maxslname
 			 * that's all to do with linkname
@@ -437,6 +592,22 @@ read_link(name, namlen, info, ptb)
 			info->f_lname = lp->l_name;
 			info->f_lnamelen = lp->l_namlen;
 			info->f_xftype = XT_LINK;
+
+			/*
+			 * With POSIX-1988, f_rsize is 0 for hardlinks
+			 *
+			 * XXX Should we add a property for old tar
+			 * XXX compatibility to keep the size field as before?
+			 */
+			info->f_rsize = (off_t)0;
+			/*
+			 * XXX This is the wrong place but the TCB ha already
+			 * XXX been set up (including size field) before.
+			 * XXX We only call info_to_tcb() to change size to 0.
+			 * XXX There should be a better way to deal with TCB.
+			 */
+			info_to_tcb(info, ptb);
+
 			/*
 			 * XXX Dies ist eine ungewollte Referenz auf den
 			 * XXX TAR Control Block, aber hier ist der TCB
@@ -456,11 +627,16 @@ read_link(name, namlen, info, ptb)
 		lp->l_dev = info->f_dev;
 		lp->l_nlink = info->f_nlink - 1;
 		lp->l_namlen = namlen;
+		if (is_dir(info))
+			lp->l_flags = L_ISDIR;
+		else
+			lp->l_flags = 0;
 		strcpy(lp->l_name, name);
 	}
 	return (FALSE);
 }
 
+/* ARGSUSED */
 LOCAL int
 nullread(vp, cp, amt)
 	void	*vp;
@@ -493,10 +669,10 @@ cr_file(info, func, arg, amt, text)
 		char	*text;
 {
 	register int	amount;
-	register int	blocks;
-	register long	size;
+	register off_t	blocks;
+	register off_t	size;
 	register int	i = 0;
-	register int	n;
+	register off_t	n;
 
 	size = info->f_rsize;
 	if ((blocks = tarblocks(info->f_rsize)) == 0)
@@ -516,6 +692,9 @@ cr_file(info, func, arg, amt, text)
 		} else {
 			n = tarblocks(i);
 		}
+		if (i % TBLOCK) {		/* Clear (better compression)*/
+			fillbytes(bigptr+i, TBLOCK - (i%TBLOCK), '\0');
+		}
 		buf_wake(n*TBLOCK);
 	} while ((blocks -= n) >= 0 && i == amount && size >= 0);
 	if (i < 0) {
@@ -523,7 +702,9 @@ cr_file(info, func, arg, amt, text)
 		errmsg("Error %s '%s'.\n", text, info->f_name);
 	} else if ((blocks != 0 || size != 0) && func != nullread) {
 		xstats.s_sizeerrs++;
-		errmsgno(EX_BAD, "'%s': file changed size.\n", info->f_name);
+		errmsgno(EX_BAD,
+		"'%s': file changed size (%s).\n",
+		info->f_name, size < 0 ? "increased":"shrunk");
 	}
 	while(--blocks >= 0)
 		writeempty();
@@ -560,6 +741,9 @@ put_dir(dname, namlen, info, ptb)
 		dinit = 1;
 	}
 
+	if (nodump && (info->f_flags & F_NODUMP) != 0)
+		return;
+
 	if (!(d = opendir(dname))) {
 		xstats.s_openerrs++;
 		errmsg("Cannot open '%s'.\n", dname);
@@ -567,7 +751,7 @@ put_dir(dname, namlen, info, ptb)
 		depth--;
 		if (!nodir) {
 			if (interactive && !ia_change(ptb, info)) {
-				printf("Skipping ...\n");
+				fprintf(vpr, "Skipping ...\n");
 				closedir(d);
 				depth++;
 				return;
@@ -621,7 +805,7 @@ put_dir(dname, namlen, info, ptb)
 				}
 #ifdef	HAVE_SEEKDIR
 				if (is_dir(ninfo) && depth <= 0) {
-					errno = 0;
+					seterrno(0);
 					offset = telldir(d);
 					if (geterrno())
 						errmsg("WARNING: telldir does not work.\n");
@@ -641,7 +825,7 @@ put_dir(dname, namlen, info, ptb)
 								dname);
 						break;
 					} else {
-						errno = 0;
+						seterrno(0);
 						seekdir(d, offset);
 						if (geterrno())
 							errmsg("WARNING: seekdir does not work.\n");
@@ -666,22 +850,17 @@ checkdirexclude(name, namlen, info)
 	FINFO	finfo;
 	char	pname[PATH_MAX+1];
 	int	OFflag = Fflag;
-	int	len;
 	char	*p;
 
 	Fflag = 0;
-	len = namlen;
 	strcpy(pname, name);
-	p = &pname[len];
+	p = &pname[namlen];
 	if (p[-1] != '/') {
 		*p++ = '/';
-		len++;
 	}
 	strcpy(p, ".mirror");
-	len += 7;
 	if (!getinfo(pname, &finfo)) {
 		strcpy(p, ".exclude");
-		len += 1;
 		if (!getinfo(pname, &finfo))
 			goto notfound;
 	}
@@ -712,9 +891,15 @@ checkexclude(name, namlen, info)
 		int	len;
 	const	char	*fn;
 
+	if (Fflag <= 0)
+		return (TRUE);
+
 	fn = filename(name);
 
 	if (is_dir(info)) {
+		/*
+		 * Exclude with -F -FF -FFFFF 1, 2, 5+
+		 */ 
 		if (Fflag < 3 || Fflag > 4) {
 			if (streql(fn, "SCCS") ||	/* SCCS directory */
 			    streql(fn, "RCS"))		/* RCS directory  */
@@ -732,10 +917,10 @@ checkexclude(name, namlen, info)
 	if (Fflag > 1 && fn[len-2] == '.' && fn[len-1] == 'o')	/* obj files */
 		return (FALSE);
 
-	if (is_file(info)) {
+	if (Fflag > 1 && is_file(info)) {
 		if (streql(fn, "core") ||
 		    streql(fn, "errs") ||
-		    (Fflag > 1 && streql(fn, "a.out")))
+		    streql(fn, "a.out"))
 			return (FALSE);
 	}
 

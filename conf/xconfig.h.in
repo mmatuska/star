@@ -1,4 +1,4 @@
-/* @(#)xconfig.h.in	1.30 01/04/12 Copyright 1998 J. Schilling */
+/* @(#)xconfig.h.in	1.51 02/05/16 Copyright 1998 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
  *
@@ -12,6 +12,7 @@
 #undef HAVE_STDARG_H	/* to use stdarg.h, else use varargs.h NOTE: SaberC on a Sun has prototypes but no stdarg.h */
 #undef HAVE_VARARGS_H	/* to use use varargs.h NOTE: The free HP-UX C-compiler has stdarg.h but no PROTOTYPES */
 #undef HAVE_STDLIB_H	/* to use general utility defines (malloc(), size_t ...) and general C library prototypes */
+#undef HAVE_STDDEF_H	/* to use offsetof(), ptrdiff_t, wchar>t, size_t */
 #undef HAVE_STRING_H	/* to get NULL and ANSI C string function prototypes */
 #undef HAVE_STRINGS_H	/* to get BSD string function prototypes */
 #undef STDC_HEADERS	/* if ANSI compliant stdlib.h, stdarg.h, string.h, float.h are present */
@@ -28,9 +29,14 @@
 #undef HAVE_SYS_DIR_H	/* to use BSD sys/dir.h */
 #undef HAVE_NDIR_H	/* to use ndir.h */
 #undef HAVE_SYS_NDIR_H	/* to use sys/ndir.h */
+#undef HAVE_ALLOCA_H	/* if alloca.h exists */
 #undef HAVE_MALLOC_H	/* if malloc.h exists */
 #undef HAVE_TERMIOS_H	/* to use POSIX termios.h */
 #undef HAVE_TERMIO_H	/* to use SVR4 termio.h */
+#undef HAVE_PWD_H	/* if pwd.h exists */
+#undef HAVE_GRP_H	/* if grp.h exists */
+#undef HAVE_SYS_ACL_H	/* to use <sys/acl.h> for ACL definitions */
+#undef HAVE_ACLLIB_H	/* if HP-UX <acllib.h> is present */
 #undef HAVE_SHADOW_H	/* if shadow.h exists */
 #undef HAVE_SYSLOG_H	/* if syslog.h exists */
 #undef HAVE_SYS_TIME_H	/* may include sys/time.h for struct timeval */
@@ -55,6 +61,7 @@
 #undef HAVE_SYS_UTSNAME_H	/* to use uname() */
 #undef HAVE_SYS_PRIOCNTL_H	/* to use SVr4 priocntl() instead of nice()/setpriority() */
 #undef HAVE_SYS_RTPRIOCNTL_H	/* if the system supports SVr4 real time classes */
+#undef HAVE_SYS_SYSCALL_H	/* to use syscall() */
 #undef HAVE_SYS_MTIO_H		/* to use mtio definitions from sys/mtio.h */
 #undef HAVE_SYS_MMAN_H		/* to use definitions for mmap()/madvise()... from sys/mman.h */
 #undef HAVE_SYS_SHM_H		/* to use definitions for shmget() ... from sys/shm.h */
@@ -65,10 +72,17 @@
 #undef HAVE_SYS_DKLABEL_H	/* if we may include sys/dklabel.h for disk label */
 #undef HAVE_SUN_DKIO_H		/* if we may include sun/dkio.h for disk ioctls */
 #undef HAVE_SUN_DKLABEL_H	/* if we may include sun/dklabel.h for disk label */
+#undef HAVE_SYS_TYPES_H		/* if we may include sys/types.h (the standard) */
+#undef HAVE_SYS_STAT_H		/* if we may include sys/stat.h (the standard) */
+#undef HAVE_TYPES_H		/* if we may include types.h (rare cases e.g. ATARI TOS) */
+#undef HAVE_STAT_H		/* if we may include stat.h (rare cases e.g. ATARI TOS) */
 #undef HAVE_POLL_H		/* if we may include poll.h to use poll() */
 #undef HAVE_SYS_POLL_H		/* if we may include sys/poll.h to use poll() */
 #undef HAVE_SYS_SELECT_H	/* if we may have sys/select.h nonstandard use for select() on some systems*/
 #undef NEED_SYS_SELECT_H	/* if we need sys/select.h to use select() (this is nonstandard) */
+#undef HAVE_NETDB_H		/* if we have netdb.h for get*by*() and rcmd() */
+#undef HAVE_SYS_SOCKET_H	/* if we have sys/socket.h for socket() */
+#undef NEED_SYS_SOCKET_H	/* if we need sys/socket.h to use select() (this is nonstandard) */
 #undef HAVE_LINUX_PG_H		/* if we may include linux/pg.h for PP ATAPI sypport */
 #undef HAVE_CAMLIB_H		/* if we may include camlib.h for CAM SCSI transport definitions */
 #undef HAVE_IEEEFP_H		/* if we may include ieeefp.h for finite()/isnand() */
@@ -80,7 +94,11 @@
 #undef HAVE_USG_STDIO		/* if we have USG derived STDIO */
 #undef HAVE_ERRNO_DEF		/* if we have errno definition in <errno.h> */
 #undef HAVE_VFORK_H		/* if we should include vfork.h for vfork() definitions */
+#undef HAVE_ARPA_INET_H		/* if we have arpa/inet.h (missing on BeOS) */
+				/* BeOS has inet_ntoa() in <netdb.h> */
 #undef HAVE_BSD_DEV_SCSIREG_H	/* if we have a NeXT Step compatible sg driver */
+#undef HAVE_SYS_BSDTTY_H	/* if we have sys/bsdtty.h on HP-UX for TIOCGPGRP */
+#undef HAVE_OS_H		/* if we have the BeOS kernel definitions in OS.h */
 
 /*
  * Convert to SCHILY name
@@ -108,6 +126,8 @@
  */
 #undef HAVE_STRERROR		/* strerror() is present in libc */
 #undef HAVE_MEMMOVE		/* memmove() is present in libc */
+#undef HAVE_MADVISE		/* madvise() is present in libc */
+#undef HAVE_MLOCK		/* mlock() is present in libc */
 #undef HAVE_MLOCKALL		/* working mlockall() is present in libc */
 #undef HAVE_MMAP		/* working mmap() is present in libc */
 #undef _MMAP_WITH_SIZEP		/* mmap() needs address of size parameter */
@@ -144,7 +164,15 @@
 #undef HAVE_GETHOSTNAME		/* gethostname() is present in libc */
 #undef HAVE_GETDOMAINNAME	/* getdomainname() is present in libc */
 #undef HAVE_GETPAGESIZE		/* getpagesize() is present in libc */
+#undef HAVE_GETDTABLESIZE	/* getdtablesize() is present in libc */
 #undef HAVE_GETRUSAGE		/* getrusage() is present in libc */
+#undef HAVE_GETRLIMIT		/* getrlimit() is present in libc */
+#undef HAVE_SETRLIMIT		/* setrlimit() is present in libc */
+#undef HAVE_ULIMIT		/* ulimit() is present in libc */
+#undef HAVE_GETTIMEOFDAY	/* gettimeofday() is present in libc */
+#undef HAVE_SETTIMEOFDAY	/* settimeofday() is present in libc */
+#undef HAVE_TIME		/* time() is present in libc */
+#undef HAVE_STIME		/* stime() is present in libc */
 #undef HAVE_POLL		/* poll() is present in libc */
 #undef HAVE_SELECT		/* select() is present in libc */
 #undef HAVE_LCHOWN		/* lchown() is present in libc */
@@ -187,6 +215,7 @@
 #undef HAVE_UNAME		/* uname() is present in libc */
 #undef HAVE_SNPRINTF		/* snprintf() is present in libc */
 #undef HAVE_STRCASECMP		/* strcasecmp() is present in libc */
+#undef HAVE_STRDUP		/* strdup() is present in libc */
 #undef HAVE_STRSIGNAL		/* strsignal() is present in libc */
 #undef HAVE_STR2SIG		/* str2sig() is present in libc */
 #undef HAVE_SIG2STR		/* sig2str() is present in libc */
@@ -194,12 +223,40 @@
 #undef HAVE_SIGRELSE		/* sigrelse() is present in libc */
 #undef HAVE_SIGPROCMASK		/* sigprocmask() is present in libc (POSIX) */
 #undef HAVE_SIGSETMASK		/* sigsetmask() is present in libc (BSD) */
+#undef HAVE_SIGSET		/* sigset() is present in libc (POSIX) */
 #undef HAVE_SYS_SIGLIST		/* char *sys_siglist[] is present in libc */
 #undef HAVE_NANOSLEEP		/* nanosleep() is present in libc */
 #undef HAVE_USLEEP		/* usleep() is present in libc */
 #undef HAVE_FORK		/* fork() is present in libc */
+#undef HAVE_EXECL		/* execl() is present in libc */
+#undef HAVE_EXECLE		/* execle() is present in libc */
+#undef HAVE_EXECV		/* execv() is present in libc */
+#undef HAVE_EXECVE		/* execve() is present in libc */
+#undef HAVE_EXECVP		/* execvp() is present in libc */
+#undef HAVE_ALLOCA		/* alloca() is present (else use malloc())*/
 #undef HAVE_VALLOC		/* valloc() is present in libc (else use malloc())*/
 #undef vfork
+
+#undef HAVE_CHFLAGS		/* chflags() is present in libc */
+#undef HAVE_FCHFLAGS		/* fchflags() is present in libc */
+#undef HAVE_FFLAGSTOSTR		/* fflagstostr() is present in libc */
+#undef HAVE_STRTOFFLAGS		/* strtofflags() is present in libc */
+
+/*
+ * Important:	This must be a result from a check _before_ the Large File test
+ *		has been run. It then tells us whether these functions are
+ *		available even when not in Large File mode.
+ *
+ *	Do not run the AC_FUNC_FSEEKO test from the GNU tar Large File test
+ *	siute. It will use the same cache names and interfere with our test.
+ *	Instead use the tests AC_SMALL_FSEEKO/AC_SMALL/STELLO and make sure
+ *	they are placed before the large file tests.
+ */
+#undef HAVE_FSEEKO		/* fseeko() is present in default compile mode */
+#undef HAVE_FTELLO		/* ftello() is present in default compile mode */
+
+#undef HAVE_RCMD		/* rcmd() is present in libc/libsocket */
+#undef HAVE_INET_NTOA		/* inet_ntoa() is present in libc/libsocket */
 
 #if	defined(HAVE_QUOTACTL) || defined(HAVE_QUOTAIOCTL)
 #	define HAVE_QUOTA	/* The system inludes quota */
@@ -243,6 +300,7 @@
 #undef HAVE_ST_BLKSIZE		/* if struct stat contains st_blksize */
 #undef HAVE_ST_BLOCKS		/* if struct stat contains st_blocks */
 #undef HAVE_ST_RDEV		/* if struct stat contains st_rdev */
+#undef HAVE_ST_FLAGS		/* if struct stat contains st_flags */
 #undef STAT_MACROS_BROKEN	/* if the macros S_ISDIR, S_ISREG .. don't work */
 
 #undef DEV_MINOR_BITS		/* # if bits needed to hold minor device number */
@@ -278,7 +336,9 @@
 
 #undef const			/* Define to empty if const doesn't work */
 #undef uid_t			/* To be used if uid_t is not present  */
+#undef gid_t			/* To be used if gid_t is not present  */
 #undef size_t			/* To be used if size_t is not present */
+#undef ssize_t			/* To be used if ssize_t is not present */
 #undef pid_t			/* To be used if pid_t is not present  */
 #undef off_t			/* To be used if off_t is not present  */
 #undef mode_t			/* To be used if mode_t is not present */
@@ -286,6 +346,8 @@
 #undef caddr_t			/* To be used if caddr_t is not present */
 #undef daddr_t			/* To be used if daddr_t is not present */
 #undef dev_t			/* To be used if dev_t is not present */
+#undef ino_t			/* To be used if ino_t is not present */
+#undef nlink_t			/* To be used if nlink_t is not present */
 #undef socklen_t		/* To be used if socklen_t is not present */
 
 /*
@@ -335,10 +397,75 @@
 #endif	/* HAVE_LARGEFILES */
 #endif	/* USE_LARGEFILES */
 
+#ifdef USE_ACL			/* Enable/disable ACL support */
+/*
+ * POSIX ACL support
+ */
+#undef HAVE_ACL_GET_FILE	/* acl_get_file() function */
+#undef HAVE_ACL_SET_FILE	/* acl_set_file() function */
+#undef HAVE_ACL_FROM_TEXT	/* acl_from_text() function */
+#undef HAVE_ACL_TO_TEXT		/* acl_to_text() function */
+#undef HAVE_ACL_FREE		/* acl_free() function */
+#undef HAVE_ACL_DELETE_DEF_FILE	/* acl_delete_def_file() function */
+
+#if defined(HAVE_ACL_GET_FILE) && defined(HAVE_ACL_SET_FILE) && \
+    defined(HAVE_ACL_FROM_TEXT) && defined(HAVE_ACL_TO_TEXT) && \
+    defined(HAVE_ACL_FREE)
+#	define	HAVE_POSIX_ACL	1 /* POSIX ACL's present */
+#endif
+
+/*
+ * Sun ACL support.
+ * Note: unfortunately, HP-UX has an (undocumented) acl() function in libc.
+ */
+#undef HAVE_ACL			/* acl() function */
+#undef HAVE_FACL		/* facl() function */
+#undef HAVE_ACLFROMTEXT		/* aclfromtext() function */
+#undef HAVE_ACLTOTEXT		/* acltotext() function */
+
+#if defined(HAVE_ACL) && defined(HAVE_FACL) && \
+    defined(HAVE_ACLFROMTEXT) && defined(HAVE_ACLTOTEXT)
+#	define	HAVE_SUN_ACL	1 /* Sun ACL's present */
+#endif
+
+/*
+ * HP-UX ACL support.
+ * Note: unfortunately, HP-UX has an (undocumented) acl() function in libc.
+ */
+#undef HAVE_GETACL		/* getacl() function */
+#undef HAVE_FGETACL		/* fgetacl() function */
+#undef HAVE_SETACL		/* setacl() function */
+#undef HAVE_FSETACL		/* fsetacl() function */
+#undef HAVE_STRTOACL		/* strtoacl() function */
+#undef HAVE_ACLTOSTR		/* acltostr() function */
+#undef HAVE_CPACL		/* cpacl() function */
+#undef HAVE_FCPACL		/* fcpacl() function */
+#undef HAVE_CHOWNACL		/* chownacl() function */
+#undef HAVE_SETACLENTRY		/* setaclentry() function */
+#undef HAVE_FSETACLENTRY	/* fsetaclentry() function */
+
+#if defined(HAVE_GETACL) && defined(HAVE_FGETACL) && \
+    defined(HAVE_SETACL) && defined(HAVE_FSETACL) && \
+    defined(HAVE_STRTOACL) && defined(HAVE_ACLTOTEXT)
+#	define	HAVE_HP_ACL	1 /* HP-UX ACL's present */
+#endif
+
+/*
+ * Global definition whether ACL support is present.
+ * As HP-UX differs too much from other implementations, HAVE_HP_ACL is not
+ * included in HAVE_ANY_ACL.
+ */
+#if defined(HAVE_POSIX_ACL) || defined(HAVE_SUN_ACL)
+#	define	HAVE_ANY_ACL	1 /* Any ACL implementation present */
+#endif
+
+#endif	/* USE_ACL */
+
 /*
  * Misc CC / LD related stuff
  */
 #undef NO_USER_MALLOC		/* If we cannot define our own malloc()	*/
+#undef HAVE_DYN_ARRAYS		/* If the compiler allows dynamic sized arrays */
 
 /*
  * Strings that help to maintain OS/platform id's in C-programs
@@ -348,3 +475,21 @@
 #undef HOST_CPU			/* CPU part from HOST_SUB		*/
 #undef HOST_VENDOR		/* VENDOR part from HOST_SUB		*/
 #undef HOST_OS			/* CPU part from HOST_SUB		*/
+
+
+/*
+ * Begin restricted code for quality assurance.
+ *
+ * Warning: you are not allowed to include the #define below if you are not
+ * using the Schily makefile system or if you modified the autoconfiguration
+ * tests.
+ *
+ * If you only added other tests you are allowed to keep this #define.
+ *
+ * This restiction is introduced because this way, I hope that people
+ * contribute to the project instead of creating branches.
+ */
+#define	IS_SCHILY_XCONFIG
+/*
+ * End restricted code for quality assurance.
+ */

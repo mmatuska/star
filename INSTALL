@@ -1,7 +1,14 @@
 Short overview for those who don't read manuals:
 
+	Calling configure manually is outdated because this is a task of the
+	makefile system.
+
 	There is no 'configure', simply call 'make' on the top level
 	directory.
+
+	***** If this does not work for you, read the rest if this file   *****
+	***** If you have any problem, also first read the topic specific *****
+	***** README.* files (e.g. README.linux for Linux problems).	  *****
 
 	All results in general will be placed into a directory named 
 	OBJ/<arch-name>/ in the current projects leaf directory.
@@ -9,7 +16,7 @@ Short overview for those who don't read manuals:
 	You **need** either my "smake" program, the SunPRO make 
 	from /usr/bin/make (SunOS 4.x) or /usr/ccs/bin/make (SunOS 5.x)
 	or GNU make to compile this program. Read README.gmake for 
-	more information on gmake.
+	more information on gmake and a list of the most annoying bugs in gmake.
 
 	All other make programs are either not smart enough or have bugs.
 
@@ -18,7 +25,8 @@ Short overview for those who don't read manuals:
 	ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/
 
 	It is easy to compile and doesn't need a working make program
-	on your machine.
+	on your machine. If you don't have a working "make" program on the
+	machine where you like to compile "smake" read the file "BOOTSTRAP".
 
 	If you have the choice between all three make programs, the
 	preference would be 
@@ -28,6 +36,11 @@ Short overview for those who don't read manuals:
 		3)	GNU make	(this is the last resort)
 
 	Important notice: "smake" that comes with SGI/IRIX will not work!!!
+	This is not the Schily "smake" but a dumb make program from SGI.
+
+	***** If you are on a platform that is not yet known by the	 *****
+	***** Schily makefilesystem you cannot use GNU make.		 *****
+	***** In this case, the automake features of smake are required. *****
 
 	Please read the README's for your operating system too.
 
@@ -43,9 +56,21 @@ Short overview for those who don't read manuals:
 
 	To unpack an archive use:
 
-		gzip -d < star.tar.gz | tar -xpf -
+		gzip -d < some-arch.tar.gz | tar -xpf -
 
 	Replace 'star' by the actual archive name.
+
+	If your Platform does not support hard links or symbolic links, you
+	first need to compile "star" and then call:
+
+		star -xpz -copy-links < some-arch.tar.gz
+
+	If your platform does not support hard links but supports
+	symbolic links, you only need to call the command above once.
+	If your platform does not support symbolic links, you need to call
+	the command twice because a symbolic link may occur in the archive
+	before the file it points to.
+		
 
 
 Here comes the long form:
@@ -53,18 +78,25 @@ Here comes the long form:
 
 PREFACE:
 
+	Calling configure manually is outdated because this is a task of the
+	makefile system.
+
 	You don't have to call configure with this make file system.
 
 	Calling	'make' or 'make all' on the top level directory will create
 	all needed targets. Calling 'make install' will install all needed
 	files.
 
-	This program uses a new makefilesystem. The makefilesystem is optimized
-	for a program called 'smake' Copyright 1985 by Jörg Schilling, but
-	SunPro make (the make program that comes with SunOS >= 4.0 and Solaris)
-	as well as newer versions of GNU make will work also.
-	BSDmake could be made working, if it supports pattern matching rules
-	correctly.
+	This program uses a new makefilesystem. This makefilesystem uses
+	techniques and ideas from the 1980s and 1990s, is designed in a
+	modular way and allows sources to be combined in a modular way.
+	For mor information on the modular features read README.SSPM.
+
+	The makefilesystem is optimized for a program called 'smake'
+	Copyright 1985 by Jörg Schilling, but SunPro make (the make program
+	that comes with SunOS >= 4.0 and Solaris) as well as newer versions
+	of GNU make will work also. BSDmake could be made working, if it
+	supports pattern matching rules correctly.
 
 	The makefile system allows simultaneous compilation on a wide
 	variety of target systems if the source tree is accessible via NFS.
@@ -80,6 +112,9 @@ Finding Compilation Results:
 	libs/<arch-name>/ that is located in the source tree root directory.
 
 		<arch-name> will be something like 'sparc-sunos5-cc'
+
+	This is the main reason why simultaneous compilation is possible on
+	all supported platforms if the source is mounted via NFS.
 
 
 How to compile:
@@ -98,12 +133,18 @@ How to install results:
 
 	at top level. The binaries will usually be installed in 
 	/opt/schily/bin. The directory /opt/<vendor-name>/ has been agreed
-	on by all major UNIX vendors in 1989. Unfortunately, not all vendors
-	follow this agreement.
+	on by all major UNIX vendors in 1989. Unfortunately, still not all
+	vendors follow this agreement.
 
 	If you want to change the default installation directory, edit the
 	appropriate (system dependent) files in the DEFAULTS directory
 	(e.g. DEFAULTS/Defaults.sunos5).
+
+	***** If "smake install" doesn't do anything, you are on a broken *****
+	***** File System. Remove the file INSTALL in this case (the FS   *****
+	***** does not handle upper/lower case characters correctly).	  *****
+	***** This is true for all DOS based filesystems and for Apple's  *****
+	***** HFS+ filesystem.						  *****
 
 
 Using a different installation directory:
@@ -131,15 +172,44 @@ Using a different installation directory:
 
 Using a different C-compiler:
 
+	If the configured default compiler is not present on the current machine,
+	the makefilesystem will try an automatic fallback to GCC. For this reason
+	in most cases you will not need to manually select a compiler.
+
 	The default C-compiler can be modified in the files in the
-	DEFAULT directory too. If you want to have a different compiler
+	DEFAULT directory. If you want to have a different compiler
 	for one compilation, call:
 
 		make CCOM=gcc
 	or
 		make CCOM=cc
 
-	This works even when your make program doen't propagate make macros.
+	This works even when your make program doesn't propagate make macros.
+
+
+Creating 64 bit executables on Solaris:
+
+	If you like to create 64 bit executables you always need first to 
+	remove any old make results. This includes all autoconf results. In 
+	order to make sure that the source tree is in a "clean" state, call:
+
+		./.clean
+
+	at the top level directory. Then configure and compile everything by 
+	calling:
+
+		smake COPTX=-xarch=v9 LDOPTX=-xarch=v9
+
+	To do this with GCC, you need at least GCC-3.1. It is the first 64 bit
+	aware GCC. With GCC, call on Solaris:
+
+		smake CCOM=gcc COPTX=-m64 LDOPTX=-m64
+
+	It is not clear if GCC already supports other platforms in 64 bit mode.
+	As all GCC versions before 3.1 did emit hundreds of compilation
+	warnings related to 64 bit bugs when compiling itself, there is little
+	hope that other platforms are already supported in 64 bit mode.
+
 
 Getting help from make:
 
@@ -156,6 +226,10 @@ Getting more information on the make file system:
 	The man page makerules.4 located in man/man4/makerules.4 contains
 	the documentation for system programmers who want to modify
 	the make rules of the makefile system.
+
+	For further information read
+
+		ftp://ftp.fokus.gmd.de/pub/unix/makefiles/PortableSoftware.ps.gz
 
 
 Hints for compilation:
@@ -191,7 +265,7 @@ Hints for compilation:
 	../RULES/rules.cnf:59: ../incs/sparc-sunos5-cc/rules.cnf: No such file or directory
 
 	Are a result of a bug un GNU make. The make file system itself is
-	correct (as you could proove by usingsmake).
+	correct (as you could prove by using smake).
 	If your gmake version still has this bug, send a bug report to:
 
 		"Paul D. Smith" <psmith@gnu.org>

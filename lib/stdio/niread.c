@@ -1,5 +1,7 @@
-/* @(#)niread.c	1.8 00/12/03 Copyright 1986 J. Schilling */
+/* @(#)niread.c	1.9 01/07/05 Copyright 1986 J. Schilling */
 /*
+ *	Non interruptable read
+ *
  *	Copyright (c) 1986 J. Schilling
  */
 /*

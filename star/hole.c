@@ -1,8 +1,8 @@
 /*#define	DEBUG*/
-/* @(#)hole.c	1.18 00/05/07 Copyright 1990 J. Schilling */
+/* @(#)hole.c	1.29 02/05/11 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)hole.c	1.18 00/05/07 Copyright 1990 J. Schilling";
+	"@(#)hole.c	1.29 02/05/11 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
@@ -28,11 +28,10 @@ static	char sccsid[] =
 #include <mconfig.h>
 #include <stdio.h>
 #include <stdxlib.h>
-#include <sys/types.h>
 #include <unixstd.h>
 #include <standard.h>
-#include <schily.h>
 #include "star.h"
+#include <schily.h>
 #include "props.h"
 #include "table.h"
 #include "starsubs.h"
@@ -46,25 +45,29 @@ static	char sccsid[] =
 #	endif
 #endif	/* sun */
 
+#define DEBUG
 #ifdef DEBUG
 #define	EDEBUG(a)	if (debug) error a
 #else
 #define	EDEBUG(a)
 #endif
 
-extern	int	bigcnt;
+extern	long	bigcnt;
 extern	char	*bigptr;
 
 extern	BOOL	debug;
 extern	BOOL	nullout;
 
-char	zeroblk[TBLOCK];
-
+/*
+ * XXX If we have really big files, there could in theory be more than
+ * XXX 2 billions of hole/nohole pairs in a file.
+ * XXX But if this happens, we would need > 32 GB of RAM for the hole list.
+ */
 typedef	struct {
 	FILE	*fh_file;
 	char	*fh_name;
-	long	fh_size;
-	long	fh_newpos;
+	off_t	fh_size;
+	off_t	fh_newpos;
 	sp_t	*fh_sparse;
 	int	fh_nsparse;
 	int	fh_spindex;
@@ -97,8 +100,8 @@ force_hole_func(fh, p, amount)
 
 	fh->fh_newpos += amount;
 	if (amount < fh->fh_size &&
-				cmpbytes(bigptr, zeroblk, amount) >= amount) {
-		if (lseek(fdown(fh->fh_file), fh->fh_newpos, SEEK_SET) < 0) {
+				cmpnullbytes(bigptr, amount) >= amount) {
+		if (lseek(fdown(fh->fh_file), fh->fh_newpos, SEEK_SET) == (off_t)-1) {
 			xstats.s_rwerrs++;
 			errmsg("Error seeking '%s'.\n", fh->fh_name);
 		}
@@ -121,7 +124,7 @@ get_forced_hole(f, info)
 	fh.fh_file = f;
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize;
-	fh.fh_newpos = 0L;
+	fh.fh_newpos = (off_t)0;
 	return (xt_file(info, vp_force_hole_func, &fh, TBLOCK, "writing"));
 }
 
@@ -135,13 +138,13 @@ get_sparse_func(fh, p, amount)
 {
 	register int	cnt;
 
-	EDEBUG(("amount: %d newpos: %d index: %d\n",
-					amount, fh->fh_newpos, fh->fh_spindex));
+	EDEBUG(("amount: %d newpos: %lld index: %d\n",
+					amount, (Llong)fh->fh_newpos, fh->fh_spindex));
 
 	if (fh->fh_sparse[fh->fh_spindex].sp_offset > fh->fh_newpos) {
 
-		EDEBUG(("seek to: %d\n",
-				fh->fh_sparse[fh->fh_spindex].sp_offset));
+		EDEBUG(("seek to: %lld\n",
+				(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset));
 
 		if (lseek(fdown(fh->fh_file),
 				fh->fh_sparse[fh->fh_spindex].sp_offset, SEEK_SET) < 0) {
@@ -151,18 +154,18 @@ get_sparse_func(fh, p, amount)
 
 		fh->fh_newpos = fh->fh_sparse[fh->fh_spindex].sp_offset;
 	}
-	EDEBUG(("write %d at: %d\n", amount, fh->fh_newpos));
+	EDEBUG(("write %d at: %lld\n", amount, (Llong)fh->fh_newpos));
 
 	cnt = ffilewrite(fh->fh_file, p, amount);
 	fh->fh_size -= cnt;
 	fh->fh_newpos += cnt;
 
-	EDEBUG(("off: %d numb: %d cnt: %d off+numb: %d newpos: %d index: %d\n", 
-		fh->fh_sparse[fh->fh_spindex].sp_offset,
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
-		fh->fh_sparse[fh->fh_spindex].sp_offset +
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes,
-		fh->fh_newpos,
+	EDEBUG(("off: %lld numb: %lld cnt: %d off+numb: %lld newpos: %lld index: %d\n", 
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset,
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
+		(Llong)(fh->fh_sparse[fh->fh_spindex].sp_offset +
+			fh->fh_sparse[fh->fh_spindex].sp_numbytes),
+		(Llong)fh->fh_newpos,
 		fh->fh_spindex));
 
 	if ((fh->fh_sparse[fh->fh_spindex].sp_offset +
@@ -187,8 +190,9 @@ cmp_sparse_func(fh, p, amount)
 	register int	cnt;
 		 char	*cmp_buf[TBLOCK];
 
-	EDEBUG(("amount: %d newpos: %d index: %d\n",
-					amount, fh->fh_newpos, fh->fh_spindex));
+	EDEBUG(("amount: %d newpos: %lld index: %d\n",
+					amount,
+					(Llong)fh->fh_newpos, fh->fh_spindex));
 	/*
 	 * If we already found diffs we save time and only pass tape ...
 	 */
@@ -196,8 +200,8 @@ cmp_sparse_func(fh, p, amount)
 		return (amount);
 
 	if (fh->fh_sparse[fh->fh_spindex].sp_offset > fh->fh_newpos) {
-		EDEBUG(("seek to: %d\n",
-				fh->fh_sparse[fh->fh_spindex].sp_offset));
+		EDEBUG(("seek to: %lld\n",
+				(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset));
 
 		while (fh->fh_newpos < fh->fh_sparse[fh->fh_spindex].sp_offset){
 			register int	amt;
@@ -210,7 +214,7 @@ cmp_sparse_func(fh, p, amount)
 			if (cnt != amt)
 				fh->fh_diffs++;
 
-			if (cmpbytes(cmp_buf, zeroblk, amt) < cnt)
+			if (cmpnullbytes(cmp_buf, amt) < cnt)
 				fh->fh_diffs++;
 
 			fh->fh_newpos += cnt;
@@ -219,7 +223,7 @@ cmp_sparse_func(fh, p, amount)
 				return (amount);
 		}
 	}
-	EDEBUG(("read %d at: %d\n", amount, fh->fh_newpos));
+	EDEBUG(("read %d at: %lld\n", amount, (Llong)fh->fh_newpos));
 
 	cnt = ffileread(fh->fh_file, cmp_buf, amount);
 	if (cnt != amount)
@@ -231,12 +235,12 @@ cmp_sparse_func(fh, p, amount)
 	fh->fh_size -= cnt;
 	fh->fh_newpos += cnt;
 
-	EDEBUG(("off: %d numb: %d cnt: %d off+numb: %d newpos: %d index: %d\n", 
-		fh->fh_sparse[fh->fh_spindex].sp_offset,
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
-		fh->fh_sparse[fh->fh_spindex].sp_offset +
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes,
-		fh->fh_newpos,
+	EDEBUG(("off: %lld numb: %lld cnt: %d off+numb: %lld newpos: %lld index: %d\n", 
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset,
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
+		(Llong)(fh->fh_sparse[fh->fh_spindex].sp_offset +
+			fh->fh_sparse[fh->fh_spindex].sp_numbytes),
+		(Llong)fh->fh_newpos,
 		fh->fh_spindex));
 
 	if ((fh->fh_sparse[fh->fh_spindex].sp_offset +
@@ -260,14 +264,15 @@ put_sparse_func(fh, p, amount)
 {
 	register int	cnt;
 
-	EDEBUG(("amount: %d newpos: %d index: %d\n",
-					amount, fh->fh_newpos, fh->fh_spindex));
+	EDEBUG(("amount: %d newpos: %lld index: %d\n",
+					amount,
+					(Llong)fh->fh_newpos, fh->fh_spindex));
 
 	if (fh->fh_spindex < fh->fh_nsparse &&
 		fh->fh_sparse[fh->fh_spindex].sp_offset > fh->fh_newpos) {
 
-		EDEBUG(("seek to: %d\n",
-				fh->fh_sparse[fh->fh_spindex].sp_offset));
+		EDEBUG(("seek to: %lld\n",
+				(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset));
 
 		if (lseek(*(int *)(fh->fh_file),
 				fh->fh_sparse[fh->fh_spindex].sp_offset, SEEK_SET) < 0) {
@@ -277,7 +282,7 @@ put_sparse_func(fh, p, amount)
 
 		fh->fh_newpos = fh->fh_sparse[fh->fh_spindex].sp_offset;
 	}
-	EDEBUG(("read %d at: %d\n", amount, fh->fh_newpos));
+	EDEBUG(("read %d at: %lld\n", amount, (Llong)fh->fh_newpos));
 
 	if (nullout) {
 		cnt = amount;
@@ -291,12 +296,12 @@ put_sparse_func(fh, p, amount)
 /*	if (cnt < TBLOCK)*/
 /*		fillbytes(&p[cnt], TBLOCK-cnt, '\0');*/
 
-	EDEBUG(("off: %d numb: %d cnt: %d off+numb: %d newpos: %d index: %d\n", 
-		fh->fh_sparse[fh->fh_spindex].sp_offset,
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
-		fh->fh_sparse[fh->fh_spindex].sp_offset +
-		fh->fh_sparse[fh->fh_spindex].sp_numbytes,
-		fh->fh_newpos,
+	EDEBUG(("off: %lld numb: %lld cnt: %d off+numb: %lld newpos: %lld index: %d\n", 
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_offset,
+		(Llong)fh->fh_sparse[fh->fh_spindex].sp_numbytes, cnt,
+		(Llong)(fh->fh_sparse[fh->fh_spindex].sp_offset +
+			fh->fh_sparse[fh->fh_spindex].sp_numbytes),
+		(Llong)fh->fh_newpos,
 		fh->fh_spindex));
 
 	if ((fh->fh_sparse[fh->fh_spindex].sp_offset +
@@ -342,9 +347,9 @@ get_sp_list(info)
 	register int	sparse_in_hdr = props.pr_sparse_in_hdr;
 	register int	ind;
 		char	*p;
-/*XXX*/extern int hdrtype;
+/*XXX*/extern long hdrtype;
 
-	EDEBUG(("rsize: %d\n" , info->f_rsize));
+	EDEBUG(("rsize: %lld\n" , (Llong)info->f_rsize));
 
 	sparse = (sp_t *)malloc(nsparse*sizeof(sp_t));
 	if (sparse == 0) {
@@ -371,16 +376,20 @@ get_sp_list(info)
 	}
 
 	for (i= 0; i < sparse_in_hdr; i++) {
-		astoo(p, &sparse[i].sp_offset);   p += 12;
-		astoo(p, &sparse[i].sp_numbytes); p += 12;
+		Ullong	ull;
+
+		stolli(p, &ull); p += 12;
+		sparse[i].sp_offset = ull;
+		stolli(p, &ull);   p += 12;
+		sparse[i].sp_numbytes = ull;
 		if (sparse[i].sp_numbytes == 0)
 			break;
 	}
 #ifdef	DEBUG
 	if (debug) for (i = 0; i < sparse_in_hdr; i++) {
-		error("i: %d offset: %d numbytes: %d\n", i,
-				sparse[i].sp_offset,
-				sparse[i].sp_numbytes);
+		error("i: %d offset: %lld numbytes: %lld\n", i,
+				(Llong)sparse[i].sp_offset,
+				(Llong)sparse[i].sp_numbytes);
 		if (sparse[i].sp_numbytes == 0)
 			break;
 	}
@@ -392,7 +401,7 @@ get_sp_list(info)
 	else
 		extended = ptb->xstar_in_dbuf.t_isextended;
 
-	extended |= sparse_in_hdr == 0;
+	extended |= (sparse_in_hdr == 0);
 
 	EDEBUG(("isextended: %d\n", extended));
 
@@ -405,7 +414,7 @@ get_sp_list(info)
 		if ((props.pr_flags & PR_GNU_SPARSE_BUG) == 0)
 			info->f_rsize -= TBLOCK;
 
-		EDEBUG(("rsize: %d\n" , info->f_rsize));
+		EDEBUG(("rsize: %lld\n" , (Llong)info->f_rsize));
 
 		ind += SPARSE_EXT_HDR;
 
@@ -417,12 +426,16 @@ get_sp_list(info)
 		}
 		p = (char *)ptb;
 		for (i = 0; i < SPARSE_EXT_HDR; i++) {
-			astoo(p, &sparse[i+ind].sp_offset);   p += 12;
-			astoo(p, &sparse[i+ind].sp_numbytes); p += 12;
+			Ullong	ull;
 
-			EDEBUG(("i: %d offset: %d numbytes: %d\n", i,
-				sparse[i+ind].sp_offset,
-				sparse[i+ind].sp_numbytes));
+			stolli(p, &ull);     p += 12;
+			sparse[i+ind].sp_offset = ull;
+			stolli(p, &ull);       p += 12;
+			sparse[i+ind].sp_numbytes = ull;
+
+			EDEBUG(("i: %d offset: %lld numbytes: %lld\n", i,
+				(Llong)sparse[i+ind].sp_offset,
+				(Llong)sparse[i+ind].sp_numbytes));
 
 			if (sparse[i+ind].sp_numbytes == 0)
 				break;
@@ -433,13 +446,13 @@ get_sp_list(info)
 	ind += i;
 	EDEBUG(("ind: %d\n", ind));
 	if (debug) for (i = 0; i < ind; i++) {
-		error("i: %d offset: %d numbytes: %d\n", i,
-				sparse[i].sp_offset,
-				sparse[i].sp_numbytes);
+		error("i: %d offset: %lld numbytes: %lld\n", i,
+				(Llong)sparse[i].sp_offset,
+				(Llong)sparse[i].sp_numbytes);
 		if (sparse[i].sp_numbytes == 0)
 			break;
 	}
-	EDEBUG(("rsize: %d\n" , info->f_rsize));
+	EDEBUG(("rsize: %lld\n" , (Llong)info->f_rsize));
 #endif
 	return (sparse);
 }
@@ -450,11 +463,13 @@ mk_sp_list(fp, info, spp)
 	FINFO	*info;
 	sp_t	**spp;
 {
-	char	rbuf[TBLOCK];
+	long	rbuf[32*1024/sizeof(long)];	/* Force it be long aligned */
 	sp_t	*sparse;
 	int	nsparse = 25;
 	register int	amount = 0;
-	register long	pos = 0;
+	register int	cnt = 0;
+	register char	*rbp = (char *)rbuf;
+	register off_t	pos = (off_t)0;
 	register int	i = 0;
 	register BOOL	data = FALSE;
 	register BOOL	use_ai = FALSE;
@@ -474,6 +489,7 @@ mk_sp_list(fp, info, spp)
 	fai.fai_daddr = fai_arr;
 	use_ai = ioctl(*fp, _FIOAI, &fai) >= 0;	/* Use if operational*/
 	fai_idx = 0;
+	fai.fai_num = 0;			/* start at 0 again  */
 #endif	/* _FIOAI */
 
 	*spp = (sp_t *)0;
@@ -490,18 +506,80 @@ mk_sp_list(fp, info, spp)
 				fai.fai_off = pos;
 				fai.fai_size = 512 * NFAI;
 				fai.fai_num = NFAI;
+			retry:
 				ioctl(*fp, _FIOAI, &fai);
-				if (fai.fai_num == 0)
+				if (fai.fai_num == 0) {
+					/*
+					 * Check whether we crossed the end of
+					 * the file or off_t wrapps.
+					 */
+					if (pos < lseek(*fp, (off_t)0, SEEK_END)) {
+						off_t	di;
+
+						di = lseek(*fp, (off_t)0, SEEK_END);
+						di -= pos;
+						fai.fai_off = pos;
+						fai.fai_size = (di/512) * 512;
+						fai.fai_num = di/512;
+						if (fai.fai_num != 0)
+							goto retry;
+						if (di > 0 && di < 512) {
+							/*
+							 * The last entry
+							 * cannot be checked
+							 * via the ooctl.
+							 */
+							fai.fai_size = 512;
+							fai.fai_num = 1;
+							fai.fai_daddr[0] = !_FIOAI_HOLE;
+							goto fake;
+						}
+					}
 					break;
+				}
+			fake:
 				fai_idx = 0;
 			}
 			is_hole = fai.fai_daddr[fai_idx++] == _FIOAI_HOLE;
+
 			amount = 512;
+			if (pos + amount < 0)
+				amount = info->f_size - pos;
+			else if (pos + amount > info->f_size)
+				amount = info->f_size - pos;
+#else
+			/* EMPTY */
 #endif	/* _FIOAI */
 		} else {
-			if ((amount = _fileread(fp, rbuf, TBLOCK)) == 0)
-				break;
-			is_hole = cmpbytes(rbuf, zeroblk, amount) >= amount;
+			if (cnt <= 0) {
+				if ((cnt = _fileread(fp, rbuf, sizeof(rbuf))) == 0)
+					break;
+				if (cnt < 0) {
+					errmsg(
+					"Error scanning for holes in '%s'.\n",
+					info->f_name);
+
+					errmsg("Current pos: %lld\n",
+					(Llong)lseek(*fp, (off_t)0, SEEK_CUR));
+
+					free(sparse);
+					return (0);
+				}
+				rbp = (char *)rbuf;
+			}
+			if ((amount = cmpnullbytes(rbp, cnt)) >= cnt) {
+				is_hole = TRUE;
+				cnt = 0;
+			} else {
+				amount = (amount / TBLOCK) * TBLOCK;
+				if ((is_hole = amount != 0) == FALSE) {
+					amount += TBLOCK;
+					if (amount > cnt)
+						amount = cnt;
+				}
+				rbp += amount;
+				cnt -= amount;
+			}
 		}
 
 		if (is_hole) {
@@ -510,16 +588,16 @@ mk_sp_list(fp, info, spp)
 						pos - sparse[i].sp_offset;
 				info->f_rsize += sparse[i].sp_numbytes;
 
-				EDEBUG(("i: %d offset: %d numbytes: %d\n", i,
-					sparse[i].sp_offset,
-					sparse[i].sp_numbytes));
+				EDEBUG(("i: %d offset: %lld numbytes: %lld\n", i,
+					(Llong)sparse[i].sp_offset,
+					(Llong)sparse[i].sp_numbytes));
 
 				data = FALSE;
 				i++;
 				if (i >= nsparse) {
 					if ((sparse = grow_sp_list(sparse,
 							&nsparse)) == 0) {
-						lseek(*fp, 0L, SEEK_SET);
+						lseek(*fp, (off_t)0, SEEK_SET);
 						return (0);
 					}
 				}
@@ -538,19 +616,19 @@ mk_sp_list(fp, info, spp)
 		sparse[i].sp_numbytes = pos - sparse[i].sp_offset;
 		info->f_rsize += sparse[i].sp_numbytes;
 
-		EDEBUG(("i: %d offset: %d numbytes: %d\n", i,
-				sparse[i].sp_offset,
-				sparse[i].sp_numbytes));
+		EDEBUG(("i: %d offset: %lld numbytes: %lld\n", i,
+				(Llong)sparse[i].sp_offset,
+				(Llong)sparse[i].sp_numbytes));
 	} else {
 		sparse[i].sp_offset = pos -1;
 		sparse[i].sp_numbytes = 1;
 		info->f_rsize += 1;
 
-		EDEBUG(("i: %d offset: %d numbytes: %d\n", i,
-				sparse[i].sp_offset,
-				sparse[i].sp_numbytes));
+		EDEBUG(("i: %d offset: %lld numbytes: %lld\n", i,
+				(Llong)sparse[i].sp_offset,
+				(Llong)sparse[i].sp_numbytes));
 	}
-	lseek(*fp, 0L, SEEK_SET);
+	lseek(*fp, (off_t)0, SEEK_SET);
 	*spp = sparse;
 	return (++i);
 }
@@ -577,14 +655,14 @@ get_sparse(f, info)
 
 	if (sparse == 0) {
 		errmsgno(EX_BAD, "Skipping '%s' sorry ...\n", info->f_name);
-		errmsgno(EX_BAD, "Warning  '%s' is damaged\n", info->f_name);
+		errmsgno(EX_BAD, "WARNING: '%s' is damaged\n", info->f_name);
 		void_file(info);
 		return (FALSE);
 	}
 	fh.fh_file = f;
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize;
-	fh.fh_newpos = 0L;
+	fh.fh_newpos = (off_t)0;
 	fh.fh_sparse = sparse;
 	fh.fh_spindex = 0;
 	ret = xt_file(info, vp_get_sparse_func, &fh, TBLOCK, "writing");
@@ -609,7 +687,7 @@ cmp_sparse(f, info)
 	fh.fh_file = f;
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize;
-	fh.fh_newpos = 0L;
+	fh.fh_newpos = (off_t)0;
 	fh.fh_sparse = sparse;
 	fh.fh_spindex = 0;
 	fh.fh_diffs = 0;
@@ -629,7 +707,7 @@ put_sparse(fp, info)
 	fh_t	fh;
 	sp_t	*sparse;
 	int	nsparse;
-	long	rsize;
+	off_t	rsize;
 
 	nsparse = mk_sp_list(fp, info, &sparse);
 	if (nsparse == 0) {
@@ -642,13 +720,13 @@ put_sparse(fp, info)
 	}
 	rsize = info->f_rsize;
 
-	EDEBUG(("rsize: %d\n", rsize));
+	EDEBUG(("rsize: %lld\n", (Llong)rsize));
 
 	put_sp_list(info, sparse, nsparse);
 	fh.fh_file = (FILE *)fp;
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize = rsize;
-	fh.fh_newpos = 0L;
+	fh.fh_newpos = (off_t)0;
 	fh.fh_sparse = sparse;
 	fh.fh_nsparse = nsparse;
 	fh.fh_spindex = 0;
@@ -667,9 +745,9 @@ put_sp_list(info, sparse, nsparse)
 	register char	*p;
 		 TCB	tb;
 		 TCB	*ptb = info->f_tcb;
-/*XXX*/extern int hdrtype;
+/*XXX*/extern long hdrtype;
 
-	EDEBUG(("1nsparse: %d rsize: %d\n", nsparse, info->f_rsize));
+	EDEBUG(("1nsparse: %d rsize: %lld\n", nsparse, (Llong)info->f_rsize));
 
 	if (nsparse > sparse_in_hdr) {
 		if ((props.pr_flags & PR_GNU_SPARSE_BUG) == 0)
@@ -677,14 +755,14 @@ put_sp_list(info, sparse, nsparse)
 				(((nsparse-sparse_in_hdr)+SPARSE_EXT_HDR-1)/
 				SPARSE_EXT_HDR)*TBLOCK;
 	}
-	EDEBUG(("2nsparse: %d rsize: %d added: %d\n", nsparse, info->f_rsize,
+	EDEBUG(("2nsparse: %d rsize: %lld added: %d\n", nsparse, (Llong)info->f_rsize,
 				(((nsparse-sparse_in_hdr)+SPARSE_EXT_HDR-1)/
 				SPARSE_EXT_HDR)*TBLOCK));
-	EDEBUG(("addr sp: %d\n", &((TCB *)0)->xstar_in_dbuf.t_sp));
-	EDEBUG(("addr rs: %d\n", &((TCB *)0)->xstar_in_dbuf.t_realsize));
-	EDEBUG(("flags: 0x%X\n", info->f_flags));
+	EDEBUG(("addr sp: %d\n", (int)((TCB *)0)->xstar_in_dbuf.t_sp));
+	EDEBUG(("addr rs: %d\n", (int)((TCB *)0)->xstar_in_dbuf.t_realsize));
+	EDEBUG(("flags: 0x%lX\n", info->f_flags));
 
-	info->f_xftype = XT_SPARSE;
+	info->f_rxftype = info->f_xftype = XT_SPARSE;
 	if (info->f_flags & F_SPLIT_NAME && props.pr_nflags & PR_PREFIX_REUSED)
 		tcb_undo_split(ptb, info);
 	info_to_tcb(info, ptb);
@@ -694,8 +772,8 @@ put_sp_list(info, sparse, nsparse)
 	else
 		p = (char *)ptb->xstar_in_dbuf.t_sp;
 	for (i=0; i < sparse_in_hdr && i < nsparse; i++) {
-		otoa(p, sparse[i].sp_offset, 11); p += 12;
-		otoa(p, sparse[i].sp_numbytes, 11); p += 12;
+		llitos(p, (Ullong)sparse[i].sp_offset, 11);   p += 12;
+		llitos(p, (Ullong)sparse[i].sp_numbytes, 11); p += 12;
 	}
 	if (sparse_in_hdr > 0 && nsparse > sparse_in_hdr) {
 		if (H_TYPE(hdrtype) == H_GNUTAR)
@@ -711,11 +789,11 @@ put_sp_list(info, sparse, nsparse)
 	sparse += sparse_in_hdr;
 	ptb = &tb;
 	while (nsparse > 0) {
-		fillbytes((char *)ptb, TBLOCK, '\0');
+		filltcb(ptb);
 		p = (char *)ptb;
 		for (i=0; i < SPARSE_EXT_HDR && i < nsparse; i++) {
-			otoa(p, sparse[i].sp_offset, 11); p += 12;
-			otoa(p, sparse[i].sp_numbytes, 11); p += 12;
+			llitos(p, (Ullong)sparse[i].sp_offset, 11);   p += 12;
+			llitos(p, (Ullong)sparse[i].sp_numbytes, 11); p += 12;
 		}
 		nsparse -= SPARSE_EXT_HDR;
 		sparse += SPARSE_EXT_HDR;

@@ -1,4 +1,4 @@
-/* @(#)printf.c	1.12 00/05/07 Copyright 1985 J. Schilling */
+/* @(#)printf.c	1.13 01/06/20 Copyright 1985 J. Schilling */
 /*
  *	Copyright (c) 1985 J. Schilling
  */
@@ -19,10 +19,29 @@
  */
 
 #include <mconfig.h>
+
+#ifdef	printf
+#	define	__no_undef__
+#else
+#	define	printf		__nothing__
+#endif
+#ifdef	fprintf
+#	define	__no_undef2__
+#else
+#	define	fprintf		__nothing2__
+#endif
+
 #include <stdio.h>
 #include <vadefs.h>
 #include <standard.h>
 #include <schily.h>
+
+#ifndef	__no_undef__
+#	undef	printf
+#endif
+#ifndef	__no_undef2__
+#	undef	fprintf
+#endif
 
 #define BFSIZ	256
 
@@ -34,8 +53,10 @@ typedef struct {
 	FILE	*f;
 } *BUF, _BUF;
 
-LOCAL void _bflush	__PR((BUF));
-LOCAL void _bput	__PR((char, long));
+LOCAL	void	_bflush	__PR((BUF));
+LOCAL	void	_bput	__PR((char, long));
+EXPORT	int	fprintf	__PR((FILE *, const char *, ...))	__printflike__(2, 3);
+EXPORT	int	printf	__PR((const char *, ...))		__printflike__(1, 2);
 
 LOCAL void _bflush (bp)
 	register BUF	bp;

@@ -1,13 +1,13 @@
-/* @(#)longnames.c	1.23 00/11/09 Copyright 1993, 1995 J. Schilling */
+/* @(#)longnames.c	1.34 02/05/09 Copyright 1993, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)longnames.c	1.23 00/11/09 Copyright 1993, 1995 J. Schilling";
+	"@(#)longnames.c	1.34 02/05/09 Copyright 1993, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Handle filenames that cannot fit into a single
  *	string of 100 charecters
  *
- *	Copyright (c) 1993, 1995 J. Schilling
+ *	Copyright (c) 1993, 1995, 2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -33,20 +33,13 @@ static	char sccsid[] =
 #include <strdefs.h>
 #include <schily.h>
 #include "starsubs.h"
-
-typedef struct {
-	char	*m_name;
-	int	m_size;
-	int	m_add;
-} move_t;
+#include "movearch.h"
 
 LOCAL	void	enametoolong	__PR((char* name, int len, int maxlen));
 LOCAL	char*	split_posix_name __PR((char* name, int namlen, int add));
 EXPORT	BOOL	name_to_tcb	__PR((FINFO * info, TCB * ptb));
 EXPORT	void	tcb_to_name	__PR((TCB * ptb, FINFO * info));
 EXPORT	void	tcb_undo_split	__PR((TCB * ptb, FINFO * info));
-LOCAL	int	move_from_name	__PR((move_t * move, char* p, int amount));
-LOCAL	int	move_to_name	__PR((move_t * move, char* p, int amount));
 EXPORT	int	tcb_to_longname	__PR((TCB * ptb, FINFO * info));
 EXPORT	void	write_longnames	__PR((FINFO * info));
 LOCAL	void	put_longname	__PR((FINFO * info,
@@ -145,7 +138,10 @@ name_to_tcb(info, ptb)
 		 * cannot split
 		 */
 		if (namelen+add <= props.pr_maxnamelen) {
-			info->f_flags |= F_LONGNAME;
+			if (props.pr_flags & PR_XHDR)
+				info->f_xflags |= XF_PATH;
+			else
+				info->f_flags |= F_LONGNAME;
 			if (add)
 				info->f_flags |= F_ADDSLASH;
 			strncpy(ptb->dbuf.t_name, name, props.pr_maxsname);
@@ -165,17 +161,40 @@ name_to_tcb(info, ptb)
 	return (TRUE);
 }
 
+/*
+ * This function is only called by tcb_to_info().
+ * If we ever decide to call it from somewhere else check if the linkname
+ * kludge for 100 char linknames does not make problems.
+ */
 EXPORT void
 tcb_to_name(ptb, info)
 	TCB	*ptb;
 	FINFO	*info;
 {
+	if ((info->f_flags & F_LONGLINK) == 0 &&	/* name from 'K' head*/
+	    (info->f_xflags & XF_LINKPATH) == 0 &&	/* name from 'x' head*/
+	    ptb->dbuf.t_linkname[NAMSIZ-1] != '\0') {
+		extern	char	longlinkname[];
+
+		/*
+		 * Our caller has set ptb->dbuf.t_linkname[NAMSIZ] to '\0'
+		 * if the link name len is exactly 100 chars.
+		 */
+		info->f_lname = longlinkname;
+		strcpy(info->f_lname, ptb->dbuf.t_linkname);
+	}
+
 	/*
 	 * Name has already been set up because it is a very long name or
 	 * because it has been setup from somwhere else.
 	 * We have nothing to do.
 	 */
 	if (info->f_flags & (F_LONGNAME|F_HAS_NAME))
+		return;
+	/*
+	 * Name has already been set up from a POSIX.1-2001 extended header.
+	 */
+	if (info->f_xflags & XF_PATH)
 		return;
 
 	if (props.pr_nflags & PR_POSIX_SPLIT) {
@@ -196,60 +215,23 @@ tcb_undo_split(ptb, info)
 	fillbytes(ptb->dbuf.t_prefix, props.pr_maxprefix, '\0');
 
 	info->f_flags &= ~F_SPLIT_NAME;
-	info->f_flags |= F_LONGNAME;
+
+	if (props.pr_flags & PR_XHDR)
+		info->f_xflags |= XF_PATH;
+	else
+		info->f_flags |= F_LONGNAME;
 
 	strncpy(ptb->dbuf.t_name, info->f_name, props.pr_maxsname);
-}
-
-#define	vp_move_from_name ((int(*)__PR((void *, char *, int)))move_from_name)
-
-/*
- * Move name from archive.
- */
-LOCAL int
-move_from_name(move, p, amount)
-	move_t	*move;
-	char	*p;
-	int	amount;
-{
-	movebytes(p, move->m_name, amount);
-	move->m_name += amount;
-	move->m_name[0] = '\0';
-	return (amount);
-}
-
-#define	vp_move_to_name	((int(*)__PR((void *, char *, int)))move_to_name)
-
-/*
- * Move name to archive.
- */
-LOCAL int
-move_to_name(move, p, amount)
-	move_t	*move;
-	char	*p;
-	int	amount;
-{
-	if (amount > move->m_size)
-		amount = move->m_size;
-	movebytes(move->m_name, p, amount);
-	move->m_name += amount;
-	move->m_size -= amount;
-	if (move->m_add) {
-		if (move->m_size == 1) {
-			p[amount-1] = '/';
-		} else if (move->m_size == 0) {
-			if (amount > 1)
-				p[amount-2] = '/';
-			p[amount-1] = '\0';
-		}
-	}
-	return (amount);
 }
 
 /*
  * A bad idea to do this here!
  * We have to set up a more generalized pool of namebuffers wich are allocated
- * on an actual MAX_PATH base.
+ * on an actual MAX_PATH base or even better allocated on demand.
+ *
+ * XXX If we change the code to allocate the data, we need to make sure that
+ * XXX the allocated data holds one byte more than needed as movearch.c
+ * XXX adds a second null byte to the buffer to enforce null-termination.
  */
 char	longlinkname[PATH_MAX+1];
 
@@ -259,30 +241,51 @@ tcb_to_longname(ptb, info)
 	register FINFO	*info;
 {
 	move_t	move;
+	Ullong	ull;
 
 	/*
-	 * File size is strlen of name
+	 * File size is strlen of name + 1
 	 */
-	astoo(ptb->dbuf.t_size, &info->f_size);
+	stolli(ptb->dbuf.t_size, &ull);
+	info->f_size = ull;
 	info->f_rsize = info->f_size;
 	if (info->f_size > PATH_MAX) {
 		xstats.s_toolong++;
-		errmsgno(EX_BAD, "Long name too long (%ld) ignored.\n",
-							info->f_size);
+		errmsgno(EX_BAD, "Long name too long (%lld) ignored.\n",
+							(Llong)info->f_size);
 		void_file(info);
 		return (get_tcb(ptb));
 	}
 	if (ptb->dbuf.t_linkflag == LF_LONGNAME) {
+		if ((info->f_xflags & XF_PATH) != 0) {
+			/*
+			 * Ignore old star/gnutar extended headers for very
+			 * long filenames if we already found a POSIX.1-2001
+			 * compliant long PATH name.
+			 */
+			void_file(info);
+			return (get_tcb(ptb));
+		}
 		info->f_namelen = info->f_size -1;
 		info->f_flags |= F_LONGNAME;
-		move.m_name = info->f_name;
+		move.m_data = info->f_name;
 	} else {
+		if ((info->f_xflags & XF_LINKPATH) != 0) {
+			/*
+			 * Ignore old star/gnutar extended headers for very
+			 * long linknames if we already found a POSIX.1-2001
+			 * compliant long LINKPATH name.
+			 */
+			void_file(info);
+			return (get_tcb(ptb));
+		}
 		info->f_lname = longlinkname;
 		info->f_lnamelen = info->f_size -1;
 		info->f_flags |= F_LONGLINK;
-		move.m_name = info->f_lname;
+		move.m_data = info->f_lname;
 	}
-	if (xt_file(info, vp_move_from_name, &move, 0, "moving long name") < 0)
+	move.m_flags = 0;
+	if (xt_file(info, vp_move_from_arch, &move, 0, "moving long name") < 0)
 		die(EX_BAD);
 
 	return (get_tcb(ptb));
@@ -295,11 +298,13 @@ write_longnames(info)
 	/*
 	 * XXX Should test for F_LONGNAME & F_FLONGLINK
 	 */
-	if (info->f_namelen > props.pr_maxsname) {
+	if ((info->f_flags & F_LONGNAME) ||
+	    (info->f_namelen > props.pr_maxsname)) {
 		put_longname(info, info->f_name, info->f_namelen+1,
 						"././@LongName", XT_LONGNAME);
 	}
-	if (info->f_lnamelen > props.pr_maxslname) {
+	if ((info->f_flags & F_LONGLINK) ||
+	    (info->f_lnamelen > props.pr_maxslname)) {
 		put_longname(info, info->f_lname, info->f_lnamelen+1,
 						"././@LongLink", XT_LONGLINK);
 	}
@@ -321,13 +326,17 @@ put_longname(info, name, namelen, tname, xftype)
 
 	ptb = (TCB *)get_block();
 	finfo.f_flags |= F_TCB_BUF;
-	fillbytes((char *)ptb, TBLOCK, '\0');
+	filltcb(ptb);
 
 	strcpy(ptb->dbuf.t_name, tname);
 
-	move.m_add = 0;
+	move.m_flags = 0;
 	if ((info->f_flags & F_ADDSLASH) != 0 && xftype == XT_LONGNAME) {
-		move.m_add = 1;
+		/*
+		 * A slash is only added to the filename and not to the
+		 * linkname.
+		 */
+		move.m_flags |= MF_ADDSLASH;
 		namelen++;
 	}
 	finfo.f_rsize = finfo.f_size = namelen;
@@ -335,7 +344,7 @@ put_longname(info, name, namelen, tname, xftype)
 	info_to_tcb(&finfo, ptb);
 	write_tcb(ptb, &finfo);
 
-	move.m_name = name;
+	move.m_data = name;
 	move.m_size = finfo.f_size;
-	cr_file(&finfo, vp_move_to_name, &move, 0, "moving long name");
+	cr_file(&finfo, vp_move_to_arch, &move, 0, "moving long name");
 }

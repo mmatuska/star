@@ -1,4 +1,4 @@
-#ident "@(#)ip22-irix-cc.rul	1.4 99/08/29 "
+#ident "@(#)ip22-irix-cc.rul	1.5 01/12/09 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -26,7 +26,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
 CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
 
-OSDEFS=		-D__SVR4 -DSVR4
+OSDEFS=		-D__SVR4 -DSVR4 $(LARGEFILE_OPT)
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=
 CWOPTS=		-fullwarn
@@ -49,7 +49,7 @@ LDFLAGS=	$(LDOPTS) $(LDOPTX)
 LDLIBS=		$(LIBS) $(LIBX)
 
 #LDOPTS=		$(LIBS_PATH) $(LDPATH) $(RUNPATH)
-LDOPTS=		$(LIBS_PATH) $(LDPATH)
+LDOPTS=		$(LIBS_PATH) $(LDPATH) $(LARGEFILE_OPT)
 #LDOPTDYN=	-dy -G -ztext -h $(TARGET) -ldl
 LNDYNLIB=	@
 

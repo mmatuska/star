@@ -1,12 +1,12 @@
-/* @(#)buffer.c	1.46 01/04/07 Copyright 1985, 1995 J. Schilling */
+/* @(#)buffer.c	1.73 02/05/20 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.46 01/04/07 Copyright 1985, 1995 J. Schilling";
+	"@(#)buffer.c	1.73 02/05/20 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
  *
- *	Copyright (c) 1985, 1995 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -25,17 +25,21 @@ static	char sccsid[] =
  */
 
 #include <mconfig.h>
+
+#if !defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)
+#undef	USE_REMOTE				/* There is no rcmd() */
+#endif
+
 #include <stdio.h>
+#include <stdxlib.h>
+#include <unixstd.h>
 #include <fctldefs.h>
-#include <sys/types.h>
 #include <sys/ioctl.h>
 #include <vadefs.h>
 #include "star.h"
 #include <errno.h>
 #include <standard.h>
 #include "fifo.h"
-#include <stdxlib.h>
-#include <unixstd.h>
 #include <strdefs.h>
 #include <waitdefs.h>
 #include <schily.h>
@@ -53,6 +57,7 @@ int	bufsize	= 0;		/* Available buffer size */
 char	*bigbuf	= NULL;
 char	*bigptr	= NULL;
 char	*eofptr	= NULL;
+Llong	curblockno;
 
 m_stats	bstat;
 m_stats	*stats	= &bstat;
@@ -66,15 +71,19 @@ LOCAL	struct	timeval	stoptime;
 LOCAL	BOOL	isremote = FALSE;
 LOCAL	int	remfd	= -1;
 LOCAL	char	*remfn;
-LOCAL	char	host[128];
 
 extern	FILE	*tarf;
 extern	FILE	*tty;
 extern	FILE	*vpr;
-extern	char	*tarfile;
+extern	char	*tarfiles[];
+extern	int	ntarfiles;
+extern	int	tarfindex;
+LOCAL	int	lastremote = -1;
+extern	char	*newvol_script;
 extern	BOOL	use_fifo;
 extern	int	swapflg;
 extern	BOOL	debug;
+extern	BOOL	silent;
 extern	BOOL	showtime;
 extern	BOOL	no_stats;
 extern	BOOL	do_fifostats;
@@ -103,6 +112,8 @@ EXPORT	int	readblock	__PR((char* buf));
 LOCAL	int	readtblock	__PR((char* buf, int amount));
 LOCAL	void	readbuf		__PR((void));
 EXPORT	int	readtape	__PR((char* buf, int amount));
+EXPORT	void	filltcb		__PR((TCB *ptb));
+EXPORT	void	movetcb		__PR((TCB *from_ptb, TCB *to_ptb));
 EXPORT	void	*get_block	__PR((void));
 EXPORT	void	put_block	__PR((void));
 EXPORT	void	writeblock	__PR((char* buf));
@@ -120,8 +131,8 @@ EXPORT	void	buf_rwake	__PR((int amount));
 EXPORT	void	buf_resume	__PR((void));
 EXPORT	void	backtape	__PR((void));
 EXPORT	int	mtioctl		__PR((int cmd, int count));
-EXPORT	long	mtseek		__PR((long offset, int whence));
-EXPORT	int	tblocks		__PR((void));
+EXPORT	off_t	mtseek		__PR((off_t offset, int whence));
+EXPORT	Llong	tblocks		__PR((void));
 EXPORT	void	prstats		__PR((void));
 EXPORT	BOOL	checkerrs	__PR((void));
 EXPORT	void	exprstats	__PR((int ret));
@@ -133,31 +144,38 @@ LOCAL	void	compressopen	__PR((void));
 EXPORT BOOL
 openremote()
 {
-	register char *hp;
-	register char *fp;
-	register int  i;
+	char	host[128];
+	char	lasthost[128];
 
-	if ((!nullout || (uflag || rflag)) && strchr(tarfile, ':')) {
+	if ((!nullout || (uflag || rflag)) &&
+			(remfn = rmtfilename(tarfiles[tarfindex])) != NULL) {
 
 #ifdef	USE_REMOTE
 		isremote = TRUE;
-		remfn = strchr(tarfile, ':');
-		for (fp = tarfile, hp = host, i = 1;
-				fp < remfn && i < sizeof(host); i++) {
-			*hp++ = *fp++;
-		}
-		*hp = '\0';
-		remfn++;
+		rmtdebug(debug);
+		rmthostname(host, tarfiles[tarfindex], sizeof(host));
 		if (debug)
 			errmsgno(EX_BAD, "Remote: %s Host: %s file: %s\n",
-							tarfile, host, remfn);
+					tarfiles[tarfindex], host, remfn);
 
-		if ((remfd = rmtgetconn(host, bigsize)) < 0)
+		if (lastremote >= 0) {
+			rmthostname(lasthost, tarfiles[lastremote],
+							sizeof(lasthost));
+			if (!streql(host, lasthost)) {
+				close(remfd);
+				remfd = -1;
+				lastremote = -1;
+			}
+		}
+		if (remfd < 0 && (remfd = rmtgetconn(host, bigsize)) < 0)
 			comerrno(EX_BAD, "Cannot get connection to '%s'.\n",
 				/* errno not valid !! */		host);
+		lastremote = tarfindex;
 #else
 		comerrno(EX_BAD, "Remote tape support not present.\n");
 #endif
+	} else {
+		isremote = FALSE;
 	}
 	return (isremote);
 }
@@ -166,16 +184,19 @@ EXPORT void
 opentape()
 {
 	int	n = 0;
+	extern	dev_t	tape_dev;
+	extern	ino_t	tape_ino;
+	extern	BOOL	tape_isreg;
 
 	if (nullout && !(uflag || rflag)) {
-		tarfile = "null";
+		tarfiles[tarfindex] = "null";
 		tarf = (FILE *)NULL;
-	} else if (streql(tarfile, "-")) {
+	} else if (streql(tarfiles[tarfindex], "-")) {
 		if (cflag) {
-			tarfile = "stdout";
+/*			tarfiles[tarfindex] = "stdout";*/
 			tarf = stdout;
 		} else {
-			tarfile = "stdin";
+/*			tarfiles[tarfindex] = "stdin";*/
 			tarf = stdin;
 			multblk = TRUE;
 		}
@@ -192,13 +213,17 @@ opentape()
 		 * whether the current /etc/rmt server supports symbolic
 		 * open flags. If there is no symbolic support in the
 		 * remote server, our rmt client code will mask off all
-		 * non portable bits.
+		 * non portable bits. The remote rmt server defaults to
+		 * O_BINARY as the client (we) may not know about O_BINARY.
+		 * XXX Should we add an option that allows to specify O_TRUNC?
 		 */
 		while (rmtopen(remfd, remfn, (cflag ? O_RDWR|O_CREAT:O_RDONLY)|O_BINARY) < 0) {
-			if (!wready || n++ > 6 || geterrno() != EIO)
-				comerr("Cannot open remote '%s'.\n", tarfile);
-			else
+			if (!wready || n++ > 6 || geterrno() != EIO) {
+				comerr("Cannot open remote '%s'.\n",
+						tarfiles[tarfindex]);
+			} else {
 				sleep(10);
+			}
 		}
 #endif	
 	} else {
@@ -215,21 +240,27 @@ opentape()
 			 * XXX What if we implement 'r' & 'u' ???
 			 */
 			follow++;
-			n = getinfo(tarfile, &finfo);
+			n = getinfo(tarfiles[tarfindex], &finfo);
 			follow--;
-			if (n >= 0 && is_file(&finfo) && finfo.f_size > 0L) {
+			if (n >= 0 && is_file(&finfo) && finfo.f_size > (off_t)0) {
 				comerrno(EX_BAD,
 				"Will not overwrite non empty plain files in compat mode.\n");
 			}
 		}
 
 		n = 0;
-		while ((tarf = fileopen(tarfile, cflag?"rwcub":"rub")) ==
+		/*
+		 * XXX Should we add an option that allows to specify O_TRUNC?
+		 */
+		while ((tarf = fileopen(tarfiles[tarfindex],
+						cflag?"rwcub":"rub")) ==
 								(FILE *)NULL) {
-			if (!wready || n++ > 6 || geterrno() != EIO)
-				comerr("Cannot open '%s'.\n", tarfile);
-			else
+			if (!wready || n++ > 6 || geterrno() != EIO) {
+				comerr("Cannot open '%s'.\n",
+						tarfiles[tarfindex]);
+			} else {
 				sleep(10);
+			}
 		}
 	}
 	if (!isremote && (!nullout || (uflag || rflag))) {
@@ -238,12 +269,42 @@ opentape()
 	}
 	vpr = tarf == stdout ? stderr : stdout;
 
-	if (zflag || bzflag) {
-		extern	long	tape_dev;
-		extern	long	tape_ino;
+	/*
+	 * If the archive is a plain file and thus seekable
+	 * do automatic compression detection.
+	 */
+	if (tape_isreg && !cflag && (!zflag && !bzflag)) {
+		long	htype;
+		char	zbuf[TBLOCK];
+		TCB	*ptb;
 
+		readtblock(zbuf, TBLOCK);
+		ptb = (TCB *)zbuf;
+		htype = get_hdrtype(ptb, FALSE);
+
+		if (htype == H_UNDEF) {
+			switch (get_compression(ptb)) {
+
+			case C_GZIP:
+				if (!silent) errmsgno(EX_BAD,
+					"WARNING: Archive is compressed, trying to use the -z option.\n");
+				zflag = TRUE;
+				break;
+			case C_BZIP2:
+				if (!silent) errmsgno(EX_BAD,
+					"WARNING: Archive is bzip2 compressed, trying to use the -bz option.\n");
+				bzflag = TRUE;
+				break;
+			}
+		}
+		mtseek((off_t)0, SEEK_SET);
+	}
+	if (zflag || bzflag) {
 		if (isremote)
 			comerrno(EX_BAD, "Cannot compress remote archives (yet).\n");
+		/*
+		 * If both values are zero, this is a device and thus may be a tape.
+		 */
 		if (tape_dev || tape_ino)
 			compressopen();
 		else
@@ -277,6 +338,7 @@ EXPORT void
 changetape()
 {
 	char	ans[2];
+	int	nextindex;
 
 	prstats();
 	stats->Tblocks += stats->blocks;
@@ -284,10 +346,32 @@ changetape()
 	stats->blocks = 0L;
 	stats->parts = 0L;
 	closetape();
-	errmsgno(EX_BAD, "Mount volume #%d and hit <RETURN>", ++stats->volno);
-	fgetline(tty, ans, sizeof(ans));
-	if (feof(tty))
-		exit(1);
+	/*
+	 * XXX Was passiert, wenn wir das 2. Mal bei einem Band vorbeikommen?
+	 * XXX Zur Zeit wird gnadenlos ueberschrieben.
+	 */
+	nextindex = tarfindex + 1;
+	if (nextindex >= ntarfiles)
+		nextindex = 0;
+	/*
+	 * XXX We need to add something like the -l & -o option from
+	 * XXX ufsdump.
+	 */
+	if (newvol_script) {
+		/*
+		 * XXX Sould we give the script volume # and volume name
+		 * XXX as argument?
+		 */
+		system(newvol_script);
+	} else {
+		errmsgno(EX_BAD, "Mount volume #%d on '%s' and hit <RETURN>",
+			++stats->volno, tarfiles[nextindex]);
+		fgetline(tty, ans, sizeof(ans));
+		if (feof(tty))
+			exit(1);
+	}
+	tarfindex = nextindex;
+	openremote();
 	opentape();
 }
 
@@ -317,10 +401,10 @@ initbuf(nblocks)
 	} else
 #endif
 	{
-		if ((bigptr = bigbuf = malloc((unsigned) bufsize)) == NULL)
-			comerr("Cannot alloc buf.\n");
+		bigptr = bigbuf = __malloc((size_t) bufsize, "buffer");
 		fillbytes(bigbuf, bufsize, '\0');
 	}
+	stats->nblocks = nblocks;
 	stats->blocksize = bigsize;
 	stats->volno = 1;
 	stats->swapflg = -1;
@@ -334,14 +418,17 @@ markeof()
 		/*
 		 * Remember current FIFO status.
 		 */
+		/* EMPTY */
 	}
 #endif
 	eofptr = bigptr - TBLOCK;
 
 	if (debug) {
-		error("Blocks: %d\n", tblocks());
-		error("bigptr - bigbuff: %d %p %p %p lastsize: %ld\n",
-			bigptr - bigbuf, bigbuf, bigptr, eofptr, stats->lastsize);
+		error("Blocks: %lld\n", tblocks());
+		error("bigptr - bigbuff: %lld %p %p %p lastsize: %ld\n",
+			(Llong)(bigptr - bigbuf),
+			(void *)bigbuf, (void *)bigptr, (void *)eofptr,
+			stats->lastsize);
 	}
 }
 
@@ -366,7 +453,7 @@ readblock(buf)
 {
 	if (buf_rwait(TBLOCK) == 0)
 		return (EOF);
-	movebytes(bigptr, buf, TBLOCK);
+	movetcb((TCB *)bigptr, (TCB *)buf);
 	buf_rwake(TBLOCK);
 	return TBLOCK;
 }
@@ -385,11 +472,11 @@ readtblock(buf, amount)
 		 * isremote will always be FALSE if USE_REMOTE is not defined.
 		 */
 		if ((cnt = rmtread(remfd, buf, amount)) < 0)
-			excomerr("Error reading '%s'.\n", tarfile);
+			excomerr("Error reading '%s'.\n", tarfiles[tarfindex]);
 #endif
 	} else {
-		if ((cnt = ffileread(tarf, buf, amount)) < 0)
-			excomerr("Error reading '%s'.\n", tarfile);
+		if ((cnt = _niread(fileno(tarf), buf, amount)) < 0)
+			excomerr("Error reading '%s'.\n", tarfiles[tarfindex]);
 	}
 	return (cnt);
 }
@@ -427,7 +514,7 @@ readtape(buf, amount)
 		return (amt);
 	if (amt < TBLOCK)
 		excomerrno(EX_BAD, "Error reading '%s' size (%d) too small.\n",
-							tarfile, amt);
+						tarfiles[tarfindex], amt);
 	/*
 	 * First block
 	 */
@@ -480,6 +567,34 @@ void swabbytes(bp, cnt)
 }
 #endif
 
+#define	DO16(a)	a;a;a;a;a;a;a;a;a;a;a;a;a;a;a;a;
+
+EXPORT void
+filltcb(ptb)
+	register TCB	*ptb;
+{
+	register int	i;
+	register long	*lp = ptb->ldummy;
+
+	for (i=512/sizeof(long)/16; --i >= 0;) {
+		DO16(*lp++ = 0L)
+	}
+}
+
+EXPORT void
+movetcb(from_ptb, to_ptb)
+	register TCB	*from_ptb;
+	register TCB	*to_ptb;
+{
+	register int	i;
+	register long	*from = from_ptb->ldummy;
+	register long	*to   = to_ptb->ldummy;
+
+	for (i=512/sizeof(long)/16; --i >= 0;) {
+		DO16(*to++ = *from++)
+	}
+}
+
 EXPORT void *
 get_block()
 {
@@ -498,7 +613,7 @@ writeblock(buf)
 	char	*buf;
 {
 	buf_wait(TBLOCK);
-	movebytes(buf, bigptr, TBLOCK);
+	movetcb((TCB *)buf, (TCB *)bigptr);
 	buf_wake(TBLOCK);
 }
 
@@ -519,7 +634,7 @@ writetape(buf, amount)
 		cnt = rmtwrite(remfd, buf, amount);
 #endif
 	} else {
-		cnt = ffilewrite(tarf, buf, amount);
+		cnt = _niwrite(fileno(tarf), buf, amount);
 	}
 	if (cnt == 0) {
 		err = EFBIG;
@@ -527,7 +642,7 @@ writetape(buf, amount)
 		err = geterrno();
 	}
 	if (cnt <= 0)
-		excomerrno(err, "Error writing '%s'.\n", tarfile);
+		excomerrno(err, "Error writing '%s'.\n", tarfiles[tarfindex]);
 
 	if (cnt == stats->blocksize)
 		stats->blocks++;
@@ -566,10 +681,10 @@ flushbuf()
 EXPORT void
 writeempty()
 {
-	char	buf[TBLOCK];
+	TCB	tb;
 
-	fillbytes(buf, TBLOCK, '\0');
-	writeblock(buf);
+	filltcb(&tb);
+	writeblock((char *)&tb);
 }
 
 EXPORT void
@@ -684,12 +799,13 @@ buf_resume()
 EXPORT void
 backtape()
 {
-	long	ret;
+	Llong	ret;
 
 	if (debug) {
-		error("Blocks: %d\n", tblocks());
-		error("filepos: %ld seeking to: %ld bigsize: %d\n",
-		mtseek(0L, SEEK_CUR), mtseek(0L, SEEK_CUR)-stats->lastsize, bigsize);
+		error("Blocks: %lld\n", tblocks());
+		error("filepos: %lld seeking to: %lld bigsize: %d\n",
+		(Llong)mtseek((off_t)0, SEEK_CUR),
+		(Llong)mtseek((off_t)0, SEEK_CUR) - (Llong)stats->lastsize, bigsize);
 	}
 
 	if (mtioctl(MTNOP, 0) >= 0) {
@@ -701,7 +817,7 @@ backtape()
 			error("Is a file: lseek()\n");
 		ret = mtseek(-stats->lastsize, SEEK_CUR);
 	}
-	if (ret < 0)
+	if (ret == (Llong)-1)
 		excomerr("Cannot backspace tape.\n");
 
 	if (stats->lastsize == stats->blocksize)
@@ -735,14 +851,16 @@ mtioctl(cmd, count)
 		return (-1);
 #endif
 	}
-	if (ret < 0 && debug)
-		errmsg("Error sending mtioctl(%d, %d) to '%s'.\n", cmd, count, tarfile);
+	if (ret < 0 && debug) {
+		errmsg("Error sending mtioctl(%d, %d) to '%s'.\n",
+					cmd, count, tarfiles[tarfindex]);
+	}
 	return (ret);
 }
 
-EXPORT long
+EXPORT off_t
 mtseek(offset, whence)
-	long	offset;
+	off_t	offset;
 	int	whence;
 {
 	if (nullout && !(uflag || rflag)) {
@@ -752,39 +870,39 @@ mtseek(offset, whence)
 		return (rmtseek(remfd, offset, whence));
 #endif
 	} else {
-		return (fseek(tarf, offset, whence));
+		return (lseek(fileno(tarf), offset, whence));
 	}
 }
 
-EXPORT int
+EXPORT Llong
 tblocks()
 {
 	long	fifo_cnt = 0;
+	Llong	ret;
 
 #ifdef	FIFO
 	if (use_fifo)
 		fifo_cnt = fifo_amount()/TBLOCK;
 #endif
-	if (debug) {
-		error("blocks: %ld blocksize: %ld parts: %ld bigcnt: %ld fifo_cnt: %ld\n", 
-		stats->blocks, stats->blocksize, stats->parts, bigcnt, fifo_cnt);
-	}
 	if (stats->reading)
-		return (-fifo_cnt + (stats->blocks * stats->blocksize +
-					stats->parts - (bigcnt+TBLOCK))/TBLOCK);
+		ret = (-fifo_cnt + stats->blocks * stats->nblocks +
+				(stats->parts - (bigcnt+TBLOCK))/TBLOCK);
 	else
-		return (fifo_cnt + (stats->blocks * stats->blocksize +
-					stats->parts + bigcnt)/TBLOCK);
+		ret = (fifo_cnt + stats->blocks * stats->nblocks +
+				(stats->parts + bigcnt)/TBLOCK);
+	if (debug) {
+		error("tblocks: %lld blocks: %lld blocksize: %ld parts: %lld bigcnt: %ld fifo_cnt: %ld\n", 
+		ret, stats->blocks, stats->blocksize, stats->parts, bigcnt, fifo_cnt);
+	}
+	curblockno = ret;
+	return (ret);
 }
 
 EXPORT void
 prstats()
 {
 	Llong	bytes;
-	long	kbytes;
-	long	hibytes;
-	long	lobytes;
-	char	cbytes[32];
+	Llong	kbytes;
 	int	per;
 #ifdef	timerclear
 	int	sec;
@@ -806,39 +924,23 @@ prstats()
 		fifo_stats();
 #endif
 
-	bytes = (Llong)stats->blocks * (Llong)stats->blocksize + stats->parts;
+	bytes = stats->blocks * (Llong)stats->blocksize + stats->parts;
 	kbytes = bytes >> 10;
 	per = ((bytes&1023)<<10)/10485;
 
-	cbytes[0] = '\0';
-	hibytes = bytes / 1000000000;
-	lobytes = bytes % 1000000000;
-	if (hibytes)
-		sprintf(cbytes, "%ld%09ld", hibytes, lobytes);
-	else
-		sprintf(cbytes, "%ld", lobytes);
-
 	errmsgno(EX_BAD,
-		"%ld blocks + %ld bytes (total of %s bytes = %ld.%02dk).\n",
-		stats->blocks, stats->parts, cbytes, kbytes, per);
+		"%lld blocks + %lld bytes (total of %lld bytes = %lld.%02dk).\n",
+		stats->blocks, stats->parts, bytes, kbytes, per);
 
 	if (stats->Tblocks + stats->Tparts) {
-		bytes = (Llong)stats->Tblocks * (Llong)stats->blocksize +
+		bytes = stats->Tblocks * (Llong)stats->blocksize +
 								stats->Tparts;
 		kbytes = bytes >> 10;
 		per = ((bytes&1023)<<10)/10485;
 
-		cbytes[0] = '\0';
-		hibytes = bytes / 1000000000;
-		lobytes = bytes % 1000000000;
-		if (hibytes)
-			sprintf(cbytes, "%ld%09ld", hibytes, lobytes);
-		else
-			sprintf(cbytes, "%ld", lobytes);
-
 		errmsgno(EX_BAD,
-		"Total %ld blocks + %ld bytes (total of %s bytes = %ld.%02dk).\n",
-		stats->Tblocks, stats->Tparts, cbytes, kbytes, per);
+		"Total %lld blocks + %lld bytes (total of %lld bytes = %lld.%02dk).\n",
+		stats->Tblocks, stats->Tparts, bytes, kbytes, per);
 	}
 #ifdef	timerclear
 	if (showtime) {
@@ -854,11 +956,10 @@ prstats()
 		if (tmsec == 0)
 			tmsec++;
 
-		kbs = (Llong)kbytes*(Llong)1000/tmsec;
-		lobytes = kbs;
+		kbs = kbytes*(Llong)1000/tmsec;
 
-		errmsgno(EX_BAD, "Total time %d.%03dsec (%ld kBytes/sec)\n",
-				sec, usec/1000, lobytes);
+		errmsgno(EX_BAD, "Total time %d.%03dsec (%lld kBytes/sec)\n",
+				sec, usec/1000, kbs);
 	}
 #endif
 }
@@ -867,13 +968,24 @@ EXPORT BOOL
 checkerrs()
 {
 	if (xstats.s_staterrs	||
+#ifdef	USE_ACL
+	    xstats.s_getaclerrs	||
+#endif
 	    xstats.s_openerrs	||
 	    xstats.s_rwerrs	||
 	    xstats.s_misslinks	||
 	    xstats.s_toolong	||
 	    xstats.s_toobig	||
 	    xstats.s_isspecial	||
-	    xstats.s_sizeerrs) {
+	    xstats.s_sizeerrs	||
+
+	    xstats.s_settime	||
+#ifdef	USE_ACL
+	    xstats.s_badacl	||
+	    xstats.s_setacl	||
+#endif
+	    xstats.s_setmodes
+	    ) {
 		if (nowarn || no_stats || (pid == 0)/* child */)
 			return (TRUE);
 
@@ -888,6 +1000,17 @@ checkerrs()
 				xstats.s_toolong,
 				xstats.s_toobig,
 				xstats.s_isspecial);
+		if (xstats.s_settime || xstats.s_setmodes)
+			errmsgno(EX_BAD, "Cannot set: time %d, modes %d.\n",
+				xstats.s_settime,
+				xstats.s_setmodes);
+#ifdef	USE_ACL
+		if (xstats.s_getaclerrs || xstats.s_badacl || xstats.s_setacl)
+			errmsgno(EX_BAD, "Cannot get ACL: %d set ACL: %d. Bad ACL %d.\n",
+				xstats.s_getaclerrs,
+				xstats.s_setacl,
+				xstats.s_badacl);
+#endif
 		return (TRUE);
 	}
 	return (FALSE);
@@ -898,6 +1021,7 @@ exprstats(ret)
 	int	ret;
 {
 	prstats();
+	checkerrs();
 	exit(ret);
 }
 
@@ -974,6 +1098,7 @@ die(err)
 LOCAL void
 compressopen()
 {
+#ifdef	HAVE_FORK
 	FILE	*pp[2];
 	int	mypid;
 	char	*zip_prog = "gzip";
@@ -1023,4 +1148,7 @@ compressopen()
 		tarf = pp[0];
 		fclose(pp[1]);
 	}
+#else
+	comerrno(EX_BAD, "Inline compression not available.\n");
+#endif
 }

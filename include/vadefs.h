@@ -1,4 +1,4 @@
-/* @(#)vadefs.h	1.4 99/11/27 Copyright 1998 J. Schilling */
+/* @(#)vadefs.h	1.5 01/07/15 Copyright 1998 J. Schilling */
 /*
  *	Generic header for users of var args ...
  *
@@ -36,18 +36,30 @@
  * For ANSI C-compilers prefer stdarg.h
  */
 #	ifdef	HAVE_STDARG_H
+#		ifndef	_INCL_STDARG_H
 #		include <stdarg.h>
+#		define	_INCL_STDARG_H
+#		endif
 #	else
+#		ifndef	_INCL_VARARGS_H
 #		include <varargs.h>
+#		define	_INCL_VARARGS_H
+#		endif
 #	endif
 #else
 /*
  * For K&R C-compilers prefer varargs.h
  */
 #	ifdef	HAVE_VARARGS_H
+#		ifndef	_INCL_VARARGS_H
 #		include <varargs.h>
+#		define	_INCL_VARARGS_H
+#		endif
 #	else
+#		ifndef	_INCL_STDARG_H
 #		include <stdarg.h>
+#		define	_INCL_STDARG_H
+#		endif
 #	endif
 #endif
 

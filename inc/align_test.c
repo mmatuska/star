@@ -1,7 +1,7 @@
-/* @(#)align_test.c	1.12 00/01/07 Copyright 1995 J. Schilling */
+/* @(#)align_test.c	1.15 02/05/20 Copyright 1995 J. Schilling */
 #ifndef	lint
 static	char sccsid[] =
-	"@(#)align_test.c	1.12 00/01/07 Copyright 1995 J. Schilling";
+	"@(#)align_test.c	1.15 02/05/20 Copyright 1995 J. Schilling";
 #endif
 /*
  *	Generate machine dependant align.h
@@ -159,7 +159,7 @@ char	fl[] = "float";
 char	db[] = "double";
 char	pt[] = "pointer";
 
-#define	xalign(x, a, m)		( ((char *)(x)) + ( (a) - (((int)(x))&(m))) )
+#define	xalign(x, a, m)		( ((char *)(x)) + ( (a) - (((UIntptr_t)(x))&(m))) )
 
 EXPORT int
 main(ac, av)
@@ -180,7 +180,7 @@ main(ac, av)
 	buf_aligned = p;
 
 #ifdef	DEBUG
-	printf("buf: %lX %lX\n",
+	fprintf(stderr, "buf: 0x%lX 0x%lX\n",
 		(unsigned long)buf, (unsigned long)xalign(buf, 1024, 1023));
 #endif
 
@@ -333,7 +333,7 @@ check_align(cfunc, sfunc, tsize)
 		}
 	}
 #ifdef	DEBUG
-	printf("i: %d tsize: %d\n", i, tsize);
+	fprintf(stderr, "i: %d tsize: %d\n", i, tsize);
 #endif
 	if (i == tsize)
 		return (i);
@@ -341,18 +341,18 @@ check_align(cfunc, sfunc, tsize)
 	align = calign = i;
 	tcheck = speed_check(p, sfunc, i);
 #ifdef	DEBUG
-	printf("tcheck: %d\n", tcheck);
+	fprintf(stderr, "tcheck: %d\n", tcheck);
 #endif
 
 	for (i = calign*2; i <= tsize; i *= 2) {
 		t = speed_check(p, sfunc, i);
 #ifdef	DEBUG
-		printf("tcheck: %d t: %d i: %d\n", tcheck, t, i);
-		printf("tcheck - t: %d ... * 3: %d\n",  (tcheck - t), (tcheck - t) * 3);
+		fprintf(stderr, "tcheck: %d t: %d i: %d\n", tcheck, t, i);
+		fprintf(stderr, "tcheck - t: %d ... * 3: %d\n",  (tcheck - t), (tcheck - t) * 3);
 #endif
 		if (((tcheck - t) > 0) && ((tcheck - t) * 3) > tcheck) {
 #ifdef	DEBUG
-			printf("kleiner\n");
+			fprintf(stderr, "kleiner\n");
 #endif
 			align = i;
 			tcheck = t;
@@ -554,7 +554,7 @@ speed_ptr(p, n)
 		*pp = (char *)i;
 }
 
-#include <sys/times.h>
+#include <timedefs.h>
 LOCAL int
 speed_check(p, sfunc, n)
 	char	*p;
@@ -569,7 +569,7 @@ speed_check(p, sfunc, n)
 	times(&tm2);
 
 #ifdef	DEBUG
-	printf("t1: %ld\n", (long) tm2.tms_utime-tm1.tms_utime);
+	fprintf(stderr, "t1: %ld\n", (long) tm2.tms_utime-tm1.tms_utime);
 #endif
 
 	return ((int) tm2.tms_utime-tm1.tms_utime);

@@ -1,4 +1,4 @@
-/* @(#)fileseek.c	1.9 00/12/03 Copyright 1986 J. Schilling */
+/* @(#)fileseek.c	1.10 01/12/09 Copyright 1986 J. Schilling */
 /*
  *	Copyright (c) 1986 J. Schilling
  */
@@ -21,8 +21,8 @@
 #include "io.h"
 
 /*
- * XXX We need to switch to fseeko()/ftello() sometime in the future.
- * XXX See io.h hack.
+ * Note that because of a definition in io.h we are using fseeko()/ftello()
+ * instead of fseek()/ftell() if available.
  */
 
 static	char	_seekerr[]	= "file_seek_err";

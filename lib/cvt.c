@@ -1,4 +1,4 @@
-/* @(#)cvt.c	1.4 01/02/23 Copyright 1998 J. Schilling */
+/* @(#)cvt.c	1.6 01/11/13 Copyright 1998 J. Schilling */
 /*
  *	Compatibility routines for 4.4BSD based C-libraries ecvt()/fcvt()
  *	and a working gcvt() that is needed on 4.4BSD and GNU libc systems.
@@ -36,7 +36,29 @@ extern	char *__dtoa	__PR((double value, int mode, int ndigit, int *decpt, int *s
 #else
 extern	char *__dtoa	__PR((double value, int mode, int ndigit, int *decpt, int *sign, char **ep));
 #endif
-#endif
+#else
+
+#if	!defined(HAVE_ECVT)
+/*
+ * As a hint from Thomas Langer <Langer.Thomas@gmx.net>, we use strtod.c in
+ * hope that we then will be able to print floating point numbers on all
+ * platforms, even those without *cvt() and without __dtoa() in libc.
+ *
+ * ... of course, we need to decide when we need to include strtod.c ...
+ *
+ * We come into this file if autoconf found that gcvt(), fcvt() or ecvt() is
+ * missing. If we are on a *BSD alike system, there is __dtoa() but neither
+ * gcvt() nor fcvt() or ecvt(), so we emulate all three functions via __dtoa().
+ * Glibc has a buggy gcvt() which causes an endless recursion,
+ * fcvt() from Cygwin32 is buggy, so we emulate fcvt() via ecvt() on Cygwin.
+ *
+ * If at least ecvt() is present, we don't need __dtoa() from strtod.c
+ */
+#include "strtod.c"
+#define	HAVE_DTOA
+#endif	/* !defined(HAVE_ECVT) */
+
+#endif	/* HAVE_DTOA */
 
 #ifndef	HAVE_ECVT
 EXPORT	char *ecvt	__PR((double value, int ndigit, int *decpt, int *sign));

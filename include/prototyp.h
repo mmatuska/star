@@ -1,4 +1,4 @@
-/* @(#)prototyp.h	1.9 01/05/31 Copyright 1995 J. Schilling */
+/* @(#)prototyp.h	1.10 01/10/27 Copyright 1995 J. Schilling */
 /*
  *	Definitions for dealing with ANSI / KR C-Compilers
  *
@@ -19,6 +19,14 @@
  * along with this program; see the file COPYING.  If not, write to
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+
+/*
+ * mconfig.h includes prototype.h so we must do this include before we test
+ * for _PROTOTYP_H
+ */
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
 
 #ifndef	_PROTOTYP_H
 #define	_PROTOTYP_H

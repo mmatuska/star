@@ -1,10 +1,22 @@
 #!/bin/sh
 ###########################################################################
-#ident "@(#)MKLINKS	1.37 01/03/17 "
+#ident "@(#)MKLINKS	1.43 02/04/29 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
-#@@C@@
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING.  If not, write to
+# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 ###########################################################################
 ln -s	mk-.id			mk-make.id
 ln -s	r-make.c4x		r-gmake.c4x
@@ -45,11 +57,13 @@ ln -s	hppa-nextstep-cc.rul	i386-nextstep-gcc.rul
 ln -s	hppa-nextstep-cc.rul	m68k-nextstep-gcc.rul
 ln -s	hppa-nextstep-cc.rul	sparc-nextstep-gcc.rul
 ln -s	os-irix.id		os-irix64.id
+ln -s	ip22-irix-cc.rul	ip17-irix-cc.rul
 ln -s	ip22-irix-cc.rul	ip20-irix-cc.rul
 ln -s	ip22-irix-cc.rul	ip27-irix-cc.rul
 ln -s	ip22-irix-cc.rul	ip28-irix-cc.rul
 ln -s	ip22-irix-cc.rul	ip30-irix-cc.rul
 ln -s	ip22-irix-cc.rul	ip32-irix-cc.rul
+ln -s	ip22-irix-gcc.rul	ip17-irix-gcc.rul
 ln -s	ip22-irix-gcc.rul	ip20-irix-gcc.rul
 ln -s	ip22-irix-gcc.rul	ip27-irix-gcc.rul
 ln -s	ip22-irix-gcc.rul	ip28-irix-gcc.rul
@@ -86,20 +100,28 @@ ln -s	i586-linux-cc.rul	mips-linux-cc.rul
 ln -s	i586-linux-gcc.rul	mips-linux-gcc.rul
 ln -s	i586-linux-cc.rul	mipsel-linux-cc.rul
 ln -s	i586-linux-gcc.rul	mipsel-linux-gcc.rul
+ln -s	i586-linux-cc.rul	s390-linux-cc.rul
+ln -s	i586-linux-gcc.rul	s390-linux-gcc.rul
+ln -s	i586-linux-cc.rul	parisc-linux-cc.rul
+ln -s	i586-linux-gcc.rul	parisc-linux-gcc.rul
+ln -s	i586-linux-cc.rul	parisc64-linux-cc.rul
+ln -s	i586-linux-gcc.rul	parisc64-linux-gcc.rul
+ln -s	i586-linux-cc.rul	ia64-linux-cc.rul
+ln -s	i586-linux-gcc.rul	ia64-linux-gcc.rul
 ln -s	os-cygwin32_nt.id	os-cygwin_95-4.0.id
 ln -s	os-cygwin32_nt.id	os-cygwin_98-4.0.id
 ln -s	os-cygwin32_nt.id	os-cygwin_98-4.10.id
 ln -s	os-cygwin32_nt.id	os-cygwin_me-4.90.id 
-ln -s	os-cygwin32_nt.id	os-cygwin_nt-5.0.id
 ln -s	os-cygwin32_nt.id	os-cygwin_nt-4.0.id
+ln -s	os-cygwin32_nt.id	os-cygwin_nt-5.0.id
+ln -s	os-cygwin32_nt.id	os-cygwin_nt-5.1.id
+ln -s	os-unixware.id		os-openunix.id
 ln -s	i486-cygwin32_nt-cc.rul	i586-cygwin32_nt-cc.rul
 ln -s	i486-cygwin32_nt-cc.rul	i686-cygwin32_nt-cc.rul
 ln -s	i486-cygwin32_nt-gcc.rul	i586-cygwin32_nt-gcc.rul
 ln -s	i486-cygwin32_nt-gcc.rul	i686-cygwin32_nt-gcc.rul
 ln -s	power-macintosh-rhapsody-cc.rul	power-macintosh-mac-os10-cc.rul
 ln -s	power-macintosh-rhapsody-gcc.rul	power-macintosh-mac-os10-gcc.rul
-ln -s	power-macintosh-rhapsody-cc.rul		power-macintosh-darwin-cc.rul
-ln -s	power-macintosh-rhapsody-gcc.rul	power-macintosh-darwin-gcc.rul
 ln -s	sun4-sunos4-cc.rul	sun4c-sunos4-cc.rul
 ln -s	sun4-sunos4-gcc.rul	sun4c-sunos4-gcc.rul
 ln -s	sun4-sunos5-cc.rul	sun4c-sunos5-cc.rul

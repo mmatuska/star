@@ -1,12 +1,12 @@
-/* @(#)list.c	1.30 01/04/07 Copyright 1985, 1995 J. Schilling */
+/* @(#)list.c	1.41 02/05/05 Copyright 1985, 1995, 2000-2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)list.c	1.30 01/04/07 Copyright 1985, 1995 J. Schilling";
+	"@(#)list.c	1.41 02/05/05 Copyright 1985, 1995, 2000-2001 J. Schilling";
 #endif
 /*
  *	List the content of an archive
  *
- *	Copyright (c) 1985, 1995 J. Schilling
+ *	Copyright (c) 1985, 1995, 2000-2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -37,12 +37,13 @@ static	char sccsid[] =
 extern	FILE	*tarf;
 extern	FILE	*vpr;
 extern	char	*listfile;
+extern	Llong	curblockno;
 
 extern	BOOL	havepat;
-extern	BOOL	verbose;
-extern	BOOL	tpath;
 extern	BOOL	numeric;
-extern	BOOL	verbose;
+extern	int	verbose;
+extern	BOOL	prblockno;
+extern	BOOL	tpath;
 extern	BOOL	cflag;
 extern	BOOL	xflag;
 extern	BOOL	interactive;
@@ -77,6 +78,9 @@ list()
 	for (;;) {
 		if (get_tcb(ptb) == EOF)
 			break;
+		if (prblockno)
+			(void)tblocks();		/* set curblockno */
+
 		finfo.f_name = name;
 		if (tcb_to_info(ptb, &finfo) == EOF)
 			return;
@@ -84,10 +88,14 @@ list()
 			/*
 			 * XXX nsec beachten wenn im Archiv!
 			 */
-			if (finfo.f_mtime > newinfo.f_mtime &&
+			if (((finfo.f_mtime > newinfo.f_mtime) ||
+			    ((finfo.f_xflags & XF_MTIME) && 
+			     (newinfo.f_xflags & XF_MTIME) &&
+			     (finfo.f_mtime == newinfo.f_mtime) &&
+			     (finfo.f_mnsec > newinfo.f_mnsec))) &&
 					(!listnewf || is_file(&finfo))) {
 				movebytes(&finfo, &newinfo, sizeof(finfo));
-				movebytes(&tb, &newtb, sizeof(tb));
+				movetcb(&tb, &newtb);
 				/*
 				 * Paranoia.....
 				 */
@@ -144,6 +152,9 @@ modstr(info, s, mode)
 		else
 			*str++ = '-';
 	}
+#ifdef	USE_ACL
+	*str++ = ' ';
+#endif
 	*str = '\0';
 	str = s;
 	if (mode & 01000) {
@@ -168,6 +179,10 @@ modstr(info, s, mode)
 		else
 			str[2] = 'S';
 	}
+#ifdef	USE_ACL
+	if ((info->f_xflags & (XF_ACL_ACCESS|XF_ACL_DEFAULT)) != 0)
+		str[9] = '+';
+#endif
 }
 
 EXPORT void
@@ -177,12 +192,21 @@ list_file(info)
 		FILE	*f;
 		time_t	*tp;
 		char	*tstr;
-		char	mstr[10];
-	static	char	nuid[11];
-	static	char	ngid[11];
+		char	mstr[11]; /* 9 UNIX chars + ACL '+' + nul */
+	static	char	nuid[11]; /* XXXX 64 bit longs??? */
+	static	char	ngid[11]; /* XXXX 64 bit longs??? */
 
 	f = vpr;
+	if (prblockno)
+		fprintf(f, "block %9lld: ", curblockno);
+	if (cflag)
+		fprintf(f, "a ");
+	else if (xflag)
+		fprintf(f, "x ");
+
 	if (verbose) {
+		register Uint	xft = info->f_xftype;
+
 /*		tp = (time_t *) (acctime ? &info->f_atime :*/
 /*				(Ctime ? &info->f_ctime : &info->f_mtime));*/
 		tp = acctime ? &info->f_atime :
@@ -203,22 +227,25 @@ list_file(info)
 			fprintf(f, "%3lu %3lu",
 				info->f_rdevmaj, info->f_rdevmin);
 		else
-			fprintf(f, "%7lu", info->f_size);
+			fprintf(f, "%7llu", (Llong)info->f_size);
 		modstr(info, mstr, info->f_mode);
 
 /*
  * XXX Übergangsweise, bis die neue Filetypenomenklatur sauber eingebaut ist.
  */
-if (info->f_xftype == 0) {
-	info->f_xftype = IFTOXT(info->f_type);
-	errmsgno(EX_BAD, "XXXXX xftype == 0\n");
+if (xft == 0 || xft == XT_BAD) {
+	xft = info->f_xftype = IFTOXT(info->f_type);
+	errmsgno(EX_BAD, "XXXXX xftype == 0 (typeflag = '%c' 0x%02X)\n",
+				info->f_typeflag, info->f_typeflag);
 }
+		if (xft == XT_LINK)
+			xft = info->f_rxftype;
 		fprintf(f,
 			" %s%s %3.*s/%-3.*s %.12s %4.4s ",
 #ifdef	OLD
 			typetab[info->f_filetype & 07],
 #else
-			XTTOSTR(info->f_xftype),
+			XTTOSTR(xft),
 #endif
 			mstr,
 			(int)info->f_umaxlen, info->f_uname,
@@ -226,18 +253,21 @@ if (info->f_xftype == 0) {
 			&tstr[4], &tstr[20]);
 	}
 	fprintf(f, "%s", info->f_name);
-	if(tpath) {
+	if (tpath) {
 		fprintf(f, "\n");
 		return;
 	}
-	if (is_link(info))
+	if (is_link(info)) {
+		if (is_dir(info))
+			fprintf(f, " directory");
 		fprintf(f, " link to %s", info->f_lname);
+	}
 	if (is_symlink(info))
 		fprintf(f, " -> %s", info->f_lname);
 	if (is_volhdr(info))
 		fprintf(f, " --Volume Header--");
 	if (is_multivol(info))
-		fprintf(f, " --Continued at byte %ld--", info->f_offset);
+		fprintf(f, " --Continued at byte %lld--", (Llong)info->f_contoffset);
 	fprintf(f, "\n");
 }
 
@@ -249,16 +279,33 @@ vprint(info)
 	char	*mode;
 
 	if (verbose || interactive) {
+		if (verbose > 1) {
+			list_file(info);
+			return;
+		}
+
 		f = vpr;
 
+		if (prblockno)
+			fprintf(f, "block %9lld: ", curblockno);
 		if (cflag)
 			mode = "a ";
 		else if (xflag)
 			mode = "x ";
 		else
 			mode = "";
+
+		if (tpath) {
+			fprintf(f, "%s%s\n", mode, info->f_name);
+			return;
+		}
 		if (is_dir(info)) {
-			fprintf(f, "%s%s directory\n", mode, info->f_name);
+			if (is_link(info)) {
+				fprintf(f, "%s%s directory link to %s\n",
+					mode, info->f_name, info->f_lname);
+			} else {
+				fprintf(f, "%s%s directory\n", mode, info->f_name);
+			}
 		} else if (is_link(info)) {
 			fprintf(f, "%s%s link to %s\n",
 				mode, info->f_name, info->f_lname);
@@ -268,9 +315,9 @@ vprint(info)
 		} else if (is_special(info)) {
 			fprintf(f, "%s%s special\n", mode, info->f_name);
 		} else {
-			fprintf(f, "%s%s %ld bytes, %ld tape blocks\n",
-				mode, info->f_name, info->f_size,
-				tarblocks(info->f_rsize));
+			fprintf(f, "%s%s %lld bytes, %lld tape blocks\n",
+				mode, info->f_name, (Llong)info->f_size,
+				(Llong)tarblocks(info->f_rsize));
 		}
 	}
 }

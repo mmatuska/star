@@ -1,4 +1,4 @@
-/* @(#)comerr.c	1.23 00/08/02 Copyright 1985 J. Schilling */
+/* @(#)comerr.c	1.27 02/01/16 Copyright 1985 J. Schilling */
 /*
  *	Routines for printing command errors
  *
@@ -21,12 +21,14 @@
  */
 
 #include <mconfig.h>
-#include <stdio.h>
+#include <unixstd.h>		/* include <sys/types.h> try to get size_t */
+#include <stdio.h>		/* Try again for size_t	*/
+#include <stdxlib.h>		/* Try again for size_t	*/
 #include <standard.h>
-#include <stdxlib.h>
 #include <vadefs.h>
 #include <strdefs.h>
 #include <schily.h>
+#include <errno.h>
 #ifndef	HAVE_STRERROR
 extern	char	*sys_errlist[];
 extern	int	sys_nerr;
@@ -155,6 +157,26 @@ int errmsgno(err, msg, va_alist)
 	return (ret);
 }
 
+#ifdef	__BEOS__
+	/*
+	 * On BeOS errno is a big negative number (0x80000000 + small number).
+	 * We assume that small negative numbers are safe to be used as special
+	 * values that prevent printing the errno text.
+	 *
+	 * We tried to use #if EIO < 0 but this does not work because EIO is
+	 * defined to a enum. ENODEV may work as ENODEV is defined to a number
+	 * directly.
+	 */
+#define	silent_error(e)		((e) < 0 && (e) >= -1024)
+#else
+	/*
+	 * On UNIX errno is a small non-negative number, so we assume that
+	 * negative values cannot be a valid errno and don't print the error
+	 * string in this case. However the value may still be used as exit()
+	 * code if 'exflg' is set.
+	 */
+#define	silent_error(e)		((e) < 0)
+#endif
 LOCAL int _comerr(exflg, err, msg, args)
 	int		exflg;
 	int		err;
@@ -165,7 +187,7 @@ LOCAL int _comerr(exflg, err, msg, args)
 	char	*errnam;
 	char	*prognam = get_progname();
 	
-	if (err < 0) {
+	if (silent_error(err)) {
 		error("%s: %r", prognam, msg, args);
 	} else {
 		errnam = errmsgstr(err);

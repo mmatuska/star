@@ -1,4 +1,4 @@
-/* @(#)strdefs.h	1.3 00/11/08 Copyright 1996 J. Schilling */
+/* @(#)strdefs.h	1.6 01/11/09 Copyright 1996 J. Schilling */
 /*
  *	Definitions for strings
  *
@@ -27,8 +27,32 @@
 #include <mconfig.h>
 #endif
 
+#ifdef	__never_def
+/*
+ * It seems that IBM's AIX sometimes has problems when doing
+ * #include <string.h>
+ * #include <strings.h>
+ * So I moved the #include <strings.h> to the top. As the file strings.h
+ * only defines extern int bcmp(); extern void bcopy(); extern void bzero();
+ * extern char *index(); extern char *rindex(); and these functions should
+ * not be used in portable programs, I disabled the strings.h #include for now.
+ *
+ */
+#ifdef	HAVE_STRINGS_H
+#ifndef	_INCL_STRINGS_H
+#include <strings.h>
+#define	_INCL_STRINGS_H
+#endif
+#endif	/* HAVE_STRINGS_H */
+
+#endif	/*  __never_def */
+
+
 #ifdef	HAVE_STRING_H
+#ifndef	_INCL_STRING_H
 #include <string.h>
+#define	_INCL_STRING_H
+#endif
 #else	/* HAVE_STRING_H */
 
 #ifdef	__cplusplus

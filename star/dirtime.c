@@ -1,7 +1,7 @@
-/* @(#)dirtime.c	1.9 01/04/07 Copyright 1988 J. Schilling */
+/* @(#)dirtime.c	1.11 02/05/20 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)dirtime.c	1.9 01/04/07 Copyright 1988 J. Schilling";
+	"@(#)dirtime.c	1.11 02/05/20 Copyright 1988 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1988 J. Schilling
@@ -132,7 +132,8 @@ dirtimes(name, tp)
 			np++;
 		}
 		EDBG(("DIR: '%.*s' DP: '%s' NP: '%s' idx: %d\n",
-					dp - dirstack, dirstack, dp, np, idx));
+				/* XXX Should not be > int */
+				(int)(dp - dirstack), dirstack, dp, np, idx));
 
 		if (*dp) {
 			/*
@@ -204,9 +205,11 @@ setdirtime(name, tp)
 {
 	EDBG(("settime: '%s' to %s", name, ctime(&tp[1].tv_sec)));
 #ifdef	SET_CTIME
-	if (xutimes(name, tp) < 0)
+	if (xutimes(name, tp) < 0) {
 #else
-	if (utimes(name, tp) < 0)
+	if (utimes(name, tp) < 0) {
 #endif
 		errmsg("Can't set time on '%s'.\n", name);
+		xstats.s_settime++;
+	}
 }

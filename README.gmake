@@ -2,6 +2,10 @@ Gmake compliance is included for convenience because it may
 be found on many systems and most make programs are worse
 than gmake.
 
+	***** If you are on a platform that is not yet known by the	 *****
+	***** Schily makefilesystem you cannot use GNU make.		 *****
+	***** In this case, the automake features of smake are required. *****
+
 The major problem with gmake is that it does not handle the
 include directive correctly. The general rule for a make program is
 to first try to "make" any object it should look on. Gmake
@@ -31,8 +35,8 @@ MAKEPROG=gmake
 export MAKEPROG
 exec gmake "$@"
 
-and call 'Gmake' instead of gmake. On Linux there is no gmake, 'make'
-on Linux is really a gmake.
+and call 'Gmake' instead of gmake. On Linux and on Cygwin there is
+no gmake, 'make' on Linux and on Cygwin is really a gmake.
 
 'Gmake' and 'Gmake.linux' are part of this distribution.
 

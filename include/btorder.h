@@ -1,6 +1,6 @@
-/* @(#)btorder.h	1.13 01/02/17 Copyright 1996 J. Schilling */
+/* @(#)btorder.h	1.15 01/12/09 Copyright 1996 J. Schilling */
 /*
- *	Definitions for Bitordering
+ *	Definitions for Bit and Byte ordering
  *
  *	Copyright (c) 1996 J. Schilling
  */
@@ -30,25 +30,56 @@
 #endif
 
 #ifndef _MCONFIG_H
-#include <mconfig.h>
+#include <mconfig.h>			/* load bit/byte-oder from xmconfig.h*/
 #endif
 
+/*
+ * Convert bit-order definitions from xconfig.h into our values
+ * and verify them.
+ */
 #if defined(HAVE_C_BITFIELDS)	&& \
-    defined(BITFIELDS_LTOH)		/* Use definition from xconfig.h */
+    defined(BITFIELDS_LTOH)
 #define	_BIT_FIELDS_LTOH
 #endif
 
 #if defined(HAVE_C_BITFIELDS)	&& \
-    defined(BITFIELDS_HTOL)		/* Use definition from xconfig.h */
+    defined(BITFIELDS_HTOL)
 #define	_BIT_FIELDS_HTOL
 #endif
 
 #if defined(HAVE_C_BITFIELDS)	&& \
-   !defined(BITFIELDS_HTOL)		/* Use definition from xconfig.h */
+   !defined(BITFIELDS_HTOL)
 #define	BITFIELDS_LTOH
 #define	_BIT_FIELDS_LTOH
 #endif
 
+#if	defined(_BIT_FIELDS_LTOH) && defined(_BIT_FIELDS_HTOL)
+/*
+ * #error will not work for all compilers (e.g. sunos4)
+ * The following line will abort compilation on all compilers
+ * if none of the above is defines. And that's  what we want.
+ */
+error  Only one of _BIT_FIELDS_LTOH or _BIT_FIELDS_HTOL may be defined
+#endif
+
+
+/*
+ * Convert byte-order definitions from xconfig.h into our values
+ * and verify them.
+ * Note that we cannot use the definitions _LITTLE_ENDIAN and _BIG_ENDIAN
+ * because they are used on IRIX-6.5 with different meaning.
+ */
+#if defined(HAVE_C_BIGENDIAN)	&& \
+   !defined(WORDS_BIGENDIAN)
+#define	WORDS_LITTLEENDIAN
+/*#define	_LITTLE_ENDIAN*/
+#endif
+
+#if defined(HAVE_C_BIGENDIAN)	&& \
+    defined(WORDS_BIGENDIAN)
+#undef	WORDS_LITTLEENDIAN
+/*#define	_BIG_ENDIAN*/
+#endif
 
 #if	defined(_BIT_FIELDS_LTOH) || defined(_BIT_FIELDS_HTOL)
 /*

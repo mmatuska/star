@@ -1,14 +1,17 @@
 /*#define	USE_REMOTE*/
-#ifdef	USE_REMOTE
-/* @(#)remote.c	1.22 00/11/12 Copyright 1990 J. Schilling */
+/* @(#)remote.c	1.39 02/05/20 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)remote.c	1.22 00/11/12 Copyright 1990 J. Schilling";
+	"@(#)remote.c	1.39 02/05/20 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Remote tape interface
  *
  *	Copyright (c) 1990 J. Schilling
+ *
+ *	TOTO:
+ *		Signal handler for SIGPIPE
+ *		check rmtaborted for exit() / clean abort of connection
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -27,8 +30,15 @@ static	char sccsid[] =
  */
 
 #include <mconfig.h>
+
+#if !defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)
+#undef	USE_REMOTE				/* There is no rcmd() */
+#endif
+
+#ifdef	USE_REMOTE
 #include <stdio.h>
-#include <sys/types.h>
+#include <stdxlib.h>
+#include <unixstd.h>
 #include <fctldefs.h>
 #ifdef	HAVE_SYS_MTIO_H
 #include <sys/mtio.h>
@@ -42,9 +52,8 @@ static	char sccsid[] =
 #include <netdb.h>
 #include <pwd.h>
 #include <standard.h>
-#include <stdxlib.h>
-#include <unixstd.h>
 #include <strdefs.h>
+#include <utypes.h>
 #include <schily.h>
 #include "remote.h"
 
@@ -54,33 +63,70 @@ static	char sccsid[] =
 
 #define	CMD_SIZE	80
 
-extern	BOOL	debug;
+LOCAL	BOOL	rmt_debug;
 
 LOCAL	void	rmtabrt			__PR((int sig));
+EXPORT	int	rmtdebug		__PR((int dlevel));
+EXPORT	char	*rmthostname		__PR((char *hostname, char *rmtspec, int size));
 EXPORT	int	rmtgetconn		__PR((char* host, int size));
 LOCAL	void	rmtoflags		__PR((int fmode, char *cmode));
 EXPORT	int	rmtopen			__PR((int fd, char* fname, int fmode));
 EXPORT	int	rmtclose		__PR((int fd));
 EXPORT	int	rmtread			__PR((int fd, char* buf, int count));
 EXPORT	int	rmtwrite		__PR((int fd, char* buf, int count));
-EXPORT	int	rmtseek			__PR((int fd, long offset, int whence));
+EXPORT	off_t	rmtseek			__PR((int fd, off_t offset, int whence));
 EXPORT	int	rmtioctl		__PR((int fd, int cmd, int count));
 LOCAL	int	rmtmapold		__PR((int cmd));
 LOCAL	int	rmtmapnew		__PR((int cmd));
-LOCAL	int	rmtxstatus		__PR((int fd, int cmd));
-LOCAL	struct	mtget* rmt_v1_status	__PR((int fd));
-EXPORT	struct	mtget* rmtstatus	__PR((int fd));
-LOCAL	int	rmtcmd			__PR((int fd, char* name, char* cbuf));
+LOCAL	Llong	rmtxstatus		__PR((int fd, int cmd));
+LOCAL	int	rmt_v1_status		__PR((int fd, struct mtget* mtp));
+EXPORT	int	rmtstatus		__PR((int fd, struct mtget* mtp));
+LOCAL	Llong	rmtcmd			__PR((int fd, char* name, char* cbuf));
 LOCAL	void	rmtsendcmd		__PR((int fd, char* name, char* cbuf));
 LOCAL	int	rmtgetline		__PR((int fd, char* line, int count));
-LOCAL	int	rmtgetstatus		__PR((int fd, char* name));
+LOCAL	Llong	rmtgetstatus		__PR((int fd, char* name));
 LOCAL	int	rmtaborted		__PR((int fd));
+EXPORT	char	*rmtfilename		__PR((char *name));
 
 LOCAL void
 rmtabrt(sig)
 	int	sig;
 {
 	rmtaborted(-1);
+}
+
+EXPORT int
+rmtdebug(dlevel)
+	int	dlevel;
+{
+	int	odebug = rmt_debug;
+
+	rmt_debug = dlevel;
+	return (odebug);
+}
+
+EXPORT char *
+rmthostname(hostname, rmtspec, size)
+		 char	*hostname;
+		 char	*rmtspec;
+	register int	size;
+{
+	register int	i;
+	register char	*hp;
+	register char	*fp;
+	register char	*remfn;
+
+	if ((remfn = rmtfilename(rmtspec)) == NULL) {
+		hostname[0] = '\0';
+		return (NULL);
+	}
+	remfn--;
+	for (fp = rmtspec, hp = hostname, i = 1;
+			fp < remfn && i < size; i++) {
+		*hp++ = *fp++;
+	}
+	*hp = '\0';
+	return (hostname);
 }
 
 EXPORT int
@@ -111,13 +157,18 @@ rmtgetconn(host, size)
 		}
 	}
 	if ((p = strchr(host, '@')) != NULL) {
-		js_snprintf(rmtuser, sizeof(rmtuser), "%.*s", p - host, host);
+		size_t d = p - host;
+
+		if (d > sizeof(rmtuser))
+			d = sizeof(rmtuser);
+		js_snprintf(rmtuser, sizeof(rmtuser), "%.*s",
+							(int)d, host);
 		name = rmtuser;
 		host = &p[1];
 	} else {
 		name = pw->pw_name;
 	}
-	if (debug)
+	if (rmt_debug)
 		errmsgno(EX_BAD, "locuser: '%s' rmtuser: '%s' host: '%s'\n",
 						pw->pw_name, name, host);
 	rmtpeer = host;
@@ -135,7 +186,7 @@ rmtgetconn(host, size)
 					(char *)&size, sizeof (size)) < 0) {
 		size -= 512;
 	}
-	if (debug)
+	if (rmt_debug)
 		errmsgno(EX_BAD, "sndsize: %d\n", size);
 #endif
 #ifdef	SO_RCVBUF
@@ -144,7 +195,7 @@ rmtgetconn(host, size)
 					(char *)&size, sizeof (size)) < 0) {
 		size -= 512;
 	}
-	if (debug)
+	if (rmt_debug)
 		errmsgno(EX_BAD, "rcvsize: %d\n", size);
 #endif
 
@@ -284,6 +335,8 @@ rmtopen(fd, fname, fmode)
 	rmtoflags(fmode, cmode);
 	js_snprintf(cbuf, CMD_SIZE, "O%s\n%d %s\n", fname, fmode & O_ACCMODE, cmode);
 	ret = rmtcmd(fd, "open", cbuf);
+	if (ret < 0)
+		return (ret);
 
 	/*
 	 * Tell the rmt server that we are aware of Version 1 commands.
@@ -317,8 +370,22 @@ rmtread(fd, buf, count)
 	if (n < 0)
 		return (-1);
 
+	/*
+	 * Nice idea from disassembling Solaris ufsdump...
+	 */
+	if (n > count) {
+		errmsgno(EX_BAD,
+			"rmtread: expected response size %d, got %d\n",
+			count, n);
+		errmsgno(EX_BAD,
+			"This means the remote rmt daemon is not compatible.\n");
+		return (rmtaborted(fd));
+		/*
+		 * XXX Should we better abort (exit) here?
+		 */
+	}
 	while (amt < n) {
-		if ((cnt = read(fd, &buf[amt], n - amt)) <= 0) {
+		if ((cnt = _niread(fd, &buf[amt], n - amt)) <= 0) {
 			return (rmtaborted(fd));
 		}
 		amt += cnt;
@@ -337,58 +404,33 @@ rmtwrite(fd, buf, count)
 
 	js_snprintf(cbuf, CMD_SIZE, "W%d\n", count);
 	rmtsendcmd(fd, "write", cbuf);
-	write(fd, buf, count);
+	if (_niwrite(fd, buf, count) != count)
+		rmtaborted(fd);
 	return (rmtgetstatus(fd, "write"));
 }
 
-EXPORT int
+EXPORT off_t
 rmtseek(fd, offset, whence)
 	int	fd;
-	long	offset;
+	off_t	offset;
 	int	whence;
 {
 	char	cbuf[CMD_SIZE];
 
-	js_snprintf(cbuf, CMD_SIZE, "L%ld\n%d\n", offset, whence);
-	return (rmtcmd(fd, "seek", cbuf));
+	switch (whence) {
+
+	case 0: whence = SEEK_SET; break;
+	case 1: whence = SEEK_CUR; break;
+	case 2: whence = SEEK_END; break;
+
+	default:
+		seterrno(EINVAL);
+		return (-1);
+	}
+
+	js_snprintf(cbuf, CMD_SIZE, "L%lld\n%d\n", (Llong)offset, whence);
+	return ((off_t)rmtcmd(fd, "seek", cbuf));
 }
-
-/*
- * Definitions for the new RMT Protocol version 1
- *
- * The new Protocol version tries to make the use
- * of rmtioctl() more portable between different platforms.
- */
-#define	RMTIVERSION	-1
-#define	RMT_NOVERSION	-1
-#define	RMT_VERSION	1
-
-/*
- * Support for commands bejond MTWEOF..MTNOP (0..7)
- */
-#define	RMTICACHE	0
-#define	RMTINOCACHE	1
-#define	RMTIRETEN	2
-#define	RMTIERASE	3
-#define	RMTIEOM		4
-#define	RMTINBSF	5
-
-/*
- * Old MTIOCGET copies a binary version of struct mtget back
- * over the wire. This is highly non portable.
- * MTS_* retrieves ascii versions (%d format) of a single
- * field in the struct mtget.
- * NOTE: MTS_ERREG may only be valid on the first call and
- *	 must be retrived first.
- */
-#define	MTS_TYPE	'T'		/* mtget.mt_type */
-#define	MTS_DSREG	'D'		/* mtget.mt_dsreg */
-#define	MTS_ERREG	'E'		/* mtget.mt_erreg */
-#define	MTS_RESID	'R'		/* mtget.mt_resid */
-#define	MTS_FILENO	'F'		/* mtget.mt_fileno */
-#define	MTS_BLKNO	'B'		/* mtget.mt_blkno */
-#define	MTS_FLAGS	'f'		/* mtget.mt_flags */
-#define	MTS_BF		'b'		/* mtget.mt_bf */
 
 EXPORT int
 rmtioctl(fd, cmd, count)
@@ -418,7 +460,7 @@ rmtioctl(fd, cmd, count)
 			 * We cannot map the current command but it's value is
 			 * within the range 0..7. Do not send it over the wire.
 			 */
-			errno = EINVAL;
+			seterrno(EINVAL);
 			return (-1);
 		}
 		if (i >= 0)
@@ -518,9 +560,7 @@ rmtmapnew(cmd)
 	return (-1);
 }
 
-static struct	mtget mts;
-
-LOCAL int
+LOCAL Llong
 rmtxstatus(fd, cmd)
 	int	fd;
 	char	cmd;
@@ -532,45 +572,47 @@ rmtxstatus(fd, cmd)
 	return (rmtcmd(fd, "extended status", cbuf));
 }
 
-LOCAL struct mtget *
-rmt_v1_status(fd)
-	int	fd;
+LOCAL int
+rmt_v1_status(fd, mtp)
+	int		fd;
+	struct  mtget	*mtp;
 {
-	mts.mt_erreg = mts.mt_type = 0;
+	mtp->mt_erreg = mtp->mt_type = 0;
 
 #ifdef	HAVE_MTGET_ERREG
-	mts.mt_erreg  = rmtxstatus(fd, MTS_ERREG); /* must be first */
+	mtp->mt_erreg  = rmtxstatus(fd, MTS_ERREG); /* must be first */
 #endif
 #ifdef	HAVE_MTGET_TYPE
-	mts.mt_type   = rmtxstatus(fd, MTS_TYPE);
+	mtp->mt_type   = rmtxstatus(fd, MTS_TYPE);
 #endif
-	if (mts.mt_erreg == -1 || mts.mt_type == -1)
-		return (0);
+	if (mtp->mt_erreg == -1 || mtp->mt_type == -1)
+		return (-1);
 
 #ifdef	HAVE_MTGET_DSREG	/* doch immer vorhanden ??? */
-	mts.mt_dsreg  = rmtxstatus(fd, MTS_DSREG);
+	mtp->mt_dsreg  = rmtxstatus(fd, MTS_DSREG);
 #endif
 #ifdef	HAVE_MTGET_RESID
-	mts.mt_resid  = rmtxstatus(fd, MTS_RESID);
+	mtp->mt_resid  = rmtxstatus(fd, MTS_RESID);
 #endif
 #ifdef	HAVE_MTGET_FILENO
-	mts.mt_fileno = rmtxstatus(fd, MTS_FILENO);
+	mtp->mt_fileno = rmtxstatus(fd, MTS_FILENO);
 #endif
 #ifdef	HAVE_MTGET_BLKNO
-	mts.mt_blkno  = rmtxstatus(fd, MTS_BLKNO);
+	mtp->mt_blkno  = rmtxstatus(fd, MTS_BLKNO);
 #endif
 #ifdef	HAVE_MTGET_FLAGS
-	mts.mt_flags  = rmtxstatus(fd, MTS_FLAGS);
+	mtp->mt_flags  = rmtxstatus(fd, MTS_FLAGS);
 #endif
 #ifdef	HAVE_MTGET_BF
-	mts.mt_bf     = rmtxstatus(fd, MTS_BF);
+	mtp->mt_bf     = rmtxstatus(fd, MTS_BF);
 #endif
-	return (&mts);
+	return (0);
 }
 
-EXPORT struct mtget *
-rmtstatus(fd)
-	int	fd;
+EXPORT int
+rmtstatus(fd, mtp)
+	int		fd;
+	struct  mtget	*mtp;
 {
 	register int i;
 	register char *cp;
@@ -578,25 +620,39 @@ rmtstatus(fd)
 	int	n;
 
 	if (rmtioctl(fd, RMTIVERSION, 0) == RMT_VERSION)
-		return (rmt_v1_status(fd));
+		return (rmt_v1_status(fd, mtp));
 
 				/* No newline */
 	if ((n = rmtcmd(fd, "status", "S")) < 0)
-		return (0);
+		return (-1);
 
-	for (i = 0, cp = (char *)&mts; i < sizeof(mts); i++)
+	/*
+	 * From disassembling Solaris ufsdump, they seem to check
+	 * only if (n > sizeof(mts)).
+	 */
+	if (n != sizeof(struct mtget)) {
+		errmsgno(EX_BAD,
+			"rmtstatus: expected response size %d, got %d\n",
+			(int)sizeof(struct mtget), n);
+		errmsgno(EX_BAD,
+			"This means the remote rmt daemon is not compatible.\n");
+		/*
+		 * XXX should we better abort here?
+		 */
+	}
+
+	for (i = 0, cp = (char *)mtp; i < sizeof(struct mtget); i++)
 		*cp++ = 0;
-	for (i = 0, cp = (char *)&mts; i < n; i++) {
+	for (i = 0, cp = (char *)mtp; i < n; i++) {
 		/*
 		 * Make sure to read all bytes because we otherwise
 		 * would confuse the protocol. Do not copy more
 		 * than the size of our local struct mtget.
 		 */
-		if (read(fd, &c, 1) != 1) {
-			rmtaborted(fd);
-			return (0);
-		}
-		if (i < sizeof(mts))
+		if (_niread(fd, &c, 1) != 1)
+			return (rmtaborted(fd));
+
+		if (i < sizeof(struct mtget))
 			*cp++ = c;
 	}
 	/*
@@ -605,10 +661,10 @@ rmtstatus(fd)
 	 * work if one system is running Linux. The Linux mtget structure
 	 * is completely incompatible (mt_type is long instead of short).
 	 */
-	return (&mts);
+	return (n);
 }
 
-LOCAL int
+LOCAL Llong
 rmtcmd(fd, name, cbuf)
 	int	fd;
 	char	*name;
@@ -626,8 +682,8 @@ rmtsendcmd(fd, name, cbuf)
 {
 	int	buflen = strlen(cbuf);
 
-	errno = 0;
-	if (write(fd, cbuf, buflen) != buflen)
+	seterrno(0);
+	if (_niwrite(fd, cbuf, buflen) != buflen)
 		rmtaborted(fd);
 }
 
@@ -640,7 +696,7 @@ rmtgetline(fd, line, count)
 	register char	*cp;
 
 	for (cp = line; cp < &line[count]; cp++) {
-		if (read(fd, cp, 1) != 1)
+		if (_niread(fd, cp, 1) != 1)
 			return (rmtaborted(fd));
 
 		if (*cp == '\n') {
@@ -648,35 +704,37 @@ rmtgetline(fd, line, count)
 			return (cp - line);
 		}
 	}
+	if (rmt_debug)
+		errmsgno(EX_BAD, "Protocol error (in rmtgetline).\n");
 	return (rmtaborted(fd));
 }
 
-LOCAL int
+LOCAL Llong
 rmtgetstatus(fd, name)
 	int	fd;
 	char	*name;
 {
 	char	cbuf[CMD_SIZE];
 	char	code;
-	int	number;
+	Llong	number;
 
 	rmtgetline(fd, cbuf, sizeof(cbuf));
 	code = cbuf[0];
-	number = atoi(&cbuf[1]);
+	astoll(&cbuf[1], &number);
 
 	if (code == 'E' || code == 'F') {
 		rmtgetline(fd, cbuf, sizeof(cbuf));
 		if (code == 'F')	/* should close file ??? */
 			rmtaborted(fd);
-		if (debug)
-			errmsgno(number, "Remote status(%s): %d '%s'.\n",
+		if (rmt_debug)
+			errmsgno(number, "Remote status(%s): %lld '%s'.\n",
 							name, number, cbuf);
-		errno = number;
-		return (-1);
+		seterrno(number);
+		return ((Llong)-1);
 	}
 	if (code != 'A') {
 		/* XXX Hier kommt evt Command not found ... */
-		if (debug)
+		if (rmt_debug)
 			errmsgno(EX_BAD, "Protocol error (got %s).\n", cbuf);
 		return (rmtaborted(fd));
 	}
@@ -687,12 +745,50 @@ LOCAL int
 rmtaborted(fd)
 	int	fd;
 {
-	if (debug)
+	if (rmt_debug)
 		errmsgno(EX_BAD, "Lost connection to remote host ??\n");
 	/* if fd >= 0 */
 	/* close file */
-	if (errno == 0)
-		errno = EIO;
+	if (geterrno() == 0) {
+/*		errno = EIO;*/
+		seterrno(EPIPE);
+	}
+	/*
+	 * BSD used EIO but EPIPE is better for something like sdd -noerror
+	 */
 	return (-1);
 }
+
 #endif	/* USE_REMOTE */
+
+#ifndef	USE_REMOTE
+#include <standard.h>
+#include <strdefs.h>
+
+EXPORT	char	*rmtfilename		__PR((char *name));
+#endif
+
+EXPORT char *
+rmtfilename(name)
+	char	*name;
+{
+	char	*ret;
+
+	if (name[0] == '/')
+		return (NULL);		/* Absolut pathname cannot be remote */
+	if (name[0] == '.') {
+		if (name[1] == '/' || (name[1] == '.' && name[2] == '/'))
+			return (NULL);	/* Relative pathname cannot be remote*/
+	}
+	if ((ret = strchr(name, ':')) != NULL) {
+		if (name[0] == ':') {
+			/*
+			 * This cannot be a remote filename as the host part
+			 * has zero length.
+			 */
+			return (NULL);
+		}
+		ret++;	/* Skip the colon. */
+	}
+	return (ret);
+}

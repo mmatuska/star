@@ -1,4 +1,4 @@
-/* @(#)fpipe.c	1.9 00/12/03 Copyright 1986, 1995 J. Schilling */
+/* @(#)fpipe.c	1.10 02/05/20 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995 J. Schilling
  */
@@ -33,10 +33,10 @@ fpipe (pipef)
 				filedes[0], FI_READ|FI_CLOSE)) != (FILE *)0) {
 		if ((pipef[1] = _fcons((FILE *)0,
 				filedes[1], FI_WRITE|FI_CLOSE)) != (FILE *)0) {
-			return (int)pipef[0];
+			return (1);
 		}
 		fclose (pipef[0]);
 	}
 	close (filedes[1]);
-	return 0;
+	return (0);
 }

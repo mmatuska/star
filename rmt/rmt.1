@@ -1,4 +1,4 @@
-. \" @(#)rmt.1	1.1 00/11/14 Copyr 1994-2000 J. Schilling
+. \" @(#)rmt.1	1.2 01/07/05 Copyr 1994-2000 J. Schilling
 . \"  Manual Seite fuer rmt
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -465,7 +465,8 @@ ACCESS
 The name of a user (local to the magnetic tape server) that may use
 the services of the
 .B rmt
-server.
+server followed by the name of a host from where operation is granted 
+and a file specifier for a file or file sub tree that may be accessed.
 .RE
 .SH "SEE ALSO"
 .BR star (1),

@@ -9,6 +9,7 @@ INSDIR=		include
 TARGET=		avoffset.h
 TARGETC=	avoffset
 CPPOPTS +=	-DUSE_SCANSTACK
+CPPOPTS +=	-D__OPRINTF__
 CFILES=		avoffset.c getfp.c
 
 ###########################################################################

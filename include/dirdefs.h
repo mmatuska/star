@@ -1,4 +1,4 @@
-/* @(#)dirdefs.h	1.11 01/02/17 Copyright 1987, 1998 J. Schilling */
+/* @(#)dirdefs.h	1.13 01/11/18 Copyright 1987, 1998 J. Schilling */
 /*
  *	Copyright (c) 1987, 1998 J. Schilling
  */
@@ -30,10 +30,17 @@ extern "C" {
 #endif
 
 #ifdef JOS
+#	ifndef	_INCL_SYS_STYPES_H
 #	include <sys/stypes.h>
+#	define	_INCL_SYS_STYPES_H
+#	endif
+#	ifndef	_INCL_SYS_FILEDESC_H
 #	include <sys/filedesc.h>
+#	define	_INCL_SYS_FILEDESC_H
+#	endif
 #	define	NEED_READDIR
 #	define	DIRSIZE	30
+#	define	FOUND_DIRSIZE
 	typedef struct dirent {
 		char	name[DIRSIZE];
 		short	ino;
@@ -45,13 +52,28 @@ extern "C" {
 #	include <sys/types.h>
 #	define	_INCL_SYS_TYPES_H
 #	endif
+#	ifndef	_INCL_SYS_STAT_H
 #	include <sys/stat.h>
+#	define	_INCL_SYS_STAT_H
+#	endif
+#	ifdef	HAVE_LIMITS_H
+#		ifndef	_INCL_LIMITS_H
+#		include	<limits.h>
+#		define	_INCL_LIMITS_H
+#		endif
+#	endif
 #	ifdef	HAVE_SYS_PARAM_H
+#		ifndef	_INCL_SYS_PARAM_H
 #		include	<sys/param.h>
+#		define	_INCL_SYS_PARAM_H
+#		endif
 #	endif
 
 #	ifdef	HAVE_DIRENT_H		/* This a POSIX compliant system */
+#		ifndef	_INCL_DIRENT_H
 #		include <dirent.h>
+#		define	_INCL_DIRENT_H
+#		endif
 #		define	DIR_NAMELEN(dirent)	strlen((dirent)->d_name)
 #		define	_FOUND_DIR_
 #	else				/* This is a Pre POSIX system	 */
@@ -60,17 +82,26 @@ extern "C" {
 #	define	DIR_NAMELEN(dirent)	(dirent)->d_namlen
 
 #	if	defined(HAVE_SYS_DIR_H)
+#		ifndef	_INCL_SYS_DIR_H
 #		include <sys/dir.h>
+#		define	_INCL_SYS_DIR_H
+#		endif
 #		define	_FOUND_DIR_
 #	endif
 
 #	if	defined(HAVE_NDIR_H) && !defined(_FOUND_DIR_)
+#		ifndef	_INCL_NDIR_H
 #		include <ndir.h>
+#		define	_INCL_NDIR_H
+#		endif
 #		define	_FOUND_DIR_
 #	endif
 
 #	if	defined(HAVE_SYS_NDIR_H) && !defined(_FOUND_DIR_)
+#		ifndef	_INCL_SYS_NDIR_H
 #		include <sys/ndir.h>
+#		define	_INCL_SYS_NDIR_H
+#		endif
 #		define	_FOUND_DIR_
 #	endif
 #	endif	/* HAVE_DIRENT_H */
@@ -81,11 +112,16 @@ extern "C" {
  */
 #	ifdef	MAXNAMELEN
 #		define	DIRSIZE		MAXNAMELEN	/* From sys/param.h  */
+#		define	FOUND_DIRSIZE
 #	else
 #	ifdef	MAXNAMLEN
 #		define	DIRSIZE		MAXNAMLEN	/* From dirent.h     */
+#		define	FOUND_DIRSIZE
 #	else
+#	ifdef	DIRSIZ
 #		define	DIRSIZE		DIRSIZ		/* From sys/dir.h    */
+#		define	FOUND_DIRSIZE
+#	endif
 #	endif
 #	endif
 #	else	/* !_FOUND_DIR_ */
@@ -97,6 +133,11 @@ extern "C" {
 
 
 #ifdef	NEED_DIRENT
+
+#ifndef	FOUND_DIRSIZE
+#define	DIRSIZE		14	/* The old UNIX standard value */
+#define	FOUND_DIRSIZE
+#endif
 
 typedef struct dirent {
 	short	ino;

@@ -36,7 +36,7 @@ NOTE for all Linux versions using libc.so.6:
 	We should consider that the name libc.so.6 is burned out for
 	these incompatibility reasons. But stop: Don't be too fast.
 	The dynamic linker on Linux does not work correctly. It has
-	been derived from the SunOS 4.x linker (which worked corrctly)
+	been derived from the SunOS 4.x linker (which worked correctly)
 	but  the Linux version does not even warn if it could not
 	find a library with the right major version number. Until
 	this is fixed it makes no sense to switch to libc.so.7
@@ -139,7 +139,7 @@ IMPORTANT:
 
 	This will allow 16 MB for shared memory.
 
--	Linix kernel memory management ****************************************
+-	Linux kernel memory management ****************************************
 	If you get the message: "Cannot allocate memory. Cannot send SCSI cmd via ioctl"
 	Your kernel/include files are inconsistent.
 
@@ -163,7 +163,7 @@ IMPORTANT:
 
 -	Linux Binary incompatibility *****************************************
 	If any of the options that take a equal sign ('=') in the middle does
-	not work correclty (e.g. dev= or if=) you are using a binary that
+	not work correctly (e.g. dev= or if=) you are using a binary that
 	does not work correctly on your current OS distribution.
 
 	If dev=0,0,0 does not work but -dev=0,0,0 works you found this

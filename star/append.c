@@ -1,13 +1,13 @@
-/* @(#)append.c	1.12 01/04/07 Copyright 1992 J. Schilling */
+/* @(#)append.c	1.17 02/05/17 Copyright 1992, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)append.c	1.12 01/04/07 Copyright 1992 J. Schilling";
+	"@(#)append.c	1.17 02/05/17 Copyright 1992, 2001 J. Schilling";
 #endif
 /*
  *	Routines used to append files to an existing 
  *	tape archive
  *
- *	Copyright (c) 1992 J. Schilling
+ *	Copyright (c) 1992, 2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -27,10 +27,13 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
+#include <unixstd.h>
 #include <standard.h>
-#include <schily.h>
 #include "star.h"
+#include <schily.h>
 #include "starsubs.h"
+
+extern	FILE	*vpr;
 
 extern	BOOL	debug;
 extern	BOOL	cflag;
@@ -42,16 +45,20 @@ extern	BOOL	rflag;
  */
 static struct h_elem {
 	struct h_elem *h_next;
-	Ulong		h_time;
+	time_t		h_time;
+	Ulong		h_nsec;
 	short		h_len;
+	char		h_flags;
 	char  	       h_data[1];			/* Variable size. */
 } **h_tab;
+
+#define	HF_NSEC		0x01				/* have nsecs	*/
 
 static	unsigned	h_size;
 LOCAL	int		cachesize;
 
 EXPORT	void	skipall		__PR((void));
-LOCAL	void	hash_new	__PR((unsigned size));
+LOCAL	void	hash_new	__PR((size_t size));
 LOCAL	struct h_elem *	uhash_lookup	__PR((FINFO *info));
 LOCAL	void	hash_add	__PR((FINFO *info));
 EXPORT	BOOL	update_newer	__PR((FINFO *info));
@@ -83,7 +90,7 @@ skipall()
 			return;
 
 		if (debug)
-			printf("R %s\n", finfo.f_name);
+			fprintf(vpr, "R %s\n", finfo.f_name);
 		if (uflag)
 			hash_add(&finfo);
 
@@ -95,12 +102,12 @@ skipall()
 
 LOCAL void
 hash_new(size)
-	unsigned	size;
+	size_t	size;
 {
 	register	int	i;
 
 	h_size = size;
-	h_tab = (struct h_elem **)__malloc(size * sizeof (struct h_elem *));
+	h_tab = (struct h_elem **)__malloc(size * sizeof (struct h_elem *), "new hash");
 	for (i=0; i<size; i++) h_tab[i] = 0;
 
 	cachesize += size * sizeof (struct h_elem *);
@@ -131,19 +138,38 @@ hash_add(info)
 	register	int	hv;
 
 	/*
-	 * XXX nsec beachten wenn im Archiv!
+	 * XXX nsec korrekt implementiert?
 	 */
 	if ((hp = uhash_lookup(info)) != 0) {
-		if (hp->h_time < info->f_mtime)
+		if (hp->h_time < info->f_mtime) {
 			hp->h_time = info->f_mtime;
+			hp->h_nsec = info->f_mnsec;
+		} else if (hp->h_time == info->f_mtime) {
+			/*
+			 * If the current archive entry holds extended
+			 * time imformation, honor it.
+			 */
+			if (info->f_xflags & XF_MTIME)
+				hp->h_flags |= HF_NSEC;
+			else
+				hp->h_flags &= ~HF_NSEC;
+
+			if ((hp->h_flags & HF_NSEC) &&
+			    (hp->h_nsec < info->f_mnsec))
+				hp->h_nsec = info->f_mnsec;
+		}
 		return;
 	}
 
 	len = strlen(info->f_name);
-	hp = __malloc((unsigned)len + sizeof (struct h_elem));
+	hp = __malloc((size_t)len + sizeof (struct h_elem), "add hash");
 	cachesize += len + sizeof (struct h_elem);
 	strcpy(hp->h_data, info->f_name);
 	hp->h_time = info->f_mtime;
+	hp->h_nsec = info->f_mnsec;
+	hp->h_flags = 0;
+	if (info->f_xflags & XF_MTIME)
+		hp->h_flags |= HF_NSEC;
 	hv = hashval((unsigned char *)info->f_name, h_size);
 	hp->h_next = h_tab[hv];
 	h_tab[hv] = hp;
@@ -156,10 +182,13 @@ update_newer(info)
 	register struct h_elem *hp;
 
 	/*
-	 * XXX nsec beachten wenn im Archiv!
+	 * XXX nsec korrekt implementiert?
 	 */
 	if ((hp = uhash_lookup(info)) != 0) {
 		if (info->f_mtime > hp->h_time)
+			return (TRUE);
+		if ((hp->h_flags & HF_NSEC) && (info->f_flags & F_NSECS) &&
+		    info->f_mtime == hp->h_time && info->f_mnsec > hp->h_nsec)
 			return (TRUE);
 		return (FALSE);
 	}
