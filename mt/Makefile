@@ -1,4 +1,4 @@
-#ident %W% %E% %Q%
+#ident @(#)Makefile	1.2 02/11/11 
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
@@ -6,12 +6,12 @@ include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
 INSDIR=		bin
-TARGET=		mt
-HARDLINKS=	smt
-CPPOPTS +=	-I../star/ -DUSE_REMOTE
-CFILES=		mt.c remote.c
+TARGET=		smt
+HARDLINKS=	mt
+CPPOPTS +=	-DUSE_REMOTE
+CFILES=		mt.c
 #HFILES=
-LIBS=		-lschily $(LIB_SOCKET)
+LIBS=		-lrmt -lschily $(LIB_SOCKET)
 #XMK_FILE=	Makefile.man
 
 ###########################################################################

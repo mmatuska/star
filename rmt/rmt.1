@@ -1,4 +1,4 @@
-. \" @(#)rmt.1	1.2 01/07/05 Copyr 1994-2000 J. Schilling
+. \" @(#)rmt.1	1.3 02/11/10 Copyr 1994-2000 J. Schilling
 . \"  Manual Seite fuer rmt
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -25,7 +25,7 @@ rmt \- remote magnetic tape protocol server
 .IX  "rmt command"  ""  "\fLrmt\fP \(em remote magnetic tape protocol server"
 .IX  "remote magnetic tape protocol server"  ""  "remote magnetic tape protocol server \(em \fLrmt\fP"
 This is the description of the enhanced 
-.B "Schily SING"
+.B "Schily"
 version of the 
 .B rmt
 remote tape server program.
@@ -34,7 +34,7 @@ is a program used by programs like
 .B star 
 and
 .B ufsdump 
-hat like to access remote magnetic tape drives and files
+that like to access remote magnetic tape drives and files
 through an interprocess communication connection.
 .B rmt
 is normally started up with an
@@ -52,15 +52,16 @@ program accepts
 .B write 
 and
 .B seek
-requests and requests that are specific to magnetic tapes.
+requests as well as requests that are specific to magnetic tapes.
 .B rmt
 performs the commands and then responds with a status indication.
 .LP
-This
-.B "Schily SING"
-version of the rmt server gives full compatibility to the
+This version of the rmt server gives full compatibility to the
 original BSD version, the enhanced Sun version and the 
-enhanced GNU version. It supports best speed and
+enhanced GNU version.
+In addition to the Sun and GNU enhancements, it implements further
+abstractions for better cross platform compliance.
+It supports best speed and
 best compliance even when server and client code are running
 on different platforms.
 It is prepared to be installed as a user shell in the passwd
@@ -68,9 +69,11 @@ file to create remote tape specific logins and security checking.
 To use the enhanced compatibility features, you need to either
 use the remote tape client code from 
 .B star
+which is available in
+.B librmt
 or reimplement it's features.
 .LP
-All responses are in
+All responses are send back in
 .SM ASCII
 and in one of the following two forms.
 .LP
@@ -82,7 +85,8 @@ where
 .I number
 is the
 .SM ASCII
-representation of a decimal number.
+representation of a decimal number that usually is the return
+code of the corresponding system call.
 Unsuccessful commands are responded to with
 .IP
 .BI E error-number \en error-message \en
@@ -97,6 +101,7 @@ and
 is the corresponding error string as retrieved by
 .BR strerror (3).
 .LP
+.ne 5
 The protocol implements the
 following commands:
 .RS
@@ -114,16 +119,23 @@ is a full path name, and
 is an
 .SM ASCII
 representation of a decimal
-number suitable for passing to
+number suitable for being passed as second parameter to
 .BR open (2).
+A variant of the 
+.B open 
+command includes the 
+.B "symbolic_mode"
+string which is a 
+.B GNU
+extension.
 If both,
 .I mode
 and 
 .I symbolic_mode
-are used, they are separated by a space character;
+are present, they are separated by a space character;
 .I symbolic_mode
-appears on the same line as the numeric
-is in the same notation as it would appear in a C source (e.g.
+appears on the same line as the numeric mode.
+It is send using the same notation as used in a C source (e.g.
 .BR O_RDWR|O_CREAT ).
 If the
 .I symbolic_mode
@@ -131,15 +143,28 @@ is send to the server, the numeric
 .B mode
 is ignored.
 The symbolic notation allows to send the expected open mode over
-the wire using a system independent method.
-This is needed because different operating systems define all
-bits execpt the lowest two bits in a different way.
+the wire, using a system independent method.
+This is needed because different operating systems usually define all
+bits in a different way. An exception are the lowest two bits.
+The lowest two bits allow to code 
+.IR O_RCONLY , O_WRONLY " and " O_RDWR .
+To prevent unexpected behavior, 
+.B rmt
+masks the numeric open mode with
+.B 0x03 
+before using it as argument to the 
+.BR open (2)
+call.
+If you need more bits in the second parameter ot
+.BR open (2),
+you need to use the symbolic mode.
+.sp
 If a device is already open, it is
 closed before a new open is performed.
 .sp
-A VERSION 1 client that is aware of the official
-.I mt_op
-codes should issue a
+A
+.B RMT protocol VERSION 1 
+client should issue a
 .br
 .BI I -1 \en 0\en
 .br
@@ -147,7 +172,7 @@ command just after opening a file or device. This is needed to
 tell the server that the client is aware of the official order
 of the 
 .I mt_op
-codes in the range 0..7 and maps differing values to the official
+codes in the range 0..7 and that is maps deviating values to the official
 ones.
 .br
 .ne 7
@@ -194,16 +219,26 @@ operation is returned as reply.
 .BI L whence \en offset \en
 Perform an
 .BR lseek (2)
-operation on open the device or file using the specified parameters.
+operation on the open device or file using the specified parameters.
 The return value from the
 .BR lseek (2)
 operation is returned as reply.
+.sp
+On large file aware operating systems,
+.B rmt
+will correctly handle large
+.BR lseek (2)
+requests.
 .br
 .ne 7
 .TP
 .B S
 The old non-portable status call.
-If the open device is a magnetic tape, return the magnetic tape status,
+This call should not be used anymore, it has been replaced by the
+new
+.B RMT protocol version 1
+extended status call below.
+If the currently open device is a magnetic tape, return the magnetic tape status,
 as obtained with a
 .SB MTIOCGET
 .B ioctl
@@ -216,14 +251,16 @@ an \*(lqack\*(rq is sent with the size of the
 status buffer, then the status buffer is sent.
 As the status buffer is sent in binary, this
 command it considered outdated. Please use the extended status command instead.
-This command is not terminated with a new-line.
+This command is not terminated by a new-line.
 .br
 .ne 7
 .TP
 .BI s sub-command
 The new portable status call.
-If the open device is a magnetic tape, return members of the
-magnetic tape status structure, as obtained with a
+This command is part of the
+.BR "RMT protocol version 1" .
+If the currently open device is a magnetic tape, return a single specified
+member of the magnetic tape status structure, as obtained with a
 .SB MTIOCGET
 .B ioctl
 call.
@@ -255,11 +292,17 @@ E
 return the content of the structure member
 .B mt_erreg
 which contains the \*(lqerror register\*(rq.
+.sp
 This structure member must be retrieved first
 because it is cleared after each
 .SB MTIOCGET
 .B ioctl
 call.
+The 
+.B librmt
+will always retrieve the member
+.B mt_erreg
+first when it is told to retrieve a complete status structure.
 .br
 .ne 3
 .TP
@@ -322,8 +365,9 @@ Only Opcodes 0..7 are unique across different architectures.
 But as in many cases 
 .B Linux
 does not even follow this rule.
-If we know that we have been called by a VERSION 1 client,
-we may safely assume that the client is not using
+If we know that we have been called by a 
+.B RMT protocol VERSION 1 
+client, we may safely assume that the client is not using
 .B Linux
 mapping over the wire but the standard mapping described below:
 .RS
@@ -338,50 +382,70 @@ order of the
 opcodes in the range 0..7.
 Local
 .I mt_op
-codes must be remapped to the official values before sendig them
+codes must be remapped to the official values before sending them
 over the wire.
 .sp
 The answer of the current version of
 .B rmt
 is 1.
-Other
+Old
 .B rmt
 implementations send an error code back when this
 command is used.
+Future
+.B rmt
+implementations with further enhancements will send an answer
+with a value > 1.
 .TP
 0
-Issue a MTWEOF command (write 
+Issue a
+.B MTWEOF
+command (write 
 .I count
 end-of-file records).
 .TP
 1
-Issue a MTFSF command (forward space over
+Issue a
+.B MTFSF
+command (forward space over
 .I count
 file marks).
 .TP
 2
-Issue a MTBSF command (backward space over
+Issue a
+.B MTBSF
+command (backward space over
 .I count
 file marks).
 .TP
 3
-Issue a MTFSR command (forward space
+Issue a
+.B MTFSR
+command (forward space
 .I count
 inter-record gaps).
 .TP
 4
-Issue a MTBSR command (backward space 
+Issue a
+.B MTBSR
+command (backward space 
 .I count
 inter-record gaps).
 .TP
 5
-Issue a MTREW command (rewind).
+Issue a
+.B MTREW
+command (rewind).
 .TP
 6
-Issue a MTOFFL command (rewind and put the drive offline).
+Issue a
+.B MTOFFL
+command (rewind and put the drive off-line).
 .TP
 7
-Issue a MTNOP command (no operation, set status only).
+Issue a
+.B MTNOP
+command (no operation, set status only).
 .RE
 .br
 .ne 7
@@ -391,7 +455,9 @@ Perform a
 .SB MTIOCOP
 .BR ioctl (2)
 command using the specified parameters.
-This command implements support for commands bejond MTWEOF..MTNOP (0..7).
+This command is a
+.B RMT protocol VERSION 1 
+extension and implements support for commands beyond MTWEOF..MTNOP (0..7).
 The parameters are interpreted as the
 .SM ASCII
 representations of the decimal values described below.
@@ -408,22 +474,34 @@ parameter.
 .RS
 .TP
 0
-Issue a MTCACHE command (switch cache on).
+Issue a
+.B MTCACHE
+command (switch cache on).
 .TP
 1
-Issue a MTNOCACHE command (switch cache off).
+Issue a
+.B MTNOCACHE
+command (switch cache off).
 .TP
 2
-Issue a MTRETEN command (retension the tape).
+Issue a
+.B MTRETEN
+command (retension the tape).
 .TP
 3
-Issue a MTERASE command (erase the entire tape).
+Issue a
+.B MTERASE
+command (erase the entire tape).
 .TP
 4
-Issue a MTEOM command (position to end of media).
+Issue a
+.B MTEOM
+command (position to end of media).
 .TP
 5
-Issue a MTNBSF command (backward space
+Issue a
+.B MTNBSF
+command (backward space
 .I count
 files to BOF).
 .RE
@@ -444,35 +522,101 @@ to exit.
 /etc/default/rmt
 Default values can be set for the following options in /etc/default/rmt.
 For example:
-.SM USER=tape
+.sp
+.BR DEBUG= /tmp/rmt.debug
+.br
+.BR USER= tape
+.br
+.BR ACCESS= "tape	myhost.mydomain.org	/dev/rmt/*"
+.sp
+All keywords must be on the beginning of a line.
 .RS
 .TP
-DEBUG
+.B DEBUG
 If you like to get debug information, set this to a file name where 
 .B rmt
-puts debug information.
+should put debug information.
 .TP
-USER
+.B USER
 The name of a user (local to the magnetic tape server) that may use
 the services of the
 .B rmt
 server.
+More than one
+.BI USER= name
+line is possible.
 A line
 .BR USER= *
 grants access to all users.
 .TP
-ACCESS
-The name of a user (local to the magnetic tape server) that may use
+.B ACCESS
+This keyword is followed by three parameters separated by a TAB.
+The name of a user (local to the magnetic tape server host) that may use
 the services of the
 .B rmt
 server followed by the name of a host from where operation is granted 
-and a file specifier for a file or file sub tree that may be accessed.
+and a file specifier pattern for a file or file sub tree that may be accessed
+if this 
+.B ACCESS
+line matches.
+More than one
+.BI ACCESS= "name host path"
+line is possible.
+.sp
+If standard input of 
+.B rmt
+is not a socket from a remote host, 
+.B rmt
+will compare the host entry from 
+.B /etc/default/rmt
+with the following strings:
+.RS
+.TP 10
+.B PIPE
+If 
+.B stdin
+is a 
+.SM UNIX 
+pipe.
+.sp
+If you like to allow remote connections that use the
+.B ssh
+protocol, you need to use the word
+.B PIPE
+instead of thr real hostname in the matching
+.B ACCESS=
+line.
+.TP
+.B ILLEGAL_SOCKET
+If 
+.B getpeername()
+does not work for
+.BR stdin .
+.TP
+.B NOT_IP
+If 
+.B getpeername()
+works for
+.B stdin
+but is not connected to an internet socket.
+.RE
 .RE
 .SH "SEE ALSO"
 .BR star (1),
+.BR ufsdump (1),
+.BR ufsrestore (1),
+.BR intro (2),
+.BR open (2),
+.BR close (2),
+.BR read (2),
+.BR write (2),
+.BR ioctl (2),
+.BR lseek (2),
+.BR getpeername(3)
 .BR rcmd (3),
 .BR rexec (3),
-.BR mtio (7),
+.BR strerror (3),
+.BR mtio (7)
 
 .SH DIAGNOSTICS
 All responses are send to the network connection.
@@ -490,11 +634,11 @@ This implementation of
 .B rmt
 adds some security features to the server that make it behave
 slightly different from older implementations.
-Read the documentation about the file 
+Read the above documentation about the file 
 /etc/default/rmt
 to make sure your local installation is configured for your needs.
 .LP
-To grant the same permissions as with the old
+To grant the same permissions as with old
 .B rmt
 servers, create a file /etc/default/rmt and add the following lines
 to this file:
@@ -518,7 +662,7 @@ command first appeared on BSD in march 1981. This
 server is a new implementation
 that tries to be compatible to all existing implementations.
 It is the only known implementation that in addition tries to
-fix the data exchange problems between differen architectures.
+fix the data exchange problems between different architectures.
 
 .SH AUTHOR
 .nf

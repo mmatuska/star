@@ -1,5 +1,5 @@
 
-/* @(#)starsubs.h	1.24 02/05/20 Copyright 1996 J. Schilling */
+/* @(#)starsubs.h	1.27 02/08/08 Copyright 1996 J. Schilling */
 /*
  *	Prototypes for star subroutines
  *
@@ -22,6 +22,10 @@
  */
 
 #include <ccomdefs.h>
+
+#ifndef	_UTYPES_H
+#include <utypes.h>
+#endif
 
 #ifndef	_INCL_SYS_TYPES_H
 #include <sys/types.h>
@@ -51,8 +55,10 @@ extern	void	markeof		__PR((void));
 extern	void	syncbuf		__PR((void));
 extern	int	readblock	__PR((char* buf));
 extern	int	readtape	__PR((char* buf, int amount));
+#ifdef _STAR_H
 extern	void	filltcb		__PR((TCB *ptb));
 extern	void	movetcb		__PR((TCB *from_ptb, TCB *to_ptb));
+#endif
 extern	void	*get_block	__PR((void));
 extern	void	put_block	__PR((void));
 extern	void	writeblock	__PR((char* buf));
@@ -80,8 +86,10 @@ extern	void	die		__PR((int err));
 /*
  * append.c
  */
+#ifdef _STAR_H
 extern	void	skipall		__PR((void));
 extern	BOOL	update_newer	__PR((FINFO *info));
+#endif
 
 /*
  * create.c
@@ -91,11 +99,13 @@ extern	int	_fileopen	__PR((char *name, char *smode));
 extern	int	_fileread	__PR((int *fp, void *buf, int len));
 extern	void	create		__PR((char* name));
 extern	void	createlist	__PR((void));
+#ifdef _STAR_H
 extern	BOOL	read_symlink	__PR((char* name, FINFO * info, TCB * ptb));
 #ifdef	EOF
 extern	void	put_file	__PR((int *fp, FINFO * info));
 #endif
 extern	void	cr_file		__PR((FINFO * info, int (*)(void *, char *, int), void *arg, int amt, char* text));
+#endif
 
 /*
  * diff.c
@@ -108,17 +118,21 @@ extern	void	prdiffopts	__PR((FILE * f, char* label, int flags));
 /*
  * dirtime.c
  */
+#ifdef _STAR_H
 extern	void	sdirtimes	__PR((char* name, FINFO* info));
 /*extern	void	dirtimes	__PR((char* name, struct timeval* tp));*/
+#endif
 
 /*
  * extract.c
  */
+#ifdef _STAR_H
 extern	void	extract		__PR((char *vhname));
 extern	BOOL	newer		__PR((FINFO * info));
 extern	BOOL	void_file	__PR((FINFO * info));
 extern	int	xt_file		__PR((FINFO * info, int (*)(void *, char *, int), void *arg, int amt, char* text));
 extern	void	skip_slash	__PR((FINFO * info));
+#endif
 
 /*
  * fifo.c
@@ -136,13 +150,15 @@ extern	int	fifo_owait	__PR((int amount));
 extern	void	fifo_iwake	__PR((int amt));
 extern	void	fifo_resume	__PR((void));
 extern	void	fifo_sync	__PR((void));
-extern	void	fifo_exit	__PR((void));
+extern	int	fifo_errno	__PR((void));
+extern	void	fifo_exit	__PR((int err));
 extern	void	fifo_chtape	__PR((void));
 #endif
 
 /*
  * header.c
  */
+#ifdef _STAR_H
 extern	int	get_hdrtype	__PR((TCB * ptb, BOOL isrecurse));
 extern	int	get_compression	__PR((TCB * ptb));
 extern	int	get_tcb		__PR((TCB * ptb));
@@ -155,17 +171,21 @@ extern	int	tcb_to_info	__PR((register TCB * ptb, register FINFO * info));
 extern	BOOL	ia_change	__PR((TCB * ptb, FINFO * info));
 extern	void	stolli		__PR((register char* s, Ullong * ull));
 extern	void	llitos		__PR((char* s, Ullong ull, int fieldw));
+#endif
 
 /*
  * xheader.c
  */
+#ifdef _STAR_H
 extern	void	xbinit		__PR((void));
 extern	void	info_to_xhdr	__PR((FINFO * info, TCB * ptb));
 extern	int	tcb_to_xhdr	__PR((TCB * ptb, FINFO * info));
+#endif
 
 /*
  * hole.c
  */
+#ifdef _STAR_H
 #ifdef	EOF
 extern	int	get_forced_hole	__PR((FILE * f, FINFO * info));
 extern	int	get_sparse	__PR((FILE * f, FINFO * info));
@@ -173,6 +193,7 @@ extern	BOOL	cmp_sparse	__PR((FILE * f, FINFO * info));
 extern	void	put_sparse	__PR((int *fp, FINFO * info));
 #endif
 extern	int	gnu_skip_extended	__PR((TCB * ptb));
+#endif
 
 /*
  * lhash.c
@@ -185,18 +206,22 @@ extern	BOOL	hash_lookup	__PR((char* str));
 /*
  * list.c
  */
+#ifdef _STAR_H
 extern	void	list	__PR((void));
 extern	void	list_file __PR((register FINFO * info));
 extern	void	vprint	__PR((FINFO * info));
+#endif
 
 /*
  * longnames.c
  */
+#ifdef _STAR_H
 extern	BOOL	name_to_tcb	__PR((FINFO * info, TCB * ptb));
 extern	void	tcb_to_name	__PR((TCB * ptb, FINFO * info));
 extern	void	tcb_undo_split	__PR((TCB * ptb, FINFO * info));
 extern	int	tcb_to_longname	__PR((register TCB * ptb, register FINFO * info));
 extern	void	write_longnames	__PR((register FINFO * info));
+#endif
 
 /*
  * names.c
@@ -220,6 +245,7 @@ extern	BOOL	remove_file	__PR((char* name, BOOL isfirst));
 /*
  * star_unix.c
  */
+#ifdef _STAR_H
 extern	BOOL	getinfo		__PR((char* name, FINFO * info));
 #ifdef	EOF
 extern	void	checkarch	__PR((FILE *f));
@@ -228,23 +254,37 @@ extern	void	setmodes	__PR((FINFO * info));
 extern	int	snulltimes	__PR((char* name, FINFO * info));
 extern	int	sxsymlink	__PR((FINFO * info));
 extern	int	rs_acctime	__PR((int fd, FINFO * info));
+#endif
 
 /*
  * acl_unix.c
  */
+#ifdef _STAR_H
 extern	BOOL	get_acls	__PR((FINFO *info));
 extern	void	set_acls	__PR((FINFO *info));
+#endif
 
 /*
  * unicode.c
  */
-extern	void	to_utf8		__PR((Uchar *to, Uchar *from));
+extern	int	to_utf8		__PR((Uchar *to, Uchar *from));
+extern	int	to_utf8l	__PR((Uchar *to, Uchar *from, int len));
 extern	BOOL	from_utf8	__PR((Uchar *to, Uchar *from));
+extern	BOOL	from_utf8l	__PR((Uchar *to, Uchar *from, int *len));
 
 /*
  * fflags.c
  */
+#ifdef _STAR_H
 extern	void	get_fflags	__PR((FINFO *info));
 extern	void	set_fflags	__PR((FINFO *info));
 extern	char	*textfromflags	__PR((FINFO *info, char *buf));
 extern	int	texttoflags	__PR((FINFO *info, char *buf));
+#endif
+
+/*
+ * fetchdir.c
+ */
+extern	char	*fetchdir	__PR((char *dir, int *entp, int *lenp));
+extern	int	fdircomp	__PR((const void *p1, const void *p2));
+extern	char	**sortdir	__PR((char *dir, int *entp));

@@ -1,4 +1,4 @@
-/* @(#)getargs.h	1.7 00/11/08 Copyright 1985 J. Schilling */
+/* @(#)getargs.h	1.8 02/08/26 Copyright 1985 J. Schilling */
 /*
  *	Definitions for getargs()/getallargs()/getfiles()
  *
@@ -25,6 +25,9 @@
 
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__cplusplus

@@ -1,7 +1,7 @@
-/* @(#)mt.c	1.11 02/04/20 Copyright 2000 J. Schilling */
+/* @(#)mt.c	1.18 02/11/11 Copyright 2000 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)mt.c	1.11 02/04/20 Copyright 2000 J. Schilling";
+	"@(#)mt.c	1.18 02/11/11 Copyright 2000 J. Schilling";
 #endif
 /*
  *	Magnetic tape manipulation program
@@ -37,24 +37,28 @@ static	char sccsid[] =
 #include <utypes.h>
 #include <fctldefs.h>
 #include <sys/ioctl.h>
-/*#undef	HAVE_SYS_MTIO_H*/
-#ifdef	HAVE_SYS_MTIO_H
-#include <sys/mtio.h>
-#else
-#include "mtio.h"
-#endif
 #include <errno.h>
 
 #include <schily.h>
 #include <standard.h>
-#include "remote.h"
+/*#undef	HAVE_SYS_MTIO_H*/
+#include <mtiodefs.h>
+#include <librmt.h>
 
 LOCAL BOOL	help;
 LOCAL BOOL	prvers;
+LOCAL BOOL	wready;
 LOCAL int	debug;
 
 LOCAL struct mtop	mt_op;
-LOCAL struct mtget	mt_status;
+LOCAL struct rmtget	mt_status;
+
+#ifndef	HAVE_MTGET_TYPE
+#ifdef	HAVE_MTGET_MODEL
+#define	HAVE_MTGET_TYPE
+#define	mt_type	mt_model
+#endif
+#endif
 
 #define	NO_ASF		1000
 #define	NO_NBSF		1001
@@ -104,6 +108,7 @@ LOCAL struct mt_cmds {
 #ifdef	MTNOP
 	{ "status",	"get tape status",		MTNOP,		MTC_RDO },
 #endif
+	{ "nop",	"no operation",			MTNOP,		MTC_RDO },
 #ifdef	MTRETEN
 	{ "retension",	"retension tape cartridge",	MTRETEN,	MTC_RDO },
 #endif
@@ -127,8 +132,8 @@ LOCAL struct mt_cmds {
 
 LOCAL	void	usage		__PR((int ex));
 EXPORT	int	main		__PR((int ac, char *av[]));
-LOCAL	void	mtstatus	__PR((struct mtget *sp));
-LOCAL	char 	*print_key	__PR((int key));
+LOCAL	void	mtstatus	__PR((struct rmtget *sp));
+LOCAL	char 	*print_key	__PR((Llong key));
 LOCAL	int	openremote	__PR((char *tape));
 LOCAL	int	opentape	__PR((char *tape, struct mt_cmds *cp));
 LOCAL	int	mtioctl		__PR((int cmd, caddr_t arg));
@@ -140,7 +145,12 @@ usage(ex)
 	struct mt_cmds	*cp;
 	int		i;
 
-	error("Usage: mt [ -f device ] command [ count ]\n");
+	error("Usage: mt [ -f device ] [options] command [ count ]\n");
+	error("Options:\n");
+	error("\t-help\t\tprint this online help\n");
+	error("\t-version\tprint version number\n");
+	error("\t-wready\t\twait for the tape to become ready before doing command\n");
+	error("\n");
 	error("Commands are:\n");
 	for (cp = cmds; cp->mtc_name != NULL; cp++) {
 		error("%s%n", cp->mtc_name, &i);
@@ -149,7 +159,7 @@ usage(ex)
 	exit(ex);
 }
 
-LOCAL char	opts[] = "f*,t*,version,help,h";
+LOCAL char	opts[] = "f*,t*,version,help,h,debug,wready";
 
 int
 main(ac, av)
@@ -170,13 +180,15 @@ main(ac, av)
 	if (getallargs(&cac, &cav, opts,
 			&tape, &tape,
 			&prvers,
-			&help, &help) < 0) {
+			&help, &help,
+			&debug,
+			&wready) < 0) {
 		errmsgno(EX_BAD, "Bad Option: '%s'.\n", cav[0]);
 		usage(EX_BAD);
 	}
 	if (help) usage(0);
 	if (prvers) {
-		printf("mt %s (%s-%s-%s)\n\n", "1.11", HOST_CPU, HOST_VENDOR, HOST_OS);
+		printf("mt %s (%s-%s-%s)\n\n", "1.18", HOST_CPU, HOST_VENDOR, HOST_OS);
 		printf("Copyright (C) 2000 Jörg Schilling\n");
 		printf("This is free software; see the source for copying conditions.  There is NO\n");
 		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
@@ -251,7 +263,7 @@ main(ac, av)
 	if (setuid(getuid()) < 0)
 #endif
 #endif
-		comerr("Panic cannot set back efective uid.\n");
+		comerr("Panic cannot set back effective uid.\n");
 
 	if (opentape(tape, cp) < 0) {
 		if (geterrno() == EIO) {
@@ -270,16 +282,19 @@ main(ac, av)
 #endif
 
 	if (cp->mtc_opcode == MTNOP) {
-		/*
-		 * Status ioctl
-		 */
-		if (mtioctl(MTIOCGET, (caddr_t)&mt_status) < 0) {
-			comerr("Cannot get mt status from '%s'.\n", tape); 
-			/* NOTREACHED */
+		if (strcmp(cp->mtc_name, "nop")) {
+			/*
+			 * Status ioctl
+			 */
+			if (mtioctl(MTIOCGET, (caddr_t)&mt_status) < 0) {
+				comerr("Cannot get mt status from '%s'.\n", tape);
+				/* NOTREACHED */
+			}
+			mtstatus(&mt_status);
 		}
-		mtstatus(&mt_status);
 #if	MTASF == NO_ASF
 	} else if (cp->mtc_opcode == MTASF) {
+		(void)mtioctl(MTIOCGET, (caddr_t)&mt_status);
 		if (mtioctl(MTIOCGET, (caddr_t)&mt_status) < 0) {
 			comerr("Cannot get mt status from '%s'.\n", tape); 
 			/* NOTREACHED */
@@ -305,11 +320,11 @@ main(ac, av)
 		if (count < mt_status.mt_fileno) {
 			mt_op.mt_op = MTNBSF;
 			mt_op.mt_count =  mt_status.mt_fileno - count;
-			/*printf("mt: bsf= %d\n", mt_op.mt_count);*/
+			/*printf("mt: bsf= %lld\n", (Llong)mt_op.mt_count);*/
 		} else {
 			mt_op.mt_op = MTFSF;
 			mt_op.mt_count =  count - mt_status.mt_fileno;
-			/*printf("mt: fsf= %d\n", mt_op.mt_count);*/
+			/*printf("mt: fsf= %lld\n", (Llong)mt_op.mt_count);*/
 		}
 		if (mtioctl(MTIOCTOP, (caddr_t)&mt_op) < 0) {
 			if (mtioctl(MTIOCTOP, (caddr_t)&mt_op) < 0) {
@@ -326,8 +341,8 @@ main(ac, av)
 		mt_op.mt_op = cp->mtc_opcode;
 		mt_op.mt_count = count;
 		if (mtioctl(MTIOCTOP, (caddr_t)&mt_op) < 0) {
-			comerr("%s %s %ld failed\n", tape, cp->mtc_name,
-						(long)mt_op.mt_count);
+			comerr("%s %s %lld failed\n", tape, cp->mtc_name,
+						(Llong)mt_op.mt_count);
 			/* NOTREACHED */
 		}
 	}
@@ -356,7 +371,7 @@ LOCAL struct tape_info {
  */
 LOCAL void
 mtstatus(sp)
-	register struct mtget *sp;
+	register struct rmtget *sp;
 {
 	register struct tape_info *mt = NULL;
 
@@ -368,72 +383,65 @@ mtstatus(sp)
 #endif
 #endif
 
-#if	defined(HAVE_MTGET_FLAGS) && defined(MTF_SCSI)
+#if	defined(MTF_SCSI)
 
-	if ((sp->mt_flags & MTF_SCSI)) {
+	if ((sp->mt_xflags & RMT_FLAGS) && (sp->mt_flags & MTF_SCSI)) {
 		/*
 		 * Handle SCSI tape drives specially.
 		 */
-#ifdef	HAVE_MTGET_TYPE
-		if (mt != NULL && mt->t_type == sp->mt_type)
-			printf("%s tape drive:\n", mt->t_name);
-		else
-			printf("%s tape drive:\n", "SCSI");
-#else
-		printf("unknown SCSI tape drive:\n");
-#endif
-
-		printf("   sense key(0x%x)= %s   residual= %ld   ",
-			sp->mt_erreg, print_key(sp->mt_erreg), (long)sp->mt_resid);
-		printf("retries= %ld\n", (long)sp->mt_dsreg);
+		if (sp->mt_xflags & RMT_TYPE) {
+			if (mt != NULL && mt->t_type == sp->mt_type)
+				printf("%s tape drive:\n", mt->t_name);
+			else
+				printf("%s tape drive:\n", "SCSI");
+		} else {
+			printf("Unknown SCSI tape drive:\n");
+		}
+		printf("   sense key(0x%llx)= %s   residual= %lld   ",
+			sp->mt_erreg, print_key(sp->mt_erreg), sp->mt_resid);
+		printf("retries= %lld\n", sp->mt_dsreg);
 	} else
-#endif	/* HAVE_MTGET_FLAGS */
+#endif	/* MTF_SCSI */
 		{
 		/*
 		 * Handle other drives below.
 		 */
-#ifdef	HAVE_MTGET_TYPE
-		if (mt == NULL || mt->t_type == 0) {
-			printf("unknown tape drive type (0x%lx)\n", (long)sp->mt_type);
+		if (sp->mt_xflags & RMT_TYPE) {
+			if (mt == NULL || mt->t_type == 0) {
+				printf("Unknown tape drive type (0x%llX):\n", (Ullong)sp->mt_type);
+			} else {
+				printf("%s tape drive:\n", mt->t_name);
+			}
 		} else {
-			printf("%s tape drive:\n", mt->t_name);
+			printf("Unknown tape drive:\n");
 		}
-#else
-		printf("unknown tape drive:\n");
-#endif
-#ifdef	HAVE_MTGET_RESID
-		printf("   residual= %ld", (long)sp->mt_resid);
-#endif
+		if (sp->mt_xflags & RMT_RESID)
+			printf("   residual= %lld", sp->mt_resid);
 		/*
 		 * If we implement better support for specific OS,
 		 * then we may want to implement something like the
 		 * *BSD kernel %b printf format (e.g. printreg).
 		 */
-#ifdef	HAVE_MTGET_DSREG
-		printf  ("   ds = %lx", (unsigned long)sp->mt_dsreg);
-#endif
-#ifdef	HAVE_MTGET_ERREG
-		printf  ("   er = %lx", (unsigned long)sp->mt_erreg);
-#endif
+		if (sp->mt_xflags & RMT_DSREG)
+			printf  ("   ds = %llX", (Ullong)sp->mt_dsreg);
+
+		if (sp->mt_xflags & RMT_ERREG)
+			printf  ("   er = %llX", sp->mt_erreg);
 		putchar('\n');
 	}
 	printf("   file no= %lld   block no= %lld\n",
-#ifdef	HAVE_MTGET_FILENO
-			(Llong)sp->mt_fileno,
-#else
-			(Llong)-1,
-#endif
-#ifdef	HAVE_MTGET_BLKNO
-			(Llong)sp->mt_blkno);
-#else
-			(Llong)-1);
-#endif
-#ifdef	 HAVE_MTGET_BF
-	printf("   optimum blocking factor= %ld\n", (long)sp->mt_bf);
-#endif
-#ifdef	 HAVE_MTGET_FLAGS
-	printf("   flags= 0x%lX\n", (long)sp->mt_flags);
-#endif
+			(sp->mt_xflags & RMT_FILENO)?
+				sp->mt_fileno:
+				(Llong)-1,
+			(sp->mt_xflags & RMT_BLKNO)?
+				sp->mt_blkno:
+				(Llong)-1);
+
+	if (sp->mt_xflags & RMT_BF)
+		printf("   optimum blocking factor= %ld\n", sp->mt_bf);
+
+	if (sp->mt_xflags & RMT_FLAGS)
+		printf("   flags= 0x%llX\n", sp->mt_flags);
 }
 
 static char *sense_keys[] = {
@@ -457,13 +465,13 @@ static char *sense_keys[] = {
 
 LOCAL char *
 print_key(key)
-	int	key;
+	Llong	key;
 {
 	static	char keys[32];
 
 	if (key >= 0 && key < (sizeof(sense_keys)/sizeof(sense_keys[0])))
 		return (sense_keys[key]);
-	js_snprintf(keys, sizeof(keys), "Unknown Key: %d", key);
+	js_snprintf(keys, sizeof(keys), "Unknown Key: %lld", key);
 	return (keys);
 }
 
@@ -481,14 +489,14 @@ openremote(tape)
 	char	host[128];
 
 	if ((remfn = rmtfilename(tape)) != NULL) {
-		rmthostname(host, tape, sizeof(host));
+		rmthostname(host, sizeof(host), tape);
 		isremote++;
 
 		if (debug)
 			errmsgno(EX_BAD, "Remote: %s Host: %s file: %s\n",
 							tape, host, remfn);
 
-		if ((remfd = rmtgetconn(host, 4096)) < 0)
+		if ((remfd = rmtgetconn(host, 4096, 0)) < 0)
 			comerrno(EX_BAD, "Cannot get connection to '%s'.\n",
 				/* errno not valid !! */		host);
 	}
@@ -501,17 +509,26 @@ opentape(tape, cp)
 		char		*tape;
 	register struct mt_cmds *cp;
 {
+	int	ret;
+	int	n = 0;
+
+retry:
+	ret = 0;
 	if (isremote) {
 #ifdef	USE_REMOTE
-		if (rmtopen(remfd, remfn, (cp->mtc_flags&MTC_RDO) ? 0 : 2) < 0)
-			return (-1);
+		if (rmtopen(remfd, remfn, (cp->mtc_flags&MTC_RDO) ? O_RDONLY : O_RDWR) < 0)
+			ret = -1;
 #else
 		comerrno(EX_BAD, "Remote tape support not present.\n");
 #endif
-	} else if ((mtfd = open(tape, (cp->mtc_flags&MTC_RDO) ? 0 : 2)) < 0) {
-			return (-1);
+	} else if ((mtfd = open(tape, (cp->mtc_flags&MTC_RDO) ? O_RDONLY : O_RDWR)) < 0) {
+			ret = -1;
 	}
-	return (0);
+	if (wready && n++ < 120 && (geterrno() == EIO || geterrno() == EBUSY)) {
+		sleep(1);
+		goto retry;
+	}
+	return (ret);
 }
 
 LOCAL int
@@ -520,7 +537,7 @@ mtioctl(cmd, arg)
 	caddr_t	arg;
 {
 	int	ret = -1;
-	struct mtget *mtp;
+	struct rmtget *mtp;
 	struct mtop *mop;
 
 	if (isremote) {
@@ -528,13 +545,14 @@ mtioctl(cmd, arg)
 		switch (cmd) {
 
 		case MTIOCGET:
-			ret = rmtstatus(remfd, (struct mtget *)arg);
+			ret = rmtxstatus(remfd, (struct rmtget *)arg);
 			if (ret < 0)
 				return (ret);
 
-			mtp = (struct mtget *)arg;
+			mtp = (struct rmtget *)arg;
+/*#define	DEBUG*/
 #ifdef	DEBUG
-error("type: %X ds: %X er: %X resid: %d fileno: %d blkno: %d flags: %X bf: %d\n",
+error("type: %llX ds: %llX er: %llX resid: %lld fileno: %lld blkno: %lld flags: %llX bf: %ld\n",
 mtp->mt_type, mtp->mt_dsreg, mtp->mt_erreg, mtp->mt_resid, mtp->mt_fileno,
 mtp->mt_blkno, mtp->mt_flags, mtp->mt_bf);
 #endif
@@ -551,6 +569,15 @@ mtp->mt_blkno, mtp->mt_flags, mtp->mt_bf);
 		comerrno(EX_BAD, "Remote tape support not present.\n");
 #endif
 	} else {
+		if (cmd == MTIOCGET) {
+			struct mtget mtget;
+
+			ret = ioctl(mtfd, cmd, &mtget);
+			if (ret >= 0) {
+				if (_mtg2rmtg((struct rmtget *)arg, &mtget) < 0)
+					ret = -1;
+			}
+		} else
 		ret = ioctl(mtfd, cmd, arg);
 	}
 	return (ret);

@@ -1,4 +1,4 @@
-#ident "@(#)i386-netbsd-gcc.rul	1.5 99/12/20 "
+#ident "@(#)i386-netbsd-gcc.rul	1.6 02/10/15 "
 ###########################################################################
 # Written 1997 by J. Schilling
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 #OSDEFS=		-DIS_UNIX
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)

@@ -1,4 +1,4 @@
-#ident "@(#)i386-os2-gcc.rul	1.4 02/06/09 "
+#ident "@(#)i386-os2-gcc.rul	1.5 02/10/15 "
 ###########################################################################
 # First version written 1999 by C. Wohlgemuth 
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 OSDEFS=		-D__OS2 -DNO_FLOATINGPOINT
 

@@ -1,4 +1,4 @@
-/* @(#)comerr.c	1.27 02/01/16 Copyright 1985 J. Schilling */
+/* @(#)comerr.c	1.28 02/10/07 Copyright 1985 J. Schilling */
 /*
  *	Routines for printing command errors
  *
@@ -222,7 +222,20 @@ errmsgstr(err)
 	int	err;
 {
 #ifdef	HAVE_STRERROR
-	return (strerror(err));
+	/*
+	 * POSIX compliance may look strange...
+	 */
+	int	errsav = geterrno();
+	char	*ret;
+
+	seterrno(0);
+	ret = strerror(err);
+	err = geterrno();
+	seterrno(errsav);
+
+	if (ret == NULL || err)
+		return (NULL);
+	return (ret);
 #else
 	if (err < 0 || err >= sys_nerr) {
 		return (NULL);

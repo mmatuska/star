@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident "@(#)mkdep-sco.sh	1.2 01/09/05 "
+#ident "@(#)mkdep-sco.sh	1.3 02/10/11 "
 ###########################################################################
 # Copyright 1999 by J. Schilling
 ###########################################################################
@@ -42,6 +42,6 @@ for i in "$@"; do
 	esac
 done
 
-OFILES=`echo "$FILES" | sed 's;\(.*\).c;\1.o;'`
+OFILES=`echo "$FILES" | sed -e 's;\([^.]*\)\.c;\1.o;g'`
 
-cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | grep -hv '^UX:' | sed -e "s;^;$OFILES: ;"
+cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | grep -hv '^UX:' | sed -e 's;^;$OFILES: ;'

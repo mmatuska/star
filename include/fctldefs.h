@@ -1,4 +1,4 @@
-/* @(#)fctldefs.h	1.11 01/12/05 Copyright 1996 J. Schilling */
+/* @(#)fctldefs.h	1.12 02/10/03 Copyright 1996 J. Schilling */
 /*
  *	Generic header for users of open(), creat() and chmod()
  *
@@ -29,6 +29,11 @@
 
 #ifndef	_STATDEFS_H
 #include <statdefs.h>		/* For 3rd arg of open() and chmod()	*/
+#endif
+
+#ifndef	_INCL_SYS_TYPES_H
+#include <sys/types.h>		/* Needed for fcntl.h			*/
+#define	_INCL_SYS_TYPES_H
 #endif
 
 #ifdef	HAVE_SYS_FILE_H

@@ -1,4 +1,4 @@
-/* @(#)format.c	1.35 01/02/26 Copyright 1985 J. Schilling */
+/* @(#)format.c	1.36 02/07/28 Copyright 1985 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -186,6 +186,8 @@ EXPORT int format(fun, farg, fmt, args)
 		fa.prefixlen = 0;
 		sfmt = fmt;
 		unsflag = FALSE;
+		type = '\0';
+		mode = '\0';
 	newflag:
 		switch (*(++fmt)) {
 
@@ -252,6 +254,8 @@ EXPORT int format(fun, farg, fmt, args)
 			 * Enhancements to K&R and ANSI:
 			 *
 			 * got a type specifyer
+			 *
+			 * XXX 'S' in C99 is %ls, 'S' should become 'H'
 			 */
 			if (*fmt == 'U') {
 				fmt++;
@@ -284,16 +288,33 @@ EXPORT int format(fun, farg, fmt, args)
 		} else switch(*fmt) {
 
 		case 'h':
-			type = 'S';		/* convert to type */
+			if (!type)
+				type = 'H';	/* convert to short type */
 			goto getmode;
 
 		case 'l':
-			type = 'L';		/* convert to type */
+			if (!type)
+				type = 'L';	/* convert to long type */
+			goto getmode;
+
+		case 'j':
+			if (!type)
+				type = 'J';	/* convert to intmax_t type */
+		/*
+		 * XXX Future length modifiers:
+		 * XXX	'z' size_t
+		 * XXX	't' ptrdiff_t
+		 * XXX	'L' with double: long double
+		 */
 
 		getmode:
 			if (!strchr("udioxX", *(++fmt))) {
+				if (type == 'H' && *fmt == 'h') {
+					type = 'C';
+					goto getmode;
+				}				
 #ifdef	USE_LONGLONG
-				if (*fmt == 'l') {
+				if (type == 'L' && *fmt == 'l') {
 					type = 'Q';
 					goto getmode;
 				}
@@ -313,16 +334,24 @@ EXPORT int format(fun, farg, fmt, args)
 		case 'x':
 			mode = 'x';
 			goto havemode;
+		case 'X':
+			mode = 'X';
+			type = 'I';
+			goto havemode;
 		case 'u':
 			unsflag = TRUE;
+		/*
+		 * XXX Need to remove uppercase letters for 'long'
+		 * XXX in future for POSIX/C99 compliance.
+		 */
 		case 'o': case 'O':
 		case 'd': case 'D':
 		case 'i': case 'I':
-		case 'X':
 		case 'z': case 'Z':
 			mode = to_cap(*fmt);
 		havemode:
-			type = cap_ty(*fmt);
+			if (!type)
+				type = cap_ty(*fmt);
 			if (mode == 'I')	/*XXX kann entfallen*/
 				mode = 'D';	/*wenn besseres uflg*/
 			break;
@@ -429,8 +458,8 @@ EXPORT int format(fun, farg, fmt, args)
 		}
 		/*
 		 * print numbers:
-		 * first prepare type 'C'har, 'S'hort, 'I'nt, or 'L'ong
-		 * or 'Q'ad
+		 * first prepare type 'C'har, s'H'ort, 'I'nt, or 'L'ong
+		 * or 'Q'ad and 'J'==maxint_t
 		 */
 		switch(type) {
 
@@ -444,7 +473,8 @@ EXPORT int format(fun, farg, fmt, args)
 				val = (unsigned char)val;
 #endif
 			break;
-		case 'S':
+		case 'H':
+		case 'S':			/* XXX remove 'S' in future */
 			sh = va_arg(args, int);
 			val = sh;		/* extend sign here */
 			if (unsflag || mode != 'D')
@@ -470,6 +500,7 @@ EXPORT int format(fun, farg, fmt, args)
 			val = va_arg(args, long);
 			break;
 #ifdef	USE_LONGLONG
+		case 'J':			/* For now Intmax_t is Llong */
 		case 'Q':
 			llval = va_arg(args, Llong);
 			val = llval != 0;

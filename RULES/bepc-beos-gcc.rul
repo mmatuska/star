@@ -1,4 +1,4 @@
-#ident @(#)bepc-beos-gcc.rul	1.3 01/11/26 
+#ident @(#)bepc-beos-gcc.rul	1.4 02/10/15 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 #
 # XXX Old BeOS needs libroot.so to get [efg]cvt()

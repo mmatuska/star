@@ -1,7 +1,7 @@
-/* @(#)buffer.c	1.75 02/06/10 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)buffer.c	1.82 02/11/11 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.75 02/06/10 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)buffer.c	1.82 02/11/11 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
@@ -43,13 +43,9 @@ static	char sccsid[] =
 #include <strdefs.h>
 #include <waitdefs.h>
 #include <schily.h>
-#ifdef	HAVE_SYS_MTIO_H
-#include <sys/mtio.h>
-#else
-#include "mtio.h"
-#endif
+#include <mtiodefs.h>
+#include <librmt.h>
 #include "starsubs.h"
-#include "remote.h"
 
 long	bigcnt	= 0;
 int	bigsize	= 0;		/* Tape block size */
@@ -153,21 +149,21 @@ openremote()
 #ifdef	USE_REMOTE
 		isremote = TRUE;
 		rmtdebug(debug);
-		rmthostname(host, tarfiles[tarfindex], sizeof(host));
+		rmthostname(host, sizeof(host), tarfiles[tarfindex]);
 		if (debug)
 			errmsgno(EX_BAD, "Remote: %s Host: %s file: %s\n",
 					tarfiles[tarfindex], host, remfn);
 
 		if (lastremote >= 0) {
-			rmthostname(lasthost, tarfiles[lastremote],
-							sizeof(lasthost));
+			rmthostname(lasthost, sizeof(lasthost),
+							tarfiles[lastremote]);
 			if (!streql(host, lasthost)) {
 				close(remfd);
 				remfd = -1;
 				lastremote = -1;
 			}
 		}
-		if (remfd < 0 && (remfd = rmtgetconn(host, bigsize)) < 0)
+		if (remfd < 0 && (remfd = rmtgetconn(host, bigsize, 0)) < 0)
 			comerrno(EX_BAD, "Cannot get connection to '%s'.\n",
 				/* errno not valid !! */		host);
 		lastremote = tarfindex;
@@ -218,7 +214,8 @@ opentape()
 		 * XXX Should we add an option that allows to specify O_TRUNC?
 		 */
 		while (rmtopen(remfd, remfn, (cflag ? O_RDWR|O_CREAT:O_RDONLY)|O_BINARY) < 0) {
-			if (!wready || n++ > 6 || geterrno() != EIO) {
+			if (!wready || n++ > 12 ||
+			    (geterrno() != EIO && geterrno() != EBUSY)) {
 				comerr("Cannot open remote '%s'.\n",
 						tarfiles[tarfindex]);
 			} else {
@@ -255,7 +252,8 @@ opentape()
 		while ((tarf = fileopen(tarfiles[tarfindex],
 						cflag?"rwcub":"rub")) ==
 								(FILE *)NULL) {
-			if (!wready || n++ > 6 || geterrno() != EIO) {
+			if (!wready || n++ > 12 ||
+			    (geterrno() != EIO && geterrno() != EBUSY)) {
 				comerr("Cannot open '%s'.\n",
 						tarfiles[tarfindex]);
 			} else {
@@ -358,6 +356,7 @@ changetape()
 	 * XXX ufsdump.
 	 */
 	if (newvol_script) {
+		fflush(vpr);
 		/*
 		 * XXX Sould we give the script volume # and volume name
 		 * XXX as argument?
@@ -1047,7 +1046,7 @@ excomerrno(err, fmt, va_alist)
 	errmsgno(err, "%r", fmt, args);
 	va_end(args);
 #ifdef	FIFO
-	fifo_exit();
+	fifo_exit(err);
 #endif
 	exprstats(err);
 	/* NOTREACHED */
@@ -1075,7 +1074,7 @@ excomerr(fmt, va_alist)
 	errmsgno(err, "%r", fmt, args);
 	va_end(args);
 #ifdef	FIFO
-	fifo_exit();
+	fifo_exit(err);
 #endif
 	exprstats(err);
 	/* NOTREACHED */

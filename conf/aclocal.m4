@@ -1,4 +1,4 @@
-dnl @(#)aclocal.m4	1.26 02/05/20 Copyright 1998 J. Schilling
+dnl @(#)aclocal.m4	1.30 02/10/11 Copyright 1998 J. Schilling
 
 dnl Set VARIABLE to VALUE in C-string form, verbatim, or 1.
 dnl AC_DEFINE_STRING(VARIABLE [, VALUE])
@@ -67,6 +67,19 @@ if test $ac_cv_struct_mtget_type = yes; then
   AC_DEFINE(HAVE_MTGET_TYPE)
 fi])
 
+dnl Checks if structure 'mtget' have field 'mt_model'.
+dnl Defines HAVE_MTGET_MODEL on success.
+AC_DEFUN([AC_STRUCT_MTGET_MODEL],
+[AC_CACHE_CHECK([if struct mtget contains mt_model], ac_cv_struct_mtget_model,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/mtio.h>],
+                                [struct  mtget t; t.mt_model = 0;],
+                                [ac_cv_struct_mtget_model=yes],
+                                [ac_cv_struct_mtget_model=no])])
+if test $ac_cv_struct_mtget_model = yes; then
+  AC_DEFINE(HAVE_MTGET_MODEL)
+fi])
+
 dnl Checks if structure 'mtget' have field 'mt_dsreg'.
 dnl Defines HAVE_MTGET_DSREG on success.
 AC_DEFUN([AC_STRUCT_MTGET_DSREG],
@@ -78,6 +91,45 @@ AC_DEFUN([AC_STRUCT_MTGET_DSREG],
                                 [ac_cv_struct_mtget_dsreg=no])])
 if test $ac_cv_struct_mtget_dsreg = yes; then
   AC_DEFINE(HAVE_MTGET_DSREG)
+fi])
+
+dnl Checks if structure 'mtget' have field 'mt_dsreg1'.
+dnl Defines HAVE_MTGET_DSREG on success.
+AC_DEFUN([AC_STRUCT_MTGET_DSREG1],
+[AC_CACHE_CHECK([if struct mtget contains mt_dsreg1], ac_cv_struct_mtget_dsreg1,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/mtio.h>],
+                                [struct  mtget t; t.mt_dsreg1 = 0;],
+                                [ac_cv_struct_mtget_dsreg1=yes],
+                                [ac_cv_struct_mtget_dsreg1=no])])
+if test $ac_cv_struct_mtget_dsreg1 = yes; then
+  AC_DEFINE(HAVE_MTGET_DSREG1)
+fi])
+
+dnl Checks if structure 'mtget' have field 'mt_dsreg2'.
+dnl Defines HAVE_MTGET_DSREG2 on success.
+AC_DEFUN([AC_STRUCT_MTGET_DSREG2],
+[AC_CACHE_CHECK([if struct mtget contains mt_dsreg2], ac_cv_struct_mtget_dsreg2,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/mtio.h>],
+                                [struct  mtget t; t.mt_dsreg2 = 0;],
+                                [ac_cv_struct_mtget_dsreg2=yes],
+                                [ac_cv_struct_mtget_dsreg2=no])])
+if test $ac_cv_struct_mtget_dsreg2 = yes; then
+  AC_DEFINE(HAVE_MTGET_DSREG2)
+fi])
+
+dnl Checks if structure 'mtget' have field 'mt_gstat'.
+dnl Defines HAVE_MTGET_GSTAT on success.
+AC_DEFUN([AC_STRUCT_MTGET_GSTAT],
+[AC_CACHE_CHECK([if struct mtget contains mt_gstat], ac_cv_struct_mtget_gstat,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/mtio.h>],
+                                [struct  mtget t; t.mt_gstat = 0;],
+                                [ac_cv_struct_mtget_gstat=yes],
+                                [ac_cv_struct_mtget_gstat=no])])
+if test $ac_cv_struct_mtget_gstat = yes; then
+  AC_DEFINE(HAVE_MTGET_GSTAT)
 fi])
 
 dnl Checks if structure 'mtget' have field 'mt_erreg'.
@@ -356,6 +408,20 @@ AC_CACHE_CHECK([for time_t], ac_cv_type_time_t,
                 [ac_cv_type_time_t=no])])
 if test $ac_cv_type_time_t = no; then
   AC_DEFINE(time_t, long)
+fi])
+
+dnl Checks for type clock_t
+dnl Defines clock_t to long on failure.
+AC_DEFUN([AC_TYPE_CLOCK_T],
+[AC_REQUIRE([AC_HEADER_TIME])dnl
+AC_CACHE_CHECK([for clock_t], ac_cv_type_clock_t,
+                [AC_TRY_COMPILE([
+#include <sys/types.h>
+#include <sys/times.h>], [clock_t t;],
+                [ac_cv_type_clock_t=yes],
+                [ac_cv_type_clock_t=no])])
+if test $ac_cv_type_clock_t = no; then
+  AC_DEFINE(clock_t, long)
 fi])
 
 dnl Checks for type socklen_t
@@ -1261,13 +1327,29 @@ dnl Checks if we may not define our own malloc()
 dnl Defines NO_USER_MALLOC if we cannot.
 AC_DEFUN([AC_USER_MALLOC],
 [AC_CACHE_CHECK([if we may not define our own malloc()], ac_cv_no_user_malloc,
-                [AC_TRY_LINK([
-char * malloc(x)
-	int     x; 
+                [AC_TRY_RUN([
+static int mcalled;
+char *
+malloc(s)
+	int	s;
 {
-	return ((char *)0);
-}],
-[],
+	extern	char *sbrk();
+
+	mcalled++;
+	_exit(0);
+	return (sbrk(s));
+}
+
+free(p) char *p;{}
+	
+main()
+{
+#ifdef	HAVE_STRDUP
+	strdup("aaa");
+#else
+	exit(0);
+#endif
+	exit(1);}],
                 [ac_cv_no_user_malloc=no],
                 [ac_cv_no_user_malloc=yes])])
 if test $ac_cv_no_user_malloc = yes; then

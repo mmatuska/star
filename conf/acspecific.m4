@@ -1368,18 +1368,22 @@ main() {
      For systems like NeXT and OSF/1 that don't set it,
      also use the system CPU time.  And page faults (I/O) for Linux.  */
   r.ru_nvcsw = 0;
+  r.ru_utime.tv_sec = 0;
+  r.ru_utime.tv_usec = 0;
   r.ru_stime.tv_sec = 0;
   r.ru_stime.tv_usec = 0;
   r.ru_majflt = r.ru_minflt = 0;
   switch (fork()) {
   case 0: /* Child.  */
     sleep(1); /* Give up the CPU.  */
+    for (i=200000; --i > 0;) getpid(); /* Use up some CPU time */
     _exit(0);
   case -1: _exit(0); /* What can we do?  */
   default: /* Parent.  */
     wait3(&i, 0, &r);
     sleep(2); /* Avoid "text file busy" from rm on fast HP-UX machines.  */
     exit(r.ru_nvcsw == 0 && r.ru_majflt == 0 && r.ru_minflt == 0
+	 && r.ru_utime.tv_sec == 0 && r.ru_utime.tv_usec == 0
 	 && r.ru_stime.tv_sec == 0 && r.ru_stime.tv_usec == 0);
   }
 }], ac_cv_func_wait3_rusage=yes, ac_cv_func_wait3_rusage=no,

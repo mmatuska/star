@@ -1,10 +1,13 @@
-/* @(#)mtio.h	1.2 00/11/15 Copyright 1995,2000 J. Schilling */
+/* @(#)mtiodefs.h	1.4 02/08/26 Copyright 1995,2000-2002 J. Schilling */
 /*
- *	Simplyfied mtio definitions
+ *	Generic header for users of magnetic tape ioctl interface.
+ *
+ *	If there is no local mtio.h or equivalent, define
+ *	simplified mtio definitions here in order
  *	to be able to do at least remote mtio on systems
  *	that have no local mtio
  *
- *	Copyright (c) 1995,2000 J. Schilling
+ *	Copyright (c) 1995,2000-2002 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -22,8 +25,19 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef	_MTIO_H
-#define	_MTIO_H
+#ifndef	_MTIODEFS_H
+#define	_MTIODEFS_H
+
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+
+#ifdef	HAVE_SYS_MTIO_H
+
+#include <sys/mtio.h>
+
+#else	/* ! HAVE_SYS_MTIO_H */
+
 
 #ifdef	__cplusplus
 extern "C" {
@@ -73,6 +87,10 @@ struct	mtget {
 #define	HAVE_MTGET_FILENO
 #define	HAVE_MTGET_BLKNO
 
+/*
+ * Define some junk here as software may assume that these two definitions
+ * are always present.
+ */
 #define	MTIOCGET	0x12340001
 #define	MTIOCTOP	0x12340002
 
@@ -80,4 +98,6 @@ struct	mtget {
 }
 #endif
 
-#endif /* _MTIO_H */
+#endif	/* HAVE_SYS_MTIO_H */
+
+#endif /* _MTIODEFS_H */

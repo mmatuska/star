@@ -1,4 +1,4 @@
-#ident "@(#)9000-725-hp-ux-cc.rul	1.5 99/08/29 "
+#ident "@(#)9000-725-hp-ux-cc.rul	1.8 02/10/17 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -28,8 +28,7 @@ CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
 
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=		-Ae
-#CWOPTS=		-Wall -Wtraditional \
-#		-Wshadow -Wmissing-prototypes -Wstrict-prototypes
+CWOPTS=		
 COPTOPT=	-O
 KDEFINES=	-DKERNEL -D_KERNEL
 COPTDYN=	-fpic
@@ -63,6 +62,6 @@ ARFLAGS=	cr
 LORDER=		echo
 TSORT=		cat
 
-#RMDEP=		:
-#MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
-#MKDEP_OUT=
+RMDEP=		:
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(SRCROOT)/conf/mkdep-hpux.sh
+MKDEP_OUT=

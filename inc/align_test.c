@@ -1,7 +1,7 @@
-/* @(#)align_test.c	1.15 02/05/20 Copyright 1995 J. Schilling */
+/* @(#)align_test.c	1.16 02/10/17 Copyright 1995 J. Schilling */
 #ifndef	lint
 static	char sccsid[] =
-	"@(#)align_test.c	1.15 02/05/20 Copyright 1995 J. Schilling";
+	"@(#)align_test.c	1.16 02/10/17 Copyright 1995 J. Schilling";
 #endif
 /*
  *	Generate machine dependant align.h
@@ -265,8 +265,8 @@ printf(" * Believe me that this macro would even be usable if I would cast to sh
 printf(" * In order to avoid this warning, we are now using UIntptr_t\n */\n");
 /*printf("\n");*/
 /*printf("\n");*/
-printf("#define	xaligned(a, s)		((((UIntptr_t)(a)) & s) == 0 )\n");
-printf("#define	x2aligned(a, b, s)	(((((UIntptr_t)(a)) | ((UIntptr_t)(b))) & s) == 0 )\n");
+printf("#define	xaligned(a, s)		((((UIntptr_t)(a)) & (s)) == 0 )\n");
+printf("#define	x2aligned(a, b, s)	(((((UIntptr_t)(a)) | ((UIntptr_t)(b))) & (s)) == 0 )\n");
 printf("\n");
 printf("#define	saligned(a)		xaligned(a, ALIGN_SMASK)\n");
 printf("#define	s2aligned(a, b)		x2aligned(a, b, ALIGN_SMASK)\n");

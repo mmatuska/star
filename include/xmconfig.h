@@ -1,4 +1,4 @@
-/* @(#)xmconfig.h	1.27 00/05/28 Copyright 1995 J. Schilling */
+/* @(#)xmconfig.h	1.28 02/10/23 Copyright 1995 J. Schilling */
 /*
  *	Manual generated static definitions for machine configuration
  *
@@ -1215,7 +1215,7 @@ extern "C" {
 /*#	define	HAVE_USG_STDIO	*/
 /*#	define	HAVE_DTOA   */
 /*#	define	HAVE_STRERROR	*/
-/*#	define	HAVE_MEMMOVE	*/
+#	define	HAVE_MEMMOVE	
 /*#	define	HAVE_MMAP   */
 /*#	define	HAVE_SMMAP  */
 /*#	define	HAVE_USGSHM */

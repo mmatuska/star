@@ -1,5 +1,5 @@
 ###########################################################################
-#ident "@(#)x86pc-qnx-gcc.rul	1.1 01/11/11 "
+#ident "@(#)x86pc-qnx-gcc.rul	1.2 02/10/15 "
 ###########################################################################
 # Written 2001 by J. Schilling
 ###########################################################################
@@ -25,7 +25,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=

@@ -1,4 +1,4 @@
-#ident "@(#)ip22-irix-gcc.rul	1.5 01/01/06 "
+#ident "@(#)ip22-irix-gcc.rul	1.6 02/10/15 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 OSDEFS=		-D__SVR4 -DSVR4
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)

@@ -1,4 +1,4 @@
-#ident "@(#)hppa-nextstep-gcc.rul	1.3 99/08/29 "
+#ident "@(#)hppa-nextstep-gcc.rul	1.4 02/10/15 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=

@@ -1,4 +1,4 @@
-/* @(#)fifo.h	1.8 01/08/14 Copyright 1989 J. Schilling */
+/* @(#)fifo.h	1.9 02/08/08 Copyright 1989 J. Schilling */
 /*
  *	Definitions for a "fifo" that uses
  *	shared memory between two processes
@@ -47,6 +47,7 @@ typedef struct {
 	int	hiw;		/* highwater mark */
 	int	low;		/* lowwater mark */
 	int	flags;		/* fifo flags */
+	int	ferrno;		/* errno from fifo background process */
 	int	gp[2];		/* sync pipe for get process */
 	int	pp[2];		/* sync pipe for put process */
 	int	puts;		/* fifo put count statistic */
@@ -70,6 +71,7 @@ typedef struct {
 #define	FIFO_MEOF	0x008	/* EOF on input (put side)	*/
 #define	FIFO_MERROR	0x010	/* error on input (put side)	*/
 #define	FIFO_EXIT	0x020	/* exit() on non tape side	*/
+#define	FIFO_EXERRNO	0x040	/* errno from non tape side	*/
 
 #define	FIFO_IWAIT	0x200	/* input (put side) waits after first record */
 #define	FIFO_I_CHREEL	0x400	/* change input tape reel if fifo gets empty */

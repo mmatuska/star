@@ -1,7 +1,7 @@
-/* @(#)rmt.c	1.16 02/05/21 Copyright 1994,2000-2002 J. Schilling*/
+/* @(#)rmt.c	1.19 02/11/24 Copyright 1994,2000-2002 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)rmt.c	1.16 02/05/21 Copyright 1994,2000-2002 J. Schilling";
+	"@(#)rmt.c	1.19 02/11/24 Copyright 1994,2000-2002 J. Schilling";
 #endif
 /*
  *	Remote tape server
@@ -12,13 +12,13 @@ static	char sccsid[] =
  *	needs to send a "I-1\n0\n" request directly after opening the remote
  *	file using the 'O' rmt command.
  *	If the client requests the new protocol, MTIOCTOP ioctl opcodes
- *	in the range 0..7 are mapped to the BSD values to provent problems
- *	from Linux incompatibility.
+ *	in the range 0..7 are mapped to the BSD values to prevent problems
+ *	from Linux opcode incompatibility.
  *
- *	The open modes support an abtract string notation found in rmt.c from
+ *	The open modes support an abstract string notation found in rmt.c from
  *	GNU. This makes it possible to use more than O_RDONLY|O_WRONLY|O_RDWR
- *	with open. MTIOCTOP tape ops could be enhanced the same way, but it
- *	seems that the curent interface supports all what we need over the
+ *	with open(). MTIOCTOP tape ops could be enhanced the same way, but it
+ *	seems that the current interface supports all what we need over the
  *	wire.
  *
  *	Copyright (c) 1994,2000-2002 J. Schilling
@@ -34,9 +34,9 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 /*#define	FORCE_DEBUG*/
@@ -46,6 +46,7 @@ static	char sccsid[] =
 #include <stdxlib.h>
 #include <unixstd.h>	/* includes sys/types.h */
 #include <fctldefs.h>
+#include <statdefs.h>
 #include <strdefs.h>
 #include <sys/socket.h>
 #ifdef	 HAVE_SYS_PARAM_H
@@ -94,7 +95,7 @@ LOCAL	int	readchar	__PR((char *cp));
 LOCAL	void	readbuf		__PR((char *buf, int n));
 LOCAL	void	readarg		__PR((char *buf, int n));
 LOCAL	char *	preparebuffer	__PR((int size));
-LOCAL	int	checktape	__PR((char *decive));
+LOCAL	int	checktape	__PR((char *device));
 LOCAL	void	rmtrespond	__PR((long ret, int err));
 LOCAL	void	rmterror	__PR((char *str));
 
@@ -124,16 +125,16 @@ main(argc, argv)
 	argc--, argv++;
 	if (argc > 0 && strcmp(*argv, "-c") == 0) {
 		/*
-		 * Skip params in case we have been installed as shell.
+		 * Skip params in case we have been installed/called as shell.
 		 */
 		argc--, argv++;
 		argc--, argv++;
 	}
 	/*
-	 * If we are running as root, the existance of /etc/default/rmt
-	 * is required. If we are not root and there is no /etc/default/rmt
+	 * If we are running as root (uid 0), the existence of /etc/default/rmt
+	 * is required. If our uid is != 0 and there is no /etc/default/rmt
 	 * we will only allow to access files in /dev (see below).
-	*
+	 *
 	 * WARNING you are only allowed to change the defaults configuration
 	 * filename if you also change the documentation and add a statement
 	 * that makes clear where the official location of the file is, why you
@@ -153,7 +154,7 @@ main(argc, argv)
 	} else {
 		found_dfltfile = TRUE;
 	}
-	debug_name=defltread("DEBUG=");
+	debug_name = defltread("DEBUG=");	/* Get debug file name */
 #ifdef	FORCE_DEBUG
 	if (debug_name == NULL && argc <= 0)
 		debug_name = "/tmp/RMT";
@@ -163,7 +164,7 @@ main(argc, argv)
 
 	if (debug_name != NULL)
 		debug_file = fopen(debug_name, "w");
-		
+
 	if (argc > 0) {
 		if (debug_file == 0) {
 			rmtrespond((long)-1, geterrno());
@@ -211,7 +212,7 @@ getpeer()
 {
 	struct	sockaddr sa;
 	struct	sockaddr_in *s;
-	socklen_t	 sasize = sizeof(sa);
+	socklen_t	 sasize = sizeof (sa);
 	struct hostent	*he;
 #ifdef	MAXHOSTNAMELEN			/* XXX remove this and sys/param.h */
 static	char		buffer[MAXHOSTNAMELEN];
@@ -220,21 +221,41 @@ static	char		buffer[64];
 #endif
 
 	if (getpeername(STDIN_FILENO, &sa, &sasize) < 0) {
-		DEBUG1("rmt: peername %s\n", errmsgstr(geterrno()));
+		int		errsav = geterrno();
+		struct stat	sb;
+
+		if (fstat(STDIN_FILENO, &sb) >= 0) {
+			if (S_ISFIFO(sb.st_mode)) {
+				DEBUG("rmt: stdin is a PIPE\n");
+				return ("PIPE");
+			}
+			DEBUG1("rmt: stdin st_mode %0o\n", sb.st_mode);
+		}
+
+		DEBUG1("rmt: peername %s\n", errmsgstr(errsav));
 		return ("ILLEGAL_SOCKET");
 	} else {
 		s = (struct sockaddr_in *)&sa;
-		if (s->sin_family != AF_INET)
+		if (s->sin_family != AF_INET) {
+			if (s->sin_family == AF_UNIX) {
+				DEBUG("rmt: stdin is a PIPE (UNIX domain socket)\n");
+				return ("PIPE");
+			}
+			DEBUG1("rmt: stdin NOT_IP socket (sin_family: %d)\n",
+							s->sin_family);
 			return ("NOT_IP");
+		}
 
 #ifdef	HAVE_INET_NTOA
-		(void) js_snprintf(buffer, sizeof(buffer), "%s", inet_ntoa(s->sin_addr));
+		(void) js_snprintf(buffer, sizeof (buffer), "%s",
+						inet_ntoa(s->sin_addr));
 #else
-		(void) js_snprintf(buffer, sizeof(buffer), "%x", s->sin_addr.s_addr);
+		(void) js_snprintf(buffer, sizeof (buffer), "%x",
+						s->sin_addr.s_addr);
 #endif
 		DEBUG1("rmt: peername %s\n", buffer);
 		he = gethostbyaddr((char *)&s->sin_addr.s_addr, 4, AF_INET);
-		DEBUG1("rmt: peername %s\n", he!=NULL?he->h_name:buffer);
+		DEBUG1("rmt: peername %s\n", he != NULL ? he->h_name:buffer);
 		if (he != NULL)
 			return (he->h_name);
 		return (buffer);
@@ -301,8 +322,8 @@ strmatch(str, pat)
 	char	*p;
 
 	plen = strlen(pat);
-	aux = malloc(plen*sizeof(int));
-	state = malloc((plen+1)*sizeof(int));
+	aux = malloc(plen*sizeof (int));
+	state = malloc((plen+1)*sizeof (int));
 	if (aux == NULL || state == NULL) {
 		if (aux) free(aux);
 		if (state) free(state);
@@ -317,8 +338,8 @@ strmatch(str, pat)
 	}
 
 	p = (char *)patmatch((const unsigned char *)pat, aux,
-							(const unsigned char *)str, 0,
-							strlen(str), alt, state);
+						(const unsigned char *)str, 0,
+						strlen(str), alt, state);
 	free(aux);
 	free(state);
 
@@ -363,7 +384,7 @@ dormt()
 		/*
 		 * It would be nice to have something like 'V' for retrieving
 		 * Version information. But unfortunately newer BSD rmt version
-		 * inmplement this command in a way that is not useful at all.
+		 * implement this command in a way that is not useful at all.
 		 */
 		case 'v':
 			doversion();
@@ -387,8 +408,8 @@ opentape()
 	if (tape_fd >= 0)
 		(void) close(tape_fd);
 
-	readarg(device, sizeof(device));
-	readarg(omode, sizeof(omode));
+	readarg(device, sizeof (device));
+	readarg(omode, sizeof (omode));
 	omodes = rmtoflags(omode);
 	if (omodes == -1) {
 		/*
@@ -428,7 +449,7 @@ LOCAL struct oflags {
 	{ "O_NDELAY",	O_NDELAY },
 #endif
 #ifdef	O_APPEND
-	{ "O_APPEND",	O_APPEND } ,
+	{ "O_APPEND",	O_APPEND },
 #endif
 #ifdef	O_SYNC
 	{ "O_SYNC",	O_SYNC },
@@ -455,7 +476,7 @@ LOCAL struct oflags {
 	{ "O_TRUNC",	O_TRUNC },
 #endif
 #ifdef	O_EXCL
-	{ "O_EXCL",	O_EXCL } ,
+	{ "O_EXCL",	O_EXCL },
 #endif
 #ifdef	O_NOCTTY
 	{ "O_NOCTTY",	O_NOCTTY },
@@ -488,7 +509,7 @@ rmtoflags(omode)
 		for (op = oflags; op->fname; op++) {
 			slen = strlen(op->fname);
 			if ((strncmp(op->fname, p, slen) == 0) &&
-			   (p[slen] == '|' || p[slen] == ' ' ||
+			    (p[slen] == '|' || p[slen] == ' ' ||
 			    p[slen] == '\0')) {
 				nmodes |= op->fval;
 				break;
@@ -507,7 +528,7 @@ closetape()
 	char	device[CMD_SIZE];
 
 	DEBUG("rmtd: C\n");
-	readarg(device, sizeof(device));
+	readarg(device, sizeof (device));
 	ret = close(tape_fd);
 	rmtrespond((long)ret, geterrno());
 	tape_fd = -1;
@@ -521,7 +542,7 @@ readtape()
 	char	*buf;
 	char	count[CMD_SIZE];
 
-	readarg(count, sizeof(count));
+	readarg(count, sizeof (count));
 	DEBUG1("rmtd: R %s\n", count);
 	n = atoi(count);		/* Only an int because of setsockopt */
 	buf = preparebuffer(n);
@@ -540,7 +561,7 @@ writetape()
 	char	*buf;
 	char	count[CMD_SIZE];
 
-	readarg(count, sizeof(count));
+	readarg(count, sizeof (count));
 	n = atoi(count);		/* Only an int because of setsockopt */
 	DEBUG1("rmtd: W %s\n", count);
 	buf = preparebuffer(n);
@@ -559,7 +580,7 @@ writetape()
 #define	RMT_VERSION	1
 
 /*
- * Support for commands bejond MTWEOF..MTNOP (0..7)
+ * Support for commands beyond MTWEOF..MTNOP (0..7)
  */
 #define	RMTICACHE	0
 #define	RMTINOCACHE	1
@@ -576,8 +597,8 @@ ioctape(cmd)
 	char	count[CMD_SIZE];
 	char	opcode[CMD_SIZE];
 
-	readarg(opcode, sizeof(opcode));
-	readarg(count, sizeof(count));
+	readarg(opcode, sizeof (opcode));
+	readarg(count, sizeof (count));
 	DEBUG3("rmtd: %c %s %s\n", cmd, opcode, count);
 	if (atoi(opcode) == RMTIVERSION) {
 		rmtrespond((long)RMT_VERSION, 0);
@@ -598,15 +619,15 @@ ioctape(cmd)
 	struct mtop mtop;
 static	BOOL	version_seen = FALSE;
 
-	readarg(opcode, sizeof(opcode));
-	readarg(count, sizeof(count));
+	readarg(opcode, sizeof (opcode));
+	readarg(count, sizeof (count));
 	DEBUG3("rmtd: %c %s %s\n", cmd, opcode, count);
 	mtop.mt_op = atoi(opcode);
 	ret = atol(count);
 	mtop.mt_count = ret;
 	if (mtop.mt_count != ret) {
 		rmtrespond((long)-1, EINVAL);
-		return;		
+		return;
 	}
 
 	/*
@@ -638,7 +659,8 @@ static	BOOL	version_seen = FALSE;
 			mtop.mt_op = i;
 		}
 	}
-	DEBUG4("rmtd: %c %d %ld ret: %ld (mapped)\n", cmd, mtop.mt_op, (long)mtop.mt_count, ret);
+	DEBUG4("rmtd: %c %d %ld ret: %ld (mapped)\n", cmd, mtop.mt_op,
+						(long)mtop.mt_count, ret);
 	if (ret == 0) {
 		if (mtop.mt_op == RMTIVERSION) {
 			/*
@@ -810,7 +832,7 @@ statustape(cmd)
 	 * Only the first three fields of the struct mtget (mt_type, mt_dsreg
 	 * and mt_erreg) are identical on all platforms. The original struct
 	 * mtget is 16 bytes. All client implementations except the one from
-	 * star will overwrite other data and probaby die if the remote struct
+	 * star will overwrite other data and probably die if the remote struct
 	 * mtget is bigger than the local one.
 	 * In addition, there are byte order problems.
 	 */
@@ -864,12 +886,13 @@ statustape(cmd)
 		} else {
 			/*
 			 * Do not expect that this interface makes any sense.
-			 * With UNIX, you may at least trust the first two 
+			 * With UNIX, you may at least trust the first two
 			 * struct members, but Linux is completely incompatible
 			 */
 			ret = sizeof (mtget);
 			rmtrespond((long)ret, geterrno());
-			(void) _nixwrite(STDOUT_FILENO, (char *)&mtget, sizeof (mtget));
+			(void) _nixwrite(STDOUT_FILENO, (char *)&mtget,
+							sizeof (mtget));
 		}
 	}
 }
@@ -884,12 +907,12 @@ seektape()
 	Llong	offset = (Llong)0;
 	int	iwhence;
 
-	readarg(count, sizeof(count));
-	readarg(whence, sizeof(whence));
+	readarg(count, sizeof (count));
+	readarg(whence, sizeof (whence));
 	DEBUG2("rmtd: L %s %s\n", count, whence);
-	(void)astoll(count, &offset);
+	(void) astoll(count, &offset);
 	iwhence = atoi(whence);
-	switch(iwhence) {
+	switch (iwhence) {
 
 	case 0:	iwhence = SEEK_SET; break;
 	case 1:	iwhence = SEEK_CUR; break;
@@ -907,9 +930,10 @@ seektape()
 		return;
 	}
 	ret = lseek(tape_fd, (off_t)offset, iwhence);
-	if ((ret != (off_t)-1) &&  (sizeof(ret) > sizeof(long))) {
+	if ((ret != (off_t)-1) && (sizeof (ret) > sizeof (long))) {
 		DEBUG1("rmtd: A %lld\n", (Llong)ret);
-		(void) js_snprintf(count, sizeof(count), "A%lld\n", (Llong)ret);
+		(void) js_snprintf(count, sizeof (count), "A%lld\n",
+								(Llong)ret);
 		(void) _nixwrite(STDOUT_FILENO, count, strlen(count));
 		return;
 	}
@@ -921,7 +945,7 @@ doversion()
 {
 	char	arg[CMD_SIZE];
 
-	readarg(arg, sizeof(arg));	/* In case we like to add an arg later */
+	readarg(arg, sizeof (arg));	/* We may like to add an arg later */
 	DEBUG1("rmtd: v %s\n", arg);
 	rmtrespond((long)RMT_VERSION, 0);
 }
@@ -1017,13 +1041,15 @@ static	int	buffersize	= 0;
 
 #ifdef	SO_SNDBUF
 	while (size > 512 &&
-	       setsockopt(STDOUT_FILENO, SOL_SOCKET, SO_SNDBUF, (char *)&size, sizeof (size)) < 0)
+		setsockopt(STDOUT_FILENO, SOL_SOCKET, SO_SNDBUF,
+					(char *)&size, sizeof (size)) < 0)
 		size -= 512;
 	DEBUG1("rmtd: sndsize: %d\n", size);
 #endif
 #ifdef	SO_RCVBUF
 	while (size > 512 &&
-	       setsockopt(STDIN_FILENO, SOL_SOCKET, SO_RCVBUF, (char *)&size, sizeof (size)) < 0)
+		setsockopt(STDIN_FILENO, SOL_SOCKET, SO_RCVBUF,
+					(char *)&size, sizeof (size)) < 0)
 		size -= 512;
 	DEBUG1("rmtd: rcvsize: %d\n", size);
 #endif
@@ -1059,10 +1085,11 @@ rmtrespond(ret, err)
 
 	if (ret >= 0) {
 		DEBUG1("rmtd: A %ld\n", ret);
-		(void) js_snprintf(rbuf, sizeof(rbuf), "A%ld\n", ret);
+		(void) js_snprintf(rbuf, sizeof (rbuf), "A%ld\n", ret);
 	} else {
 		DEBUG2("rmtd: E %d (%s)\n", err, errmsgstr(err));
-		(void) js_snprintf(rbuf, sizeof(rbuf), "E%d\n%s\n", err, errmsgstr(err));
+		(void) js_snprintf(rbuf, sizeof (rbuf), "E%d\n%s\n", err,
+							errmsgstr(err));
 	}
 	(void) _nixwrite(STDOUT_FILENO, rbuf, strlen(rbuf));
 }
@@ -1074,6 +1101,6 @@ rmterror(str)
 	char	rbuf[2*CMD_SIZE];
 
 	DEBUG1("rmtd: E 0 (%s)\n", str);
-	(void) js_snprintf(rbuf, sizeof(rbuf), "E0\n%s\n", str);
+	(void) js_snprintf(rbuf, sizeof (rbuf), "E0\n%s\n", str);
 	(void) _nixwrite(STDOUT_FILENO, rbuf, strlen(rbuf));
 }

@@ -1,5 +1,5 @@
 #!/bin/sh
-# @(#)cc-config.sh	1.2 02/05/19 Copyright 2002 J. Schilling
+# @(#)cc-config.sh	1.3 02/08/16 Copyright 2002 J. Schilling
 ###########################################################################
 # Written 2002 by J. Schilling
 ###########################################################################
@@ -88,7 +88,7 @@ if [ ".$CC" = ".gcc" ]; then
 		CC=cc
 	fi
 else
-	XCC=xcc
+	XCC=gcc
 	echo 'Trying to find GCC'
 	gcc -v 2> /dev/null && CC=gcc
 fi

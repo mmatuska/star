@@ -17,13 +17,13 @@ CFILES=		star.c header.c xheader.c \
 		list.c extract.c create.c append.c diff.c \
 		remove.c star_unix.c acl_unix.c fflags.c \
 		buffer.c dirtime.c lhash.c \
-		hole.c longnames.c names.c remote.c \
+		hole.c longnames.c names.c \
 		movearch.c table.c props.c \
 		unicode.c \
 		fifo.c device.c
 HFILES=		star.h starsubs.h dirtime.h xutimes.h \
-		remote.h movearch.h table.h props.h fifo.h diff.h mtio.h
-LIBS=		-lschily $(LIB_ACL) $(LIB_SOCKET)
+		movearch.h table.h props.h fifo.h diff.h
+LIBS=		-lrmt -lschily $(LIB_ACL) $(LIB_SOCKET)
 XMK_FILE=	Makefile.man
 
 ###########################################################################

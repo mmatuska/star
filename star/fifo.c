@@ -1,7 +1,7 @@
-/* @(#)fifo.c	1.31 02/06/08 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.34 02/11/04 Copyright 1989 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.31 02/06/08 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.34 02/11/04 Copyright 1989 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -357,7 +357,11 @@ swait(f)
 	if (ret < 0 || (ret == 0 && pid)) {
 		if ((mp->flags & FIFO_EXIT) == 0)
 			errmsg("Sync pipe read error on pid %d.\n", pid);
-		exprstats(1);
+		if ((mp->flags & FIFO_EXERRNO) != 0)
+			ret = mp->ferrno;
+		else
+			ret = 1;
+		exprstats(ret);
 		/* NOTREACHED */
 	}
 	if (ret == 0) {
@@ -593,8 +597,23 @@ fifo_sync()
 	fifo_owake(rest);
 }
 
+EXPORT int
+fifo_errno()
+{
+	/*
+	 * Note that we may be called with fifo not active.
+	 */
+	if (mp == NULL)
+		return (0);
+
+	if ((mp->flags & FIFO_EXERRNO) != 0)
+		return (mp->ferrno);
+	return (0);
+}
+
 EXPORT void
-fifo_exit()
+fifo_exit(err)
+	int	err;
 {
 	extern	BOOL	cflag;
 
@@ -608,6 +627,10 @@ fifo_exit()
 	 * Tell other side of FIFO to exit().
 	 */
 	mp->flags |= FIFO_EXIT;
+	if (err != 0) {
+		mp->flags |= FIFO_EXERRNO;
+		mp->ferrno = err;
+	}
 
 	/*
 	 * Wake up other side by closing the sync pipes.
@@ -699,7 +722,8 @@ mkshare(size)
 #endif
 	if (addr == (char *)-1)
 		comerr("Cannot get mmap for %d Bytes on /dev/zero.\n", size);
-	close(f);
+	if (f >= 0)
+		close(f);
 
 	if (debug) errmsgno(EX_BAD, "shared memory segment attached at: %p size %d\n",
 				(void *)addr, size);

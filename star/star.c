@@ -99,7 +99,7 @@ LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
-char	strvers[] = "1.4.1";
+char	strvers[] = "1.4.2";
 
 struct star_stats	xstats;
 
@@ -256,6 +256,15 @@ main(ac, av)
 		(void) signal(SIGINT, sigintr);
 	if (signal(SIGQUIT, SIG_IGN) != SIG_IGN)
 		(void) signal(SIGQUIT, sigquit);
+#ifdef	SIGINFO
+	/*
+	 * Be polite to *BSD users.
+	 * They copied our idea and implemented intermediate status
+	 * printing in 'dd' in 1990.
+	 */
+	if (signal(SIGINFO, SIG_IGN) != SIG_IGN)
+		(void) signal(SIGINFO, sigquit);
+#endif
 
 	file_raise((FILE *)NULL, FALSE);
 
@@ -274,7 +283,7 @@ main(ac, av)
 		if (setuid(getuid()) < 0)
 #endif
 #endif
-			comerr("Panic cannot set back efective uid.\n");
+			comerr("Panic cannot set back effective uid.\n");
 	}
 	/*
 	 * WARNING: We now are no more able to open a new remote connection
@@ -378,7 +387,7 @@ main(ac, av)
 		closetape();
 #ifdef	FIFO
 	if (use_fifo)
-		fifo_exit();
+		fifo_exit(0);
 #endif
 
 	while (wait(0) >= 0) {
@@ -392,6 +401,12 @@ main(ac, av)
 		}
 		exit(-2);
 	}
+#ifdef	FIFO
+	/*
+	 * Fetch errno from FIFO if available.
+	 */
+	exit(fifo_errno());
+#endif
 	exit(0);
 	/* NOTREACHED */
 	return(0);	/* keep lint happy */
@@ -501,7 +516,7 @@ LOCAL void
 usage(ret)
 	int	ret;
 {
-	error("Usage:\tstar cmd [options] file1 ... filen\n");
+	error("Usage:\t%s cmd [options] file1 ... filen\n", get_progname());
 	error("Cmd:\n");
 	error("\t-c/-u/-r\tcreate/update/replace named files to tape\n");
 	error("\t-x/-t/-n\textract/list/trace named files from tape\n");
@@ -551,7 +566,7 @@ LOCAL void
 xusage(ret)
 	int	ret;
 {
-	error("Usage:\tstar cmd [options] file1 ... filen\n");
+	error("Usage:\t%s cmd [options] file1 ... filen\n", get_progname());
 	error("Extended options:\n");
 	error("\tdiffopts=optlst\tcomma separated list of diffopts (see diffopts=help)\n");
 	error("\t-debug\t\tprint additional debug messages\n");
@@ -624,6 +639,8 @@ dusage(ret)
 {
 	error("Diff options:\n");
 	error("\tnot\t\tif this option is present, exclude listed options\n");
+	error("\t!\t\tif this option is present, exclude listed options\n");
+	error("\tall\t\tcompare everything\n");
 	error("\tperm\t\tcompare file permissions\n");
 	error("\tmode\t\tcompare file permissions\n");
 	error("\ttype\t\tcompare file type\n");
@@ -643,6 +660,8 @@ dusage(ret)
 	error("\tmtime\t\tcompare modification time of file\n");
 	error("\tctime\t\tcompare creation time of file (only star)\n");
 	error("\ttimes\t\tcompare all times of file\n");
+	error("\n");
+	error("Default is to compare everything except atime.\n");
 	exit(ret);
 	/* NOTREACHED */
 }
@@ -802,7 +821,7 @@ gargs(ac, av)
 	}
 
 	if ((xflag + cflag + uflag + rflag + tflag + nflag + diff_flag) > 1) {
-		errmsgno(EX_BAD, "Too many commaands, only one of -x -c -u -r -t -n or -diff is allowed.\n");
+		errmsgno(EX_BAD, "Too many commands, only one of -x -c -u -r -t -n or -diff is allowed.\n");
 		susage(EX_BAD);
 	}
 	if (!(xflag | cflag | uflag | rflag | tflag | nflag | diff_flag)) {
@@ -924,7 +943,11 @@ gargs(ac, av)
 			tarfiles[0] = "-";
 		ntarfiles++;
 	}
-	if (interactive || ask_remove || tsize > 0) {
+	/*
+	 * XXX This is a place that should be checked every time, when
+	 * XXX possible interactivity is modified.
+	 */
+	if (interactive || ask_remove || (tsize > 0 && !newvol_script)) {
 #ifdef	JOS
 		tty = stderr;
 #else
@@ -1094,7 +1117,6 @@ addtarfile(tarfile)
 	if (ntarfiles >= NTARFILE)
 		comerrno(EX_BAD, "Too many tar files (max is %d).\n", NTARFILE);
 
-/*	if (streql(tarfile, "-") || (ntarfiles > 0 && streql(tarfiles[0], "-")))*/
 	if (ntarfiles > 0 && (streql(tarfile, "-") || streql(tarfiles[0], "-")))
 		comerrno(EX_BAD, "Cannot handle multi volume archives from/to stdin/stdout.\n");
 
@@ -1438,7 +1460,7 @@ LOCAL void
 exsig(sig)
 	int	sig;
 {
-	signal(sig, SIG_DFL);
+	(void) signal(sig, SIG_DFL);
 	kill(getpid(), sig);
 }
 
@@ -1447,7 +1469,7 @@ LOCAL void
 sighup(sig)
 	int	sig;
 {
-	signal(SIGHUP, sighup);
+	(void) signal(SIGHUP, sighup);
 	prstats();
 	intr++;
 	if (!cflag)
@@ -1459,7 +1481,7 @@ LOCAL void
 sigintr(sig)
 	int	sig;
 {
-	signal(SIGINT, sigintr);
+	(void) signal(SIGINT, sigintr);
 	prstats();
 	intr++;
 	if (!cflag)
@@ -1471,7 +1493,10 @@ LOCAL void
 sigquit(sig)
 	int	sig;
 {
-	signal(SIGQUIT, sigquit);
+	/*
+	 * sig may be either SIGQUIT or SIGINFO (*BSD only).
+	 */
+	(void) signal(sig, sigquit);
 	prstats();
 }
 

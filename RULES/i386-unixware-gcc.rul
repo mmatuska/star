@@ -1,4 +1,4 @@
-#ident "@(#)i386-unixware-gcc.rul	1.1 00/01/23 "
+#ident "@(#)i386-unixware-gcc.rul	1.2 02/10/15 "
 ###########################################################################
 # Written 1999 by J. Schilling/Santa Cruz Operation
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
 OSDEFS=		-DUNIXWARE -DSVR4
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS) 

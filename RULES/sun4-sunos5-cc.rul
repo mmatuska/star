@@ -1,4 +1,4 @@
-#ident "@(#)sun4-sunos5-cc.rul	1.4 01/02/04 "
+#ident "@(#)sun4-sunos5-cc.rul	1.5 02/10/16 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -24,7 +24,7 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 ###########################################################################
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
-CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(SUNPROCOPTOPT) $(COPTX)
 
 LINTFLAGS=	-Nlevel=4 
 

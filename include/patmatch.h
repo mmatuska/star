@@ -1,4 +1,4 @@
-/* @(#)patmatch.h	1.7 00/11/12 Copyright 1985 J. Schilling */
+/* @(#)patmatch.h	1.8 02/08/26 Copyright 1985 J. Schilling */
 
 #ifndef	_PATMATCH_H
 #define	_PATMATCH_H
@@ -44,6 +44,9 @@
  */
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__cplusplus

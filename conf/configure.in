@@ -1,4 +1,4 @@
-dnl @(#)configure.in	1.52 02/06/10 Copyright 1998 J. Schilling
+dnl @(#)configure.in	1.58 02/11/23 Copyright 1998 J. Schilling
 dnl Process this file with autoconf to produce a configure script.
 AC_REVISION($Revision$)dnl
 
@@ -38,7 +38,7 @@ AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(mntent.h sys/mntent.h sys/mnttab.h sys/mount.h)
 AC_CHECK_HEADERS(wait.h sys/resource.h sys/procfs.h)
 AC_CHECK_HEADERS(sys/utsname.h sys/priocntl.h sys/rtpriocntl.h)
-AC_CHECK_HEADERS(sys/mtio.h sys/mman.h linux/pg.h camlib.h)
+AC_CHECK_HEADERS(sys/mtio.h sys/tape.h sys/mman.h linux/pg.h camlib.h)
 AC_CHECK_HEADERS(sys/shm.h sys/ipc.h)
 AC_CHECK_HEADERS(sys/dkio.h sys/dklabel.h sun/dkio.h sun/dklabel.h)
 AC_CHECK_HEADERS(sys/types.h sys/stat.h types.h stat.h)
@@ -74,7 +74,7 @@ AC_TYPE_SIGNAL
 AC_TYPE_GETGROUPS
 AC_TYPE_LONGLONG
 AC_TYPE_PROTOTYPES
-AC_USER_MALLOC
+dnl AC_USER_MALLOC must be past AC_CHECK_FUNCS(strdup)
 AC_DYN_ARRAYS
 
 AC_TYPE_UID_T
@@ -89,6 +89,7 @@ AC_CHECK_TYPE(daddr_t, long)
 AC_CHECK_TYPE(dev_t, unsigned short)
 AC_CHECK_TYPE(ino_t, unsigned long)
 AC_CHECK_TYPE(nlink_t, unsigned long)
+AC_TYPE_CLOCK_T
 AC_TYPE_SOCKLEN_T
 
 dnl These types are present on all UNIX systems but should be avoided
@@ -118,7 +119,11 @@ dnl # AC_TYPE_SIZE_T_		# Defines HAVE_SIZE_T / NO_SIZE_T
 AC_TYPE_CHAR
 AC_TYPE_VA_LIST
 AC_STRUCT_MTGET_TYPE
+AC_STRUCT_MTGET_MODEL
 AC_STRUCT_MTGET_DSREG
+AC_STRUCT_MTGET_DSREG1
+AC_STRUCT_MTGET_DSREG2
+AC_STRUCT_MTGET_GSTAT
 AC_STRUCT_MTGET_ERREG
 AC_STRUCT_MTGET_RESID
 AC_STRUCT_MTGET_FILENO
@@ -158,6 +163,7 @@ AC_FUNC_SYS_SIGLIST
 AC_FUNC_BSD_GETPGRP
 AC_FUNC_BSD_SETPGRP
 AC_CHECK_FUNCS(brk sbrk strerror nice memmove flock lockf fchdir statvfs quotactl)
+AC_CHECK_FUNCS(dup2)
 AC_CHECK_FUNCS(getcwd shmat semget)
 AC_CHECK_FUNCS(lstat readlink symlink link rename mkfifo mknod)
 AC_CHECK_FUNCS(setreuid setresuid seteuid setuid)
@@ -170,7 +176,7 @@ AC_CHECK_FUNCS(sync fsync fork wait4 waitid waitpid getrusage getrlimit setrlimi
 AC_CHECK_FUNCS(execl execle execlp execv execve execvp)
 AC_CHECK_FUNCS(gethostid gethostname getdomainname getpagesize getdtablesize)
 AC_CHECK_FUNCS(gettimeofday settimeofday time stime)
-AC_CHECK_FUNCS(poll select chown lchown times utimes)
+AC_CHECK_FUNCS(poll select chown lchown times utime utimes)
 dnl AC_CHECK_FUNCS(ecvt fcvt gcvt)
 AC_CHECK_FUNCS(ecvt_r fcvt_r gcvt_r)
 AC_CHECK_FUNCS(econvert fconvert gconvert)
@@ -187,6 +193,10 @@ AC_CHECK_FUNCS(valloc)
 AC_CHECK_FUNCS(madvise)
 AC_CHECK_FUNCS(chflags fchflags fflagstostr strtofflags)
 
+dnl Checks for typedefs, structures, and compiler characteristics.
+dnl that need results from the AC_CHECK_FUNCS() calls.
+AC_USER_MALLOC
+
 dnl Need to check this in default compilation mode to find out
 dnl whether this platform supports both functions by default too.
 dnl We cannot use the standard tests because they would find
@@ -200,10 +210,11 @@ dnl
 AC_CHECK_LIB(socket, rcmd, lib_socket="-lsocket")
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_socket"
-AC_CHECK_FUNCS(rcmd)
 AC_CHECK_LIB(nsl, inet_ntoa, lib_nsl="-lnsl")
 LIBS="$LIBS $lib_nsl"
+AC_CHECK_FUNCS(rcmd socket socketpair)
 AC_CHECK_FUNCS(inet_ntoa)
+AC_CHECK_FUNCS(getaddrinfo getnameinfo)
 LIBS="$ac_save_LIBS"
 
 dnl Check for largefile support

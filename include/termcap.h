@@ -1,4 +1,4 @@
-/* @(#)termcap.h	1.4 00/11/29 Copyright 1995 J. Schilling */
+/* @(#)termcap.h	1.5 02/08/26 Copyright 1995 J. Schilling */
 /*
  *	Copyright (c) 1995 J. Schilling
  */
@@ -23,6 +23,9 @@
 
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__cplusplus

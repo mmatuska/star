@@ -1,4 +1,4 @@
-/* @(#)xconfig.h.in	1.53 02/06/09 Copyright 1998 J. Schilling */
+/* @(#)xconfig.h.in	1.58 02/11/22 Copyright 1998 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
  *
@@ -43,6 +43,7 @@
 #undef TIME_WITH_SYS_TIME	/* may include both time.h and sys/time.h */
 #undef HAVE_TIMES	/* to use times() and sys/times.h */
 #undef HAVE_SYS_TIMES_H	/* may include sys/times.h for struct tms */
+#undef HAVE_UTIME		/* to use AT&T utime() and utimbuf */
 #undef HAVE_UTIMES		/* to use BSD utimes() and sys/time.h */
 #undef HAVE_UTIME_H		/* to use utime.h for the utimbuf structure declaration, else declare struct utimbuf yourself */
 #undef HAVE_SYS_UTIME_H		/* to use sys/utime.h if utime.h does not exist */
@@ -63,6 +64,7 @@
 #undef HAVE_SYS_RTPRIOCNTL_H	/* if the system supports SVr4 real time classes */
 #undef HAVE_SYS_SYSCALL_H	/* to use syscall() */
 #undef HAVE_SYS_MTIO_H		/* to use mtio definitions from sys/mtio.h */
+#undef HAVE_SYS_TAPE_H		/* to use mtio definitions from AIX sys/tape.h */
 #undef HAVE_SYS_MMAN_H		/* to use definitions for mmap()/madvise()... from sys/mman.h */
 #undef HAVE_SYS_SHM_H		/* to use definitions for shmget() ... from sys/shm.h */
 #undef HAVE_SYS_IPC_H		/* to use definitions for shmget() ... from sys/ipc.h */
@@ -183,6 +185,7 @@
 #undef HAVE__VA_COPY		/* __va_copy() is present in varargs.h/stdarg.h */
 #undef HAVE_DTOA		/* BSD-4.4 __dtoa() is present in libc */
 #undef HAVE_DTOA_R		/* BSD-4.4 __dtoa() with result ptr (reentrant) */
+#undef HAVE_DUP2		/* dup2() is present in libc */
 #undef HAVE_GETCWD		/* POSIX getcwd() is present in libc */
 #undef HAVE_SMMAP		/* may map anonymous memory to get shared mem */
 #undef HAVE_SHMAT		/* shmat() is present in libc */
@@ -259,7 +262,11 @@
 #undef HAVE_FTELLO		/* ftello() is present in default compile mode */
 
 #undef HAVE_RCMD		/* rcmd() is present in libc/libsocket */
+#undef HAVE_SOCKET		/* socket() is present in libc/libsocket */
+#undef HAVE_SOCKETPAIR		/* socketpair() is present in libc/libsocket */
 #undef HAVE_INET_NTOA		/* inet_ntoa() is present in libc/libsocket */
+#undef HAVE_GETADDRINFO		/* getaddrinfo() is present in libc/libsocket */
+#undef HAVE_GETNAMEINFO		/* getnameinfo() is present in libc/libsocket */
 
 #if	defined(HAVE_QUOTACTL) || defined(HAVE_QUOTAIOCTL)
 #	define HAVE_QUOTA	/* The system inludes quota */
@@ -288,7 +295,11 @@
  * Structures
  */
 #undef HAVE_MTGET_TYPE		/* if struct mtget contains mt_type (drive type) */
+#undef HAVE_MTGET_MODEL		/* if struct mtget contains mt_model (drive type) */
 #undef HAVE_MTGET_DSREG		/* if struct mtget contains mt_dsreg (drive status) */
+#undef HAVE_MTGET_DSREG1	/* if struct mtget contains mt_dsreg1 (drive status msb) */
+#undef HAVE_MTGET_DSREG2	/* if struct mtget contains mt_dsreg2 (drive status lsb) */
+#undef HAVE_MTGET_GSTAT		/* if struct mtget contains mt_gstat (generic status) */
 #undef HAVE_MTGET_ERREG		/* if struct mtget contains mt_erreg (error register) */
 #undef HAVE_MTGET_RESID		/* if struct mtget contains mt_resid (residual count) */
 #undef HAVE_MTGET_FILENO	/* if struct mtget contains mt_fileno (file #) */
@@ -351,6 +362,7 @@
 #undef dev_t			/* To be used if dev_t is not present */
 #undef ino_t			/* To be used if ino_t is not present */
 #undef nlink_t			/* To be used if nlink_t is not present */
+#undef clock_t			/* To be used if clock_t is not present */
 #undef socklen_t		/* To be used if socklen_t is not present */
 
 /*

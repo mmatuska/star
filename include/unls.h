@@ -1,4 +1,4 @@
-/* @(#)unls.h	1.3 01/01/18 2000 J. Schilling */
+/* @(#)unls.h	1.4 02/08/26 2000 J. Schilling */
 /*
  *	Modifications to make the code portable Copyright (c) 2000 J. Schilling
  *
@@ -25,6 +25,9 @@
 
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__cplusplus

@@ -1,4 +1,4 @@
-/* @(#)deflts.h	1.5 00/11/08 Copyright 1997 J. Schilling */
+/* @(#)deflts.h	1.6 02/08/26 Copyright 1997 J. Schilling */
 /*
  *	Definitions for reading program defaults.
  *
@@ -25,6 +25,9 @@
 
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__cplusplus

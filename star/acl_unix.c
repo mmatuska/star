@@ -1,7 +1,7 @@
-/* @(#)acl_unix.c	1.9 02/06/14 Copyright 2001 J. Schilling */
+/* @(#)acl_unix.c	1.10 02/11/14 Copyright 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)acl_unix.c	1.9 02/06/14 Copyright 2001 J. Schilling";
+	"@(#)acl_unix.c	1.10 02/11/14 Copyright 2001 J. Schilling";
 #endif
 /*
  *	ACL get and set routines for unix like operating systems.
@@ -178,6 +178,24 @@ acl_to_info(name, type, acltext)
 	c = strrchr(text, '\0');
 	while (c > text && *(c-1) == '\n')
 		*(--c) = '\0';
+
+	/* remove comment fields */
+	c = text;
+	while ((c = strchr(c, '#')) != NULL) {
+		char *d = c;
+
+		while (c > text && strchr(" \t\r", *(c-1)))
+			c--;
+		if (c == d) {
+			/* No whitespace before '#': assume it's no comment. */
+			c++;
+			continue;
+		}
+		while (*d && *d != '\n')
+			d++;
+		while ((*c++ = *d++) != '\0')
+			;
+	}
 	
 	/* count fields */
 	for (c = text; *c != '\0'; c++) {
@@ -815,11 +833,18 @@ acl_check_ids(acltext, infotext)
 			js_snprintf(entry_buffer, PATH_MAX, "group:%s:%s",
 				groupname, perms);
 			token = entry_buffer;
+		} else if (!strncmp(token, "#effective:", 11)) {
+			/* Older versions of star didn't trim off
+			 * effective rights comments, so ignore them
+			 * when they are found in archives.
+			 */
+			goto skip_malformed_entry;
 		}
 		strcpy(acltext, token);
 		acltext += strlen(token);
 		*acltext++ = ',';
 
+	skip_malformed_entry:
 		token = strtok(NULL, ", \t\n\r");
 	}
 	*(--acltext) = '\0';

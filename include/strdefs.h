@@ -1,4 +1,4 @@
-/* @(#)strdefs.h	1.6 01/11/09 Copyright 1996 J. Schilling */
+/* @(#)strdefs.h	1.7 02/08/26 Copyright 1996 J. Schilling */
 /*
  *	Definitions for strings
  *
@@ -25,6 +25,9 @@
 
 #ifndef	_MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 #ifdef	__never_def

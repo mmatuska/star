@@ -279,7 +279,7 @@ retry:
 		if (oo == (off_t)-1)
 			return (ret);
 		si = lseek(fd, (off_t)0, SEEK_END);
-		if (oo == (off_t)-1)
+		if (si == (off_t)-1)
 			return (ret);
 		if (lseek(fd, oo, SEEK_SET) == (off_t)-1)
 			return (ret);
@@ -513,6 +513,8 @@ read_symlink(name, info, ptb)
 	int	len;
 
 	info->f_lname[0] = '\0';
+
+#ifdef	HAVE_READLINK
 	if ((len = readlink(name, info->f_lname, PATH_MAX)) < 0) {
 		xstats.s_rwerrs++;
 		errmsg("Cannot read link '%s'.\n", name);
@@ -540,6 +542,12 @@ read_symlink(name, info, ptb)
 	 */
 	strncpy(ptb->dbuf.t_linkname, info->f_lname, props.pr_maxslname);
 	return (TRUE);
+#else
+	xstats.s_isspecial++;
+	errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+				name,  XTTONAME(info->f_xftype));
+	return (FALSE);
+#endif
 }
 
 LOCAL BOOL

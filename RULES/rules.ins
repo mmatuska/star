@@ -1,4 +1,4 @@
-#ident @(#)rules.ins	1.9 00/11/07 
+#ident @(#)rules.ins	1.10 02/10/23 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -47,7 +47,7 @@ xinstall:
 			(						\
 			if [ -r ./$$XMK_F ] ; then				\
 				echo "	==> MAKING \"install\" ON SUBCOMPONENT \"$(CURDIR)/$$XMK_F\""; \
-				$(MAKE) -f $$XMK_F $(MAKEMACS) XARCH=$(XARCH) install;	\
+				"$(MAKE)" -f $$XMK_F $(MAKEMACS) XARCH=$(XARCH) install;	\
 			else							\
 				if [ $$XMK_F != XxZzY-- ]; then		\
 					echo "NOTICE: Partial source ($(DIRNAME)/$$XMK_F) missing";\

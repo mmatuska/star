@@ -1,4 +1,4 @@
-/* @(#)device.h	1.10 01/10/27 Copyright 1995 J. Schilling */
+/* @(#)device.h	1.11 02/08/26 Copyright 1995 J. Schilling */
 /*
  *	Generic header for users of major(), minor() and makedev()
  *
@@ -25,6 +25,9 @@
 
 #ifndef _MCONFIG_H
 #include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
 #endif
 
 /*

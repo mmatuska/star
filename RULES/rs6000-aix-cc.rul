@@ -1,4 +1,4 @@
-#ident "@(#)rs6000-aix-cc.rul	1.5 01/04/12 "
+#ident "@(#)rs6000-aix-cc.rul	1.6 02/10/11 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -62,6 +62,10 @@ RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; ranlib
 ARFLAGS=	cr
 
 RMDEP=		:
-#MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); cc -M
-MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); echo "Cannot do -M with IBM'cc"; :
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(SRCROOT)/conf/mkdep-aix.sh
 MKDEP_OUT=
+
+#$RMDEP=		:
+#$#MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); cc -M
+#$MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); echo "Cannot do -M with IBM'cc"; :
+#$MKDEP_OUT=

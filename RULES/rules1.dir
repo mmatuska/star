@@ -1,4 +1,4 @@
-#ident @(#)rules1.dir	1.8 00/12/01 
+#ident @(#)rules1.dir	1.10 02/10/23 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -25,14 +25,14 @@
 
 $(ALLTARGETS):
 	@list="$(DIRS)";							\
-	[ -d TARGETS -a -f TARGETS/15conf ] && 					\
-		list=`echo TARGETS/[0-9][0-9]* | sed -e 's;TARGETS/[0-9][0-9];;g'`;\
+	[ -d TARGETS -a -f TARGETS/__slot ] && 					\
+		list=`echo TARGETS/[0-9][0-9]* | sed -e 's;TARGETS/[0-9][0-9];;g' | sed -e 's;!@!;/;g'`;\
 	for DIR in $${list} ;							\
 	do									\
 		(								\
 		echo "	==> MAKING \"$@\" ON SUBDIRECTORY \"$(CURDIR)/$$DIR\"";\
 		if [ -d ./$$DIR -a -r ./$$DIR/Makefile ] ; then			\
-			cd ./$$DIR;$(MAKE) $(MAKEMACS) XARCH=$(XARCH) DIRNAME=$(CURDIR)/$$DIR $@;		\
+			cd ./$$DIR;"$(MAKE)" $(MAKEMACS) XARCH=$(XARCH) DIRNAME=$(CURDIR)/$$DIR $@;		\
 		else								\
 			echo "NOTICE: Partial source ($(CURDIR)/$$DIR) missing";\
 		fi								\
@@ -40,11 +40,11 @@ $(ALLTARGETS):
 	done
 
 tinfo:
-	@[ -d TARGETS -a -f TARGETS/15conf ] && list=`echo TARGETS/[0-9][0-9]*`;\
+	@[ -d TARGETS -a -f TARGETS/__slot ] && list=`echo TARGETS/[0-9][0-9]*`;\
 	for i in $${list};							\
 	do									\
 		(read line < $$i;						\
-		name=`echo $$i | sed -e 's;TARGETS/[0-9][0-9];;'`;		\
+		name=`echo $$i | sed -e 's;TARGETS/[0-9][0-9];;' | sed -e 's;!@!;/;g'`;		\
 		echo "$$name	- $${line}";					\
 		);								\
 	done
