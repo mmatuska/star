@@ -8,6 +8,7 @@ include		$(SRCROOT)/$(RULESDIR)/rules.top
 INSDIR=		include
 TARGET=		avoffset.h
 TARGETC=	avoffset
+CPPOPTS +=	-DUSE_SCANSTACK
 CFILES=		avoffset.c getfp.c
 
 ###########################################################################

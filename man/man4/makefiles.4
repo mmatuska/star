@@ -1,4 +1,4 @@
-. \" @(#)makefiles.4	1.5 97/04/29 Copyr 1996 J. Schilling
+. \" @(#)makefiles.4	1.6 01/04/29 Copyr 1996 J. Schilling
 . \" User Manual page for makefile system
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -87,9 +87,14 @@ used to change .e.g LD_RUN_PATH in the executable.
 Makefiles is a set of rules that allows compiling of structured
 projects with small and uniformly structured makefiles.
 All rules are located in a central directory.
-Compiling the projects on different platforms can be done without
+Compiling the projects on different platforms can be done
+simultaneously without
 the need to modify any of the makefiles that are located
 in the projects directories.
+.PP
+Makefiles is a set of high level portability tools superior to
+.B autoconf
+and easier to use.
 .PP
 Three make programs are supported:
 .IR "Sunpro make" , 

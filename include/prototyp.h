@@ -1,4 +1,4 @@
-/* @(#)prototyp.h	1.8 00/11/08 Copyright 1995 J. Schilling */
+/* @(#)prototyp.h	1.9 01/05/31 Copyright 1995 J. Schilling */
 /*
  *	Definitions for dealing with ANSI / KR C-Compilers
  *
@@ -38,11 +38,13 @@
 #	endif
 #endif	/* PROTOTYPES */
 
-#if	!defined(PROTOTYPES) && defined(__cplusplus)
+#if	!defined(PROTOTYPES) && (defined(__cplusplus) || defined(_MSC_VER))
 	/*
 	 * C++ always supports prototypes.
 	 * Define PROTOTYPES so we are not forced to make
 	 * a separtate autoconf run for C++
+	 *
+	 * Microsoft C has prototypes but does not define __STDC__
 	 */
 #	define	PROTOTYPES
 #endif

@@ -1,4 +1,4 @@
-. \" @(#)makerules.4	1.2 97/02/14 Copyr 1996 J. Schilling
+. \" @(#)makerules.4	1.3 01/04/29 Copyr 1996 J. Schilling
 . \" System Manual page for makefile system
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -35,9 +35,14 @@ See chapter CURRENTLY SUPPORTED TARGET TYPES for possible values of
 Makerules is a set of rules that allows compiling of structured
 projects with small and uniformly structured makefiles.
 All rules are located in a central directory.
-Compiling the projects on different platforms can be done without
+Compiling the projects on different platforms can be done
+simultaneously without
 the need to modify any of the makefiles that are located
 in the projects directories.
+.PP
+Makerules is a set of high level portability tools superior to
+.B autoconf
+and easier to use.
 .PP
 Three make programs are currently supported:
 .IR "Sunpro make" , 

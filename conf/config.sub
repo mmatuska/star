@@ -460,6 +460,9 @@ case $basic_machine in
 		basic_machine=i860-intel
 		os=-osf
 		;;
+	parisc-unknown)
+		basic_machine=parisc-unknown
+		;;
 	pbd)
 		basic_machine=sparc-tti
 		;;

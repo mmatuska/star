@@ -1,7 +1,7 @@
-/* @(#)star.c	1.80 01/04/14 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling */
+/* %Z%%M%	%I% %E% Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star.c	1.80 01/04/14 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling";
+	"%Z%%M%	%I% %E% Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling
@@ -93,7 +93,7 @@ LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
-char	strvers[] = "1.3";
+char	strvers[] = "1.3.1";
 
 struct star_stats	xstats;
 

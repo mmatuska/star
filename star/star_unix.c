@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.27 01/04/07 Copyright 1985, 1995 J. Schilling */
+/* @(#)star_unix.c	1.28 01/04/30 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.27 01/04/07 Copyright 1985, 1995 J. Schilling";
+	"@(#)star_unix.c	1.28 01/04/30 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -352,6 +352,10 @@ rs_acctime(fd, info)
 		 int	fd;
 	register FINFO	*info;
 {
+#ifdef	_FIOSATIME
+	struct timeval	atv;
+#endif
+
 	if (is_symlink(info))
 		return (0);
 
@@ -359,9 +363,11 @@ rs_acctime(fd, info)
 	/*
 	 * On Solaris 2.x root may reset accesstime without changing ctime.
 	 */
-	if (uid == ROOT_UID)
-/*		return (ioctl(fdown(f), _FIOSATIME, &info->f_atime));*/
-		return (ioctl(fd, _FIOSATIME, &info->f_atime));
+	if (uid == ROOT_UID) {
+		atv.tv_sec = info->f_atime;
+		atv.tv_usec = info->f_ansec/1000;
+		return (ioctl(fd, _FIOSATIME, &atv));
+	}
 #endif
 	return (sutimes(info->f_name, info));
 }

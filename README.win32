@@ -1,4 +1,4 @@
-# @(#)README.win32	1.3 01/03/05 Copyright 2000 J. Schilling
+# @(#)README.win32	1.4 01/06/01 Copyright 2000 J. Schilling
 
 cdrecord-1.8a22 or later can be compiled on Win9X/NT4 using Cygnus' cygwin
 which is freely available from:
@@ -24,7 +24,7 @@ Then (from the bash command line window) run 'make' ...
 
 If you have problems with GNU make, get 'smake' from:
 
-	ftp://ftp.fokus.gmd.de/unix/smake/alpha/
+	ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/
 
 /*--------------------------------------------------------------------------*/
 A bash window is available from the START -> Programs -> Cygnus Solutions
