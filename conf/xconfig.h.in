@@ -1,4 +1,4 @@
-/* @(#)xconfig.h.in	1.58 02/11/22 Copyright 1998 J. Schilling */
+/* @(#)xconfig.h.in	1.60 03/02/01 Copyright 1998 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
  *
@@ -126,6 +126,7 @@
 /*
  * Library Functions
  */
+#undef HAVE_CRYPT		/* crypt() is present in libc or libcrypt */
 #undef HAVE_STRERROR		/* strerror() is present in libc */
 #undef HAVE_MEMMOVE		/* memmove() is present in libc */
 #undef HAVE_MADVISE		/* madvise() is present in libc */
@@ -264,6 +265,7 @@
 #undef HAVE_RCMD		/* rcmd() is present in libc/libsocket */
 #undef HAVE_SOCKET		/* socket() is present in libc/libsocket */
 #undef HAVE_SOCKETPAIR		/* socketpair() is present in libc/libsocket */
+#undef HAVE_GETSERVBYNAME	/* getservbyname() is present in libc/libsocket */
 #undef HAVE_INET_NTOA		/* inet_ntoa() is present in libc/libsocket */
 #undef HAVE_GETADDRINFO		/* getaddrinfo() is present in libc/libsocket */
 #undef HAVE_GETNAMEINFO		/* getnameinfo() is present in libc/libsocket */

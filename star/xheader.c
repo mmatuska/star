@@ -1,7 +1,7 @@
-/* @(#)xheader.c	1.12 02/05/17 Copyright 2001 J. Schilling */
+/* @(#)xheader.c	1.12.1 03/01/17 Copyright 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)xheader.c	1.12 02/05/17 Copyright 2001 J. Schilling";
+	"@(#)xheader.c	1.12.1 03/01/17 Copyright 2001 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -71,6 +71,7 @@ LOCAL	void	get_gname	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_path	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_lpath	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_size	__PR((FINFO *info, char *keyword, char *arg));
+LOCAL	void	get_realsize	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_major	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_minor	__PR((FINFO *info, char *keyword, char *arg));
 LOCAL	void	get_dev		__PR((FINFO *info, char *keyword, char *arg));
@@ -134,6 +135,7 @@ LOCAL xtab_t xtab[] = {
 			{ "SCHILY.nlink",	get_nlink,	0	},
 			{ "SCHILY.filetype",	get_filetype,	0	},
 			{ "SCHILY.tarfiletype",	get_filetype,	0	},
+			{ "SCHILY.realsize",	get_realsize,	0	},
 
 			{ "SUN.devmajor",	get_major,	0	},
 			{ "SUN.devminor",	get_minor,	0	},
@@ -232,7 +234,10 @@ extern	BOOL	dodump;
 		gen_text("linkpath", info->f_lname, FALSE);
 
 	if (info->f_xflags & XF_SIZE)
-		gen_number("size", (Llong)info->f_size);
+		gen_number("size", (Llong)info->f_rsize);
+
+	if (info->f_xflags & XF_REALSIZE)
+		gen_number("SCHILY.realsize", (Llong)info->f_size);
 
 	if (H_TYPE(hdrtype) == H_SUNTAR) {
 		if (info->f_xflags & XF_DEVMAJOR)
@@ -731,6 +736,33 @@ get_size(info, keyword, arg)
 
 	if (get_number(keyword, arg, &ll)) {
 		info->f_xflags |= XF_SIZE;
+		info->f_rsize = (off_t)ll;
+		/*
+		 * If real size is not yet known, copy over the tape size to
+		 * avoid problems. Ir real size is found later, it will
+		 * overwrite unconditional.
+		 */ 
+		if ((info->f_xflags & XF_REALSIZE) == 0) {
+			info->f_xflags |= XF_REALSIZE;
+			info->f_size = (off_t)ll;
+		}
+	}
+}
+
+/*
+ * get real file size (usually when size is > 8 GB)
+ */
+/* ARGSUSED */
+LOCAL void
+get_realsize(info, keyword, arg)
+	FINFO	*info;
+	char	*keyword;
+	char	*arg;
+{
+	Llong	ll;
+
+	if (get_number(keyword, arg, &ll)) {
+		info->f_xflags |= XF_REALSIZE;
 		info->f_size = (off_t)ll;
 	}
 }

@@ -1,15 +1,15 @@
 /*#define	USE_REMOTE*/
 /*#define	USE_RCMD_RSH*/
 /*#define	NO_LIBSCHILY*/
-/* @(#)remote.c	1.50 02/11/24 Copyright 1990-2002 J. Schilling */
+/* @(#)remote.c	1.54 03/02/16 Copyright 1990-2003 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)remote.c	1.50 02/11/24 Copyright 1990-2002 J. Schilling";
+	"@(#)remote.c	1.54 03/02/16 Copyright 1990-2003 J. Schilling";
 #endif
 /*
  *	Remote tape client interface code
  *
- *	Copyright (c) 1990-2002 J. Schilling
+ *	Copyright (c) 1990-2003 J. Schilling
  *
  *	TOTO:
  *		Signal handler for SIGPIPE
@@ -33,31 +33,48 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 
-#if !defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)
-#undef	USE_REMOTE				/* There is no rcmd() */
-#endif
-#if !defined(HAVE_SOCKETPAIR) || !defined(HAVE_DUP2)
+/*#undef	USE_REMOTE*/
+/*#undef	USE_RCMD_RSH*/
+
+#if !defined(HAVE_FORK) || !defined(HAVE_SOCKETPAIR) || !defined(HAVE_DUP2)
 #undef	USE_RCMD_RSH
 #endif
+/*
+ * We may work without getservbyname() if we restructure the code not to
+ * use the port number if we only use _rcmdrsh().
+ */
+#if !defined(HAVE_GETSERVBYNAME)
+#undef	USE_REMOTE				/* Cannot get rcmd() port # */
+#endif
+#if (!defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)) && !defined(USE_RCMD_RSH)
+#undef	USE_REMOTE				/* There is no rcmd() */
+#endif
 
-#ifdef	USE_REMOTE
 #include <stdio.h>
 #include <stdxlib.h>
 #include <unixstd.h>
 #include <fctldefs.h>
+#ifdef	HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
+#endif
+#ifdef	HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
 #include <errno.h>
 #include <signal.h>
+#ifdef	HAVE_NETDB_H
 #include <netdb.h>
+#endif
+#ifdef	HAVE_PWD_H
 #include <pwd.h>
-#include <ctype.h>
+#endif
 #include <standard.h>
 #include <strdefs.h>
 #include <utypes.h>
 #include <mtiodefs.h>
 #include <librmt.h>
 #include <schily.h>
+#include <ctype.h>
 
 #if	defined(SIGDEFER) || defined(SVR4)
 #define	signal	sigset
@@ -188,12 +205,15 @@ LOCAL	BOOL	rmt_debug;
 LOCAL	int	(*rmt_errmsgno)		__PR((int, const char *, ...))	= errmsgno;
 LOCAL	void	(*rmt_exit)		__PR((int))			= exit;
 
-LOCAL	void	rmtabrt			__PR((int sig));
 EXPORT	void	rmtinit			__PR((int (*errmsgn)(int, const char *, ...),
 						void (*eexit)(int)));
 EXPORT	int	rmtdebug		__PR((int dlevel));
+EXPORT	char	*rmtfilename		__PR((char *name));
 EXPORT	char	*rmthostname		__PR((char *hostname, int hnsize, char *rmtspec));
 EXPORT	int	rmtgetconn		__PR((char* host, int trsize, int excode));
+
+#ifdef	USE_REMOTE
+LOCAL	void	rmtabrt			__PR((int sig));
 LOCAL	BOOL	okuser			__PR((char *name));
 LOCAL	void	rmtoflags		__PR((int fmode, char *cmode));
 EXPORT	int	rmtopen			__PR((int fd, char* fname, int fmode));
@@ -209,8 +229,6 @@ LOCAL	int	rmt_v1_status		__PR((int fd, struct rmtget* mtp));
 LOCAL	int	rmt_v0_status		__PR((int fd, struct mtget* mtp));
 EXPORT	int	rmxtstatus		__PR((int fd, struct rmtget* mtp));
 EXPORT	int	rmtstatus		__PR((int fd, struct mtget* mtp));
-EXPORT	void	_rmtg2mtg		__PR((struct mtget *mtp, struct rmtget *rmtp));
-EXPORT	int	_mtg2rmtg		__PR((struct rmtget *rmtp, struct mtget *mtp));
 LOCAL	Llong	rmtcmd			__PR((int fd, char* name, char* cbuf));
 LOCAL	void	rmtsendcmd		__PR((int fd, char* name, char* cbuf));
 LOCAL	int	rmtfillrdbuf		__PR((int fd));
@@ -219,7 +237,8 @@ LOCAL	int	rmtreadbuf		__PR((int fd, char *buf, int count));
 LOCAL	int	rmtgetline		__PR((int fd, char* line, int count));
 LOCAL	Llong	rmtgetstatus		__PR((int fd, char* name));
 LOCAL	int	rmtaborted		__PR((int fd));
-EXPORT	char	*rmtfilename		__PR((char *name));
+EXPORT	void	_rmtg2mtg		__PR((struct mtget *mtp, struct rmtget *rmtp));
+EXPORT	int	_mtg2rmtg		__PR((struct rmtget *rmtp, struct mtget *mtp));
 #ifdef	USE_RCMD_RSH
 LOCAL	int	_rcmdrsh		__PR((char **ahost, int inport,
 						const char *locuser,
@@ -228,12 +247,7 @@ LOCAL	int	_rcmdrsh		__PR((char **ahost, int inport,
 						const char *rsh));
 #endif
 
-LOCAL void
-rmtabrt(sig)
-	int	sig;
-{
-	rmtaborted(-1);
-}
+#endif
 
 EXPORT void
 rmtinit(errmsgn, eexit)
@@ -260,6 +274,31 @@ rmtdebug(dlevel)
 }
 
 EXPORT char *
+rmtfilename(name)
+	char	*name;
+{
+	char	*ret;
+
+	if (name[0] == '/')
+		return (NULL);		/* Absolut pathname cannot be remote */
+	if (name[0] == '.') {
+		if (name[1] == '/' || (name[1] == '.' && name[2] == '/'))
+			return (NULL);	/* Relative pathname cannot be remote*/
+	}
+	if ((ret = strchr(name, ':')) != NULL) {
+		if (name[0] == ':') {
+			/*
+			 * This cannot be a remote filename as the host part
+			 * has zero length.
+			 */
+			return (NULL);
+		}
+		ret++;	/* Skip the colon. */
+	}
+	return (ret);
+}
+
+EXPORT char *
 rmthostname(hostname, hnsize, rmtspec)
 		 char	*hostname;
 	register int	hnsize;
@@ -283,6 +322,8 @@ rmthostname(hostname, hnsize, rmtspec)
 	return (hostname);
 }
 
+#ifdef	USE_REMOTE
+
 EXPORT int
 rmtgetconn(host, trsize, excode)
 	char	*host;		/* The host name to connect to		     */
@@ -294,9 +335,7 @@ rmtgetconn(host, trsize, excode)
 		char		*name = "root";
 		char		*p;
 		char		*rmt;
-#ifdef	USE_RCMD_RSH
 		char		*rsh;
-#endif
 		int		rmtsock;
 		char		*rmtpeer;
 		char		rmtuser[128];
@@ -346,17 +385,21 @@ rmtgetconn(host, trsize, excode)
 
 	if ((rmt = getenv("RMT")) == NULL)
 		rmt = "/etc/rmt";
-
-#ifdef	USE_RCMD_RSH
 	rsh = getenv("RSH");
 
+#ifdef	USE_RCMD_RSH
 	if (!privport_ok() || rsh != NULL)
 		rmtsock = _rcmdrsh(&rmtpeer, (unsigned short)sp->s_port,
 					pw->pw_name, name, rmt, rsh);
 	else
 #endif
+#ifdef	HAVE_RCMD
 		rmtsock = rcmd(&rmtpeer, (unsigned short)sp->s_port,
 					pw->pw_name, name, rmt, 0);
+#else
+		rmtsock = _rcmdrsh(&rmtpeer, (unsigned short)sp->s_port,
+					pw->pw_name, name, rmt, rsh);
+#endif
 
 	if (rmtsock < 0)
 		return (-1);
@@ -382,6 +425,13 @@ rmtgetconn(host, trsize, excode)
 #endif
 
 	return (rmtsock);
+}
+
+LOCAL void
+rmtabrt(sig)
+	int	sig;
+{
+	rmtaborted(-1);
 }
 
 /*
@@ -911,123 +961,6 @@ rmtstatus(fd, mtp)
 	return (ret);
 }
 
-EXPORT void
-_rmtg2mtg(mtp, rmtp)
-	struct  mtget	*mtp;
-	struct  rmtget	*rmtp;
-{
-#ifdef	HAVE_MTGET_TYPE
-	if (rmtp->mt_xflags & RMT_TYPE)
-		mtp->mt_type   = rmtp->mt_type;
-	else
-		mtp->mt_type   = 0;
-#endif
-#ifdef	HAVE_MTGET_DSREG
-	if (rmtp->mt_xflags & RMT_DSREG)
-		mtp->mt_dsreg  = rmtp->mt_dsreg;
-	else
-		mtp->mt_dsreg  = 0;
-#endif
-#ifdef	HAVE_MTGET_ERREG
-	if (rmtp->mt_xflags & RMT_ERREG)
-		mtp->mt_erreg  = rmtp->mt_erreg;
-	else
-		mtp->mt_erreg  = 0;
-#endif
-#ifdef	HAVE_MTGET_RESID
-	if (rmtp->mt_xflags & RMT_RESID)
-		mtp->mt_resid  = rmtp->mt_resid;
-	else
-		mtp->mt_resid  = 0;
-#endif
-#ifdef	HAVE_MTGET_FILENO
-	if (rmtp->mt_xflags & RMT_FILENO)
-		mtp->mt_fileno	= rmtp->mt_fileno;
-	else
-		mtp->mt_fileno	= -1;
-#endif
-#ifdef	HAVE_MTGET_BLKNO
-	if (rmtp->mt_xflags & RMT_BLKNO)
-		mtp->mt_blkno  = rmtp->mt_blkno;
-	else
-		mtp->mt_blkno	= -1;
-#endif
-#ifdef	HAVE_MTGET_FLAGS
-	if (rmtp->mt_xflags & RMT_FLAGS)
-		mtp->mt_flags	= rmtp->mt_flags;
-	else
-		mtp->mt_flags	= 0;
-#endif
-#ifdef	HAVE_MTGET_BF
-	if (rmtp->mt_xflags & RMT_BF)
-		mtp->mt_bf	= rmtp->mt_bf;
-	else
-		mtp->mt_bf	= 0;
-#endif
-}
-
-EXPORT int
-_mtg2rmtg(rmtp, mtp)
-	struct  rmtget	*rmtp;
-	struct  mtget	*mtp;
-{
-	rmtp->mt_xflags	= 0;
-
-#ifdef	HAVE_MTGET_TYPE
-	rmtp->mt_xflags	|= RMT_TYPE;
-	rmtp->mt_type	 = mtp->mt_type;
-#else
-	rmtp->mt_type	 = 0;
-#endif
-#ifdef	HAVE_MTGET_DSREG
-	rmtp->mt_xflags	|= RMT_DSREG;
-	rmtp->mt_dsreg	 = mtp->mt_dsreg;
-#else
-	rmtp->mt_dsreg	 = 0;
-#endif
-#ifdef	HAVE_MTGET_ERREG
-	rmtp->mt_xflags	|= RMT_ERREG;
-	rmtp->mt_erreg	 = mtp->mt_erreg;
-#else
-	rmtp->mt_erreg	 = 0;
-#endif
-#ifdef	HAVE_MTGET_RESID
-	rmtp->mt_xflags	|= RMT_RESID;
-	rmtp->mt_resid	 = mtp->mt_resid;
-#else
-	rmtp->mt_resid	 = 0;
-#endif
-#ifdef	HAVE_MTGET_FILENO
-	rmtp->mt_xflags	|= RMT_FILENO;
-	rmtp->mt_fileno	 = mtp->mt_fileno;
-#else
-	rmtp->mt_fileno	 = -1;
-#endif
-#ifdef	HAVE_MTGET_BLKNO
-	rmtp->mt_xflags	|= RMT_BLKNO;
-	rmtp->mt_blkno	 = mtp->mt_blkno;
-#else
-	rmtp->mt_blkno	 = -1;
-#endif
-#ifdef	HAVE_MTGET_FLAGS
-	rmtp->mt_xflags	|= RMT_FLAGS;
-	rmtp->mt_flags	 = mtp->mt_flags;
-#else
-	rmtp->mt_flags	 = 0;
-#endif
-#ifdef	HAVE_MTGET_BF
-	rmtp->mt_xflags |= RMT_BF;
-	rmtp->mt_bf	 = mtp->mt_bf;
-#else
-	rmtp->mt_bf	 = 0;
-#endif
-	if (rmtp->mt_xflags == 0)
-		return (-1);
-
-	rmtp->mt_xflags	|= RMT_COMPAT;
-	return (0);
-}
-
 LOCAL Llong
 rmtcmd(fd, name, cbuf)
 	int	fd;
@@ -1183,41 +1116,264 @@ rmtaborted(fd)
 	return (-1);
 }
 
+#else	/* USE_REMOTE */
+
+/* ARGSUSED */
+EXPORT int
+rmtgetconn(host, trsize, excode)
+	char	*host;		/* The host name to connect to		     */
+	int	trsize;		/* Max transfer size for SO_SNDBUF/SO_RCVBUF */
+	int	excode;		/* If != 0 use value to exit() in this func  */
+{
+	rmt_errmsgno(EX_BAD, "Remote tape support not present.\n");
+
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtopen(fd, fname, fmode)
+	int	fd;
+	char	*fname;
+	int	fmode;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtclose(fd)
+	int	fd;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtread(fd, buf, count)
+	int	fd;
+	char	*buf;
+	int	count;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtwrite(fd, buf, count)
+	int	fd;
+	char	*buf;
+	int	count;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT off_t
+rmtseek(fd, offset, whence)
+	int	fd;
+	off_t	offset;
+	int	whence;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtioctl(fd, cmd, count)
+	int	fd;
+	int	cmd;
+	int	count;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtxstatus(fd, mtp)
+	int		fd;
+	struct  rmtget	*mtp;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
+/* ARGSUSED */
+EXPORT int
+rmtstatus(fd, mtp)
+	int		fd;
+	struct  mtget	*mtp;
+{
+#ifdef	ENOSYS
+	seterrno(ENOSYS);
+#else
+	seterrno(EINVAL);
+#endif
+	return (-1);
+}
+
 #endif	/* USE_REMOTE */
 
-#ifndef	USE_REMOTE
-#include <standard.h>
-#include <strdefs.h>
 
-EXPORT	char	*rmtfilename		__PR((char *name));
-#endif
 
-EXPORT char *
-rmtfilename(name)
-	char	*name;
+EXPORT void
+_rmtg2mtg(mtp, rmtp)
+	struct  mtget	*mtp;
+	struct  rmtget	*rmtp;
 {
-	char	*ret;
+#ifdef	HAVE_MTGET_TYPE
+	if (rmtp->mt_xflags & RMT_TYPE)
+		mtp->mt_type   = rmtp->mt_type;
+	else
+		mtp->mt_type   = 0;
+#endif
+#ifdef	HAVE_MTGET_DSREG
+	if (rmtp->mt_xflags & RMT_DSREG)
+		mtp->mt_dsreg  = rmtp->mt_dsreg;
+	else
+		mtp->mt_dsreg  = 0;
+#endif
+#ifdef	HAVE_MTGET_ERREG
+	if (rmtp->mt_xflags & RMT_ERREG)
+		mtp->mt_erreg  = rmtp->mt_erreg;
+	else
+		mtp->mt_erreg  = 0;
+#endif
+#ifdef	HAVE_MTGET_RESID
+	if (rmtp->mt_xflags & RMT_RESID)
+		mtp->mt_resid  = rmtp->mt_resid;
+	else
+		mtp->mt_resid  = 0;
+#endif
+#ifdef	HAVE_MTGET_FILENO
+	if (rmtp->mt_xflags & RMT_FILENO)
+		mtp->mt_fileno	= rmtp->mt_fileno;
+	else
+		mtp->mt_fileno	= -1;
+#endif
+#ifdef	HAVE_MTGET_BLKNO
+	if (rmtp->mt_xflags & RMT_BLKNO)
+		mtp->mt_blkno  = rmtp->mt_blkno;
+	else
+		mtp->mt_blkno	= -1;
+#endif
+#ifdef	HAVE_MTGET_FLAGS
+	if (rmtp->mt_xflags & RMT_FLAGS)
+		mtp->mt_flags	= rmtp->mt_flags;
+	else
+		mtp->mt_flags	= 0;
+#endif
+#ifdef	HAVE_MTGET_BF
+	if (rmtp->mt_xflags & RMT_BF)
+		mtp->mt_bf	= rmtp->mt_bf;
+	else
+		mtp->mt_bf	= 0;
+#endif
+}
 
-	if (name[0] == '/')
-		return (NULL);		/* Absolut pathname cannot be remote */
-	if (name[0] == '.') {
-		if (name[1] == '/' || (name[1] == '.' && name[2] == '/'))
-			return (NULL);	/* Relative pathname cannot be remote*/
-	}
-	if ((ret = strchr(name, ':')) != NULL) {
-		if (name[0] == ':') {
-			/*
-			 * This cannot be a remote filename as the host part
-			 * has zero length.
-			 */
-			return (NULL);
-		}
-		ret++;	/* Skip the colon. */
-	}
-	return (ret);
+EXPORT int
+_mtg2rmtg(rmtp, mtp)
+	struct  rmtget	*rmtp;
+	struct  mtget	*mtp;
+{
+	rmtp->mt_xflags	= 0;
+
+#ifdef	HAVE_MTGET_TYPE
+	rmtp->mt_xflags	|= RMT_TYPE;
+	rmtp->mt_type	 = mtp->mt_type;
+#else
+	rmtp->mt_type	 = 0;
+#endif
+#ifdef	HAVE_MTGET_DSREG
+	rmtp->mt_xflags	|= RMT_DSREG;
+	rmtp->mt_dsreg	 = mtp->mt_dsreg;
+#else
+	rmtp->mt_dsreg	 = 0;
+#endif
+#ifdef	HAVE_MTGET_ERREG
+	rmtp->mt_xflags	|= RMT_ERREG;
+	rmtp->mt_erreg	 = mtp->mt_erreg;
+#else
+	rmtp->mt_erreg	 = 0;
+#endif
+#ifdef	HAVE_MTGET_RESID
+	rmtp->mt_xflags	|= RMT_RESID;
+	rmtp->mt_resid	 = mtp->mt_resid;
+#else
+	rmtp->mt_resid	 = 0;
+#endif
+#ifdef	HAVE_MTGET_FILENO
+	rmtp->mt_xflags	|= RMT_FILENO;
+	rmtp->mt_fileno	 = mtp->mt_fileno;
+#else
+	rmtp->mt_fileno	 = -1;
+#endif
+#ifdef	HAVE_MTGET_BLKNO
+	rmtp->mt_xflags	|= RMT_BLKNO;
+	rmtp->mt_blkno	 = mtp->mt_blkno;
+#else
+	rmtp->mt_blkno	 = -1;
+#endif
+#ifdef	HAVE_MTGET_FLAGS
+	rmtp->mt_xflags	|= RMT_FLAGS;
+	rmtp->mt_flags	 = mtp->mt_flags;
+#else
+	rmtp->mt_flags	 = 0;
+#endif
+#ifdef	HAVE_MTGET_BF
+	rmtp->mt_xflags |= RMT_BF;
+	rmtp->mt_bf	 = mtp->mt_bf;
+#else
+	rmtp->mt_bf	 = 0;
+#endif
+	if (rmtp->mt_xflags == 0)
+		return (-1);
+
+	rmtp->mt_xflags	|= RMT_COMPAT;
+	return (0);
 }
 
 /*--------------------------------------------------------------------------*/
+#ifdef	USE_REMOTE
 #ifdef	USE_RCMD_RSH
 /*
  * If we make a separate file for libschily, we would need these include files:
@@ -1280,6 +1436,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 
 			rmt_errmsgno(geterrno(), "dup2 failed.\n");
 			_exit(EX_BAD);
+			/* NOTREACHED */
 		}
 		(void) close(pp[1]);		/* We don't need this anymore*/
 
@@ -1291,6 +1448,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 			rmt_errmsgno(geterrno(), "setuid(%lld) failed.\n",
 							(Llong)pw->pw_uid);
 			_exit(EX_BAD);
+			/* NOTREACHED */
 		}
 
 		/*
@@ -1298,11 +1456,15 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 		 * and avoid the need to wait(2).
 		 */
 		if ((xpid = fork()) == -1) {
-			perror("rcmdsh: fork to lose parent failed");
+			rmt_errmsgno(geterrno(),
+				"rcmdsh: fork to lose parent failed.\n");
 			_exit(EX_BAD);
+			/* NOTREACHED */
 		}
-		if (xpid > 0)
+		if (xpid > 0) {
 			_exit(0);
+			/* NOTREACHED */
+		}
 
 		/*
 		 * Always use remote shell programm (even for localhost).
@@ -1344,6 +1506,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 
 		rmt_errmsgno(geterrno(), "execlp '%s' failed.\n", rsh);
 		_exit(EX_BAD);
+		/* NOTREACHED */
 	} else {
 		(void) close(pp[1]);
 		/*
@@ -1353,5 +1516,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 		wait(0);
 		return (pp[0]);
 	}
+	return (-1);	/* keep gcc happy */
 }
 #endif	/* USE_RCMD_RSH */
+#endif	/* USE_REMOTE */

@@ -1,4 +1,4 @@
-/* @(#)star.h	1.63 02/06/09 Copyright 1985, 1995-2001 J. Schilling */
+/* @(#)star.h	1.64 03/01/26 Copyright 1985, 1995-2001 J. Schilling */
 /*
  *	Copyright (c) 1985, 1995-2001 J. Schilling
  */
@@ -13,9 +13,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #ifndef	_STAR_H
@@ -544,6 +544,7 @@ typedef	struct	{
 #define	XF_GNAME	0x0080	/* Langer Benutzergruppenname	*/
 #define	XF_PATH		0x0100	/* Langer Name			*/
 #define	XF_LINKPATH	0x0200	/* Langer Link Name		*/
+				/* Dateigröße auf Band (f_rsize)*/
 #define	XF_SIZE		0x0400	/* Dateigröße wenn > 8 GB	*/
 #define	XF_CHARSET	0x0800	/* Zeichensatz für Dateiinhalte	*/
 
@@ -554,6 +555,8 @@ typedef	struct	{
 #define XF_ACL_DEFAULT	0x8000	/* POSIX Default ACL		*/
 
 #define XF_FFLAGS	0x10000	/* File flags			*/
+				/* Echte Dateigröße (f_size)	*/
+#define	XF_REALSIZE	0x20000	/* Dateigröße wenn > 8 GB	*/
 
 #define	XF_NOTIME    0x10000000	/* Keine extended Zeiten	*/
 

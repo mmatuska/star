@@ -1,7 +1,7 @@
-/* @(#)acl_unix.c	1.10 02/11/14 Copyright 2001 J. Schilling */
+/* @(#)acl_unix.c	1.12 03/01/21 Copyright 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)acl_unix.c	1.10 02/11/14 Copyright 2001 J. Schilling";
+	"@(#)acl_unix.c	1.12 03/01/21 Copyright 2001 J. Schilling";
 #endif
 /*
  *	ACL get and set routines for unix like operating systems.
@@ -28,9 +28,9 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <mconfig.h>
@@ -237,7 +237,7 @@ acl_add_ids(infotext, acltext)
 	 */
 	infotext[PATH_MAX] = '\0';
 
-	token = strtok(acltext, ", \t\n\r");
+	token = strtok(acltext, ",\n\r");
 	while (token) {
 		strncpy(infotext, token, size);
 		infotext += strlen(token);
@@ -246,10 +246,10 @@ acl_add_ids(infotext, acltext)
 			size = 0;
 
 		if (!strncmp(token, "user:", 5) &&
-		    !strchr(":, \t\n\r", token[5])) {
+		    !strchr(":,\n\r", token[5])) {
 			char *username = &token[5], *c = username+1;
 
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,\n\r", *c))
 				c++;
 			*c = '\0';
 			/* check for all-numeric user name */
@@ -263,10 +263,10 @@ acl_add_ids(infotext, acltext)
 				size -= len;
 			}
 		} else if (!strncmp(token, "group:", 6) &&
-		           !strchr(":, \t\n\r", token[6])) {
+		           !strchr(":,\n\r", token[6])) {
 			char *groupname = &token[6], *c = groupname+1;
 
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,\n\r", *c))
 				c++;
 			*c = '\0';
 			/* check for all-numeric group name */
@@ -285,7 +285,7 @@ acl_add_ids(infotext, acltext)
 			size--;
 		}
 		
-		token = strtok(NULL, ", \t\n\r");
+		token = strtok(NULL, ",\n\r");
 	}
 	if (size >= 0) {
 		*(--infotext) = '\0';
@@ -736,7 +736,7 @@ base_acl(mode)
  * If we are in -numeric mode, we replace the user and groups names by the
  * user and group numbers from our internal format.
  *
- * If we are non non numeric mode, we check whether a user name or group name
+ * If we are in non numeric mode, we check whether a user name or group name
  * is present on our current system. It the user/group name is known, then we
  * remove the numeric value from out internal format. If the user/group name
  * is not known, then we replace the name by the numeric value.
@@ -747,7 +747,7 @@ acl_check_ids(acltext, infotext)
 	char	*infotext;
 {
 	char	entry_buffer[PATH_MAX];
-	char	*token = strtok(infotext, ", \t\n\r");
+	char	*token = strtok(infotext, ",");
 
 	if (!token)
 		return;
@@ -755,28 +755,40 @@ acl_check_ids(acltext, infotext)
 	while (token) {
 
 		if (!strncmp(token, "user:", 5) &&
-		    !strchr(":, \t\n\r", token[5])) {
+		    !strchr(":,", token[5])) {
 			char *username = &token[5], *c = username+1;
 			char *perms, *auid;
 			Ulong dummy;
 			/* uidname does not check for NULL! */
 
+			/* check for damaged user names with spaces */
+			if (strchr(username, ':') == NULL) {
+				/* Looks like a damaged user name that had
+				   spaces in it, like "Joe,User". Repair. */
+				char *unexpected_sep = strchr(username, '\0');
+
+				if (strtok(NULL, ",")) {
+					*unexpected_sep = ' ';
+					continue;
+				}
+			}
+
 			/* user name */
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
 
 			/* permissions */
 			perms = c;
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
 
 			/* identifier */
 			auid = c;
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
@@ -785,7 +797,7 @@ acl_check_ids(acltext, infotext)
 			 * XXX We use strlen(username)+1 to tell uidname not
 			 * XXX to stop comparing before the end of the
 			 * XXX username has been reached. Otherwise "joe" and
-			 * XXX "joeuser" would be compared as identical.
+			 * XXX "joeuser" would be recognized as identical.
 			 */
 			if (*auid && (numeric ||
 			    !uidname(username, strlen(username)+1, &dummy)))
@@ -795,28 +807,40 @@ acl_check_ids(acltext, infotext)
 			token = entry_buffer;
 
 		} else if (!strncmp(token, "group:", 6) &&
-		    !strchr(":, \t\n\r", token[6])) {
+		    !strchr(":,", token[6])) {
 			char *groupname = &token[6], *c = groupname+1;
 			char *perms, *agid;
 			Ulong dummy;
 			/* gidname does not check for NULL! */
 
+			/* check for damaged group names with spaces */
+			if (strchr(groupname, ':') == NULL) {
+				/* Looks like a damaged group name that had
+				   spaces in it, like "Domain,Users". Repair. */
+				char *unexpected_sep = strchr(groupname, '\0');
+
+				if (strtok(NULL, ",")) {
+					*unexpected_sep = ' ';
+					continue;
+				}
+			}
+
 			/* group name */
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
 
 			/* permissions */
 			perms = c;
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
 
 			/* identifier */
 			agid = c;
-			while (!strchr(":, \t\n\r", *c))
+			while (!strchr(":,", *c))
 				c++;
 			if (*c)
 				*c++ = '\0';
@@ -845,7 +869,7 @@ acl_check_ids(acltext, infotext)
 		*acltext++ = ',';
 
 	skip_malformed_entry:
-		token = strtok(NULL, ", \t\n\r");
+		token = strtok(NULL, ",");
 	}
 	*(--acltext) = '\0';
 }

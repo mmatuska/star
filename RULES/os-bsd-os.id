@@ -1,4 +1,4 @@
-#ident "@(#)os-bsd-os.id	1.1 98/09/27 "
+#ident "@(#)os-bsd-os.id	1.2 03/01/15 "
 ###########################################################################
 # Written 1998 by J. Schilling
 ###########################################################################
@@ -20,5 +20,6 @@
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 ###########################################################################
-O_ARCH=		bsd-os
+_O_ARCH=	$(OSREL:3.%=bsd-os3)
+O_ARCH=		$(_O_ARCH:4.%=bsd-os)
 -O_ARCH=	-$(O_ARCH)

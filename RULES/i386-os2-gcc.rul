@@ -1,4 +1,4 @@
-#ident "@(#)i386-os2-gcc.rul	1.5 02/10/15 "
+#ident "@(#)i386-os2-gcc.rul	1.7 03/01/29 "
 ###########################################################################
 # First version written 1999 by C. Wohlgemuth 
 ###########################################################################
@@ -26,7 +26,11 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
 CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(GCCOPTOPT) $(COPTX)
 
-OSDEFS=		-D__OS2 -DNO_FLOATINGPOINT
+# XXX strtod.c now does floating point conversion on OS without ?cvt().
+# XXX For this reason, -DNO_FLOATINGPOINT -DUSE_FLOATINGARGS has been
+# XXX removed and printing floating numbers will work on any OS.
+#
+OSDEFS=		-D__OS2
 
 CPPOPTS=	 -I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 
@@ -71,8 +75,7 @@ FLOAT_OPTIONS=
 CC=		@echo "	==> COMPILING \"$@\""; gcc
 LDCC=		@echo "	==> LINKING \"$@\""; gcc -Zexe -Zcrtdll
 DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; gcc
-RANLIB=
-#		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; true
+RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; true
 
 
 ARFLAGS=	cr

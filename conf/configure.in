@@ -1,4 +1,4 @@
-dnl @(#)configure.in	1.58 02/11/23 Copyright 1998 J. Schilling
+dnl @(#)configure.in	1.61 03/02/01 Copyright 1998 J. Schilling
 dnl Process this file with autoconf to produce a configure script.
 AC_REVISION($Revision$)dnl
 
@@ -213,7 +213,7 @@ LIBS="$LIBS $lib_socket"
 AC_CHECK_LIB(nsl, inet_ntoa, lib_nsl="-lnsl")
 LIBS="$LIBS $lib_nsl"
 AC_CHECK_FUNCS(rcmd socket socketpair)
-AC_CHECK_FUNCS(inet_ntoa)
+AC_CHECK_FUNCS(getservbyname inet_ntoa)
 AC_CHECK_FUNCS(getaddrinfo getnameinfo)
 LIBS="$ac_save_LIBS"
 
@@ -238,6 +238,11 @@ dnl AC_CHECK_LIB(crypt, crypt, lib_crypt="-lcrypt")
 
 AC_CHECK_LIB(c, crypt, lib_crypt="",
   [AC_CHECK_LIB(crypt, crypt, lib_crypt="-lcrypt")])
+
+ac_save_LIBS="$LIBS"
+LIBS="$LIBS $lib_crypt"
+AC_CHECK_FUNCS(crypt)
+LIBS="$ac_save_LIBS"
 
 if test $ac_cv_header_camlib_h = yes; then
   scsi_lib=-lcam

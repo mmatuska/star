@@ -3,7 +3,7 @@ echo 'configure is no longer used - just type "make", supported make programs ar
 echo ''
 echo 'smake	-	The Schily smake program'
 echo '			This is the preferred make program, the source can be'
-echo '			found on ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/'
+echo '			found on ftp://ftp.berlios.de/pub/smake/alpha/'
 echo ''
 echo '		Smake is the only make program with automake features, it is'
 echo '		the only program that works on unknown platforms.'
@@ -21,7 +21,7 @@ echo 'Other make programs will not work, for more information read README.compil
 echo ''
 echo 'If you have problems and if you are in doubt, try to use smake'
 echo '	Always compile the latest version that can be found on:'
-echo '		ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/'
+echo '		ftp://ftp.berlios.de/pub/smake/alpha/'
 echo ''
 #
 # Make automated procedures that believe all programs still use the outdated GNU

@@ -1,7 +1,7 @@
-/* @(#)getargs.c	2.29 00/12/30 Copyright 1985, 1988, 1995 J. Schilling */
+/* @(#)getargs.c	2.30 02/12/24 Copyright 1985, 1988, 1994-2002 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)getargs.c	2.29 00/12/30 Copyright 1985, 1988, 1995 J. Schilling";
+	"@(#)getargs.c	2.30 02/12/24 Copyright 1985, 1988, 1994-2002 J. Schilling";
 #endif
 #define	NEW
 /*
@@ -30,19 +30,19 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 /* LINTLIBRARY */
 #include <mconfig.h>
 #include <standard.h>
 #include <utypes.h>
 #include <getargs.h>
-#include <ctype.h>
 #include <vadefs.h>
 #include <strdefs.h>
 #include <schily.h>
+#include <ctype.h>
 
 #define	NOARGS		  0	/* No more args			*/
 #define	NOTAFLAG	  1	/* Not a flag type argument	*/

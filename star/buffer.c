@@ -1,7 +1,7 @@
-/* @(#)buffer.c	1.82 02/11/11 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)buffer.c	1.83 03/02/02 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.82 02/11/11 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)buffer.c	1.83 03/02/02 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
@@ -19,14 +19,24 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <mconfig.h>
 
-#if !defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)
+/*
+ * XXX Until we find a better way, the next definitions must be in sync
+ * XXX with the definitions in librmt/remote.c
+ */
+#if !defined(HAVE_FORK) || !defined(HAVE_SOCKETPAIR) || !defined(HAVE_DUP2)
+#undef	USE_RCMD_RSH
+#endif
+#if !defined(HAVE_GETSERVBYNAME)
+#undef	USE_REMOTE				/* Cannot get rcmd() port # */
+#endif
+#if (!defined(HAVE_NETDB_H) || !defined(HAVE_RCMD)) && !defined(USE_RCMD_RSH)
 #undef	USE_REMOTE				/* There is no rcmd() */
 #endif
 

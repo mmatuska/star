@@ -1,5 +1,5 @@
 
-/* @(#)starsubs.h	1.27 02/08/08 Copyright 1996 J. Schilling */
+/* @(#)starsubs.h	1.28 03/01/26 Copyright 1996 J. Schilling */
 /*
  *	Prototypes for star subroutines
  *
@@ -16,9 +16,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <ccomdefs.h>
@@ -171,6 +171,7 @@ extern	int	tcb_to_info	__PR((register TCB * ptb, register FINFO * info));
 extern	BOOL	ia_change	__PR((TCB * ptb, FINFO * info));
 extern	void	stolli		__PR((register char* s, Ullong * ull));
 extern	void	llitos		__PR((char* s, Ullong ull, int fieldw));
+extern	void	dump_info	__PR((FINFO *info));
 #endif
 
 /*

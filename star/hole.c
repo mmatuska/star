@@ -1,8 +1,8 @@
 /*#define	DEBUG*/
-/* @(#)hole.c	1.29 02/05/11 Copyright 1990 J. Schilling */
+/* @(#)hole.c	1.30 03/01/26 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)hole.c	1.29 02/05/11 Copyright 1990 J. Schilling";
+	"@(#)hole.c	1.30 03/01/26 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
@@ -20,9 +20,9 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <mconfig.h>
@@ -765,7 +765,9 @@ put_sp_list(info, sparse, nsparse)
 	info->f_rxftype = info->f_xftype = XT_SPARSE;
 	if (info->f_flags & F_SPLIT_NAME && props.pr_nflags & PR_PREFIX_REUSED)
 		tcb_undo_split(ptb, info);
-	info_to_tcb(info, ptb);
+
+	info->f_xflags &= ~XF_SIZE;	/* Condensed file is smaller	*/
+	info_to_tcb(info, ptb);		/* Re-Compute anything		*/
 
 	if (H_TYPE(hdrtype) == H_GNUTAR)
 		p = (char *)ptb->gnu_in_dbuf.t_sp;

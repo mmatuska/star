@@ -1,4 +1,4 @@
-#ident "@(#)i386-bsd-os-cc.rul	1.4 02/10/15 "
+#ident "@(#)i386-bsd-os-cc.rul	1.5 03/01/15 "
 ###########################################################################
 # Written 1998 by J. Schilling
 ###########################################################################
@@ -57,10 +57,8 @@ LDOPTS=		$(LIBS_PATH) $(LDPATH)
 FLOAT_OPTIONS=	
 
 CC=		@echo "	==> COMPILING \"$@\""; gcc
-#		shlicc2 is not present oln older or newer systems
-#LDCC=		@echo "	==> LINKING \"$@\""; shlicc2
-LDCC=		@echo "	==> LINKING \"$@\""; shlicc
-#DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; gcc
+LDCC=		@echo "	==> LINKING \"$@\""; gcc
+DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; gcc
 RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; ranlib
 ARFLAGS=	cr
 LORDER=		lorder

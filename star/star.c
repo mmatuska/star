@@ -17,9 +17,9 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <mconfig.h>
@@ -99,7 +99,7 @@ LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
-char	strvers[] = "1.4.2";
+char	strvers[] = "1.4.3";
 
 struct star_stats	xstats;
 
@@ -958,7 +958,7 @@ gargs(ac, av)
 	if (nflag) {
 		xflag = TRUE;
 		interactive = TRUE;
-		if (verbose == 0)
+		if (verbose == 0 && !tpath)
 			verbose = 1;
 	}
 	if (to_stdout) {
@@ -1652,6 +1652,9 @@ const	char	*p;
 	if (ac <= 1)
 		return;
 
+	/*
+	 * Only the first arg is converted from the old to the new syntay.
+	 */
 	if (av[1][0] == '-')			/* Do not convert new syntax */
 		return;
 
@@ -1661,9 +1664,9 @@ const	char	*p;
 	nac = ac + strlen(av[1]);
 	nav = __malloc(nac-- * sizeof(char *),	/* keep space for NULL ptr */
 				"compat argv");
-	oa = av;
-	na = nav;
-	*na++ = *oa++;
+	oa = av;				/* remember old arg pointer */
+	na = nav;				/* set up new arg pointer */
+	*na++ = *oa++;				/* copy over av[0] */
 	oa++;					/* Skip over av[1] */
 
 	nopt[0] = '-';
@@ -1677,6 +1680,11 @@ const	char	*p;
 		nopt[1] = c;
 		*na++ = __savestr(nopt);
 		if (c == 'f' || c == 'b' || c == 'X') {
+			if ((av + ac) <= oa) {
+				comerrno(EX_BAD,
+					"Missing arg for '%s' option.\n",
+					nopt);
+			}
 			*na++ = *oa++;
 			/*
 			 * The old syntax has a high risk of corrupting

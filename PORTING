@@ -2,7 +2,7 @@ Porting FAQ for SING (Schily Is Not Gnu) utilities.
 
 -	The base for porting is the makefile system.
 	Always look into:
-		ftp://ftp.fokus.gmd.de/pub/unix/makefiles
+		ftp://ftp.berlios.de/pub/makefiles
 	for a version that might be newer than the one used
 	inside the program that should be ported.
 
@@ -28,9 +28,9 @@ Porting FAQ for SING (Schily Is Not Gnu) utilities.
 
 	The smake source can be found on:
 
-		ftp://fokus.gmd.de/pub/unix/smake/
+		ftp://ftp.berlios.de/pub/smake/
 	or
-		ftp://fokus.gmd.de/pub/unix/smake/alpha
+		ftp://ftp.berlios.de/pub/smake/alpha
 
 	for the most recent version.
 
@@ -122,7 +122,7 @@ II)	Implementing a SCSI Transport Layer for your architecture:
 	More hints for writing the needed SCSI low level transport functions
 	is in:
 
-		ftp://fokus.gmd.de/pub/unix/cdrecord/README.scsi-IF
+		ftp://ftp.berlios.de/pub/cdrecord/README.scsi-IF
 
 4)	Test your ported program.
 
@@ -133,7 +133,7 @@ II)	Implementing a SCSI Transport Layer for your architecture:
 
 Joerg Schilling
 
-schilling@fokus.gmd.de
+schilling@fokus.fhg.de
 joerg@schily.isdn.cs.tu-berlin.de
 js@cs.tu-berlin.de
 

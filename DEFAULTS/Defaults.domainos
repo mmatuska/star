@@ -12,8 +12,8 @@ DEFCCOM=	cc
 #DEFCCOM=	gcc
 ###########################################################################
 #
-# If the next line is commented out, compilattion is done with max warn level
-# If the next line is uncommented, compilattion is done with minimal warnings
+# If the next line is commented out, compilation is done with max warn level
+# If the next line is uncommented, compilation is done with minimal warnings
 #
 ###########################################################################
 CWARNOPTS=	-W0,-info,0

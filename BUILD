@@ -22,7 +22,7 @@ Short overview for those who don't read manuals:
 
 	My "smake" source is at:
 
-	ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/
+	ftp://ftp.berlios.de/pub/smake/alpha/
 
 	It is easy to compile and doesn't need a working make program
 	on your machine. If you don't have a working "make" program on the
@@ -229,7 +229,7 @@ Getting more information on the make file system:
 
 	For further information read
 
-		ftp://ftp.fokus.gmd.de/pub/unix/makefiles/PortableSoftware.ps.gz
+		ftp://ftp.berlios.de/pub/makefiles/PortableSoftware.ps.gz
 
 
 Hints for compilation:
@@ -275,7 +275,7 @@ Hints for compilation:
 	If you like to use 'smake', please always compile it from source.
 	The packages are located on:
 
-		ftp://ftp.fokus.gmd.de/pub/unix/smake/alpha/
+		ftp://ftp.berlios.de/pub/smake/alpha/
 
 	Smake has a -D flag to see the actual makefile source used
 	and a -d flag that gives easy to read debugging info. Use smake -xM
@@ -310,7 +310,7 @@ Compiling the project to allow debugging with dbx/gdb:
 	If you want to see an example, please have a look at the "star"
 	source. It may be found on:
 
-		ftp://ftp.fokus.gmd.de/pub/unix/star
+		ftp://ftp.berlios.de/pub/star
 
 	Have a look at the manual page, it is included in the distribution.
 	Install the manual page with 
@@ -330,6 +330,6 @@ D-13353 Berlin
 Germany
 
 Email: 	joerg@schily.isdn.cs.tu-berlin.de, js@cs.tu-berlin.de
-	schilling@fokus.gmd.de
+	schilling@fokus.fhg.de
 
 Please mail bugs and suggestions to me.

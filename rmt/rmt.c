@@ -1,7 +1,7 @@
-/* @(#)rmt.c	1.19 02/11/24 Copyright 1994,2000-2002 J. Schilling */
+/* @(#)rmt.c	1.22 03/02/02 Copyright 1994,2000-2002 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)rmt.c	1.19 02/11/24 Copyright 1994,2000-2002 J. Schilling";
+	"@(#)rmt.c	1.22 03/02/02 Copyright 1994,2000-2002 J. Schilling";
 #endif
 /*
  *	Remote tape server
@@ -207,20 +207,30 @@ notfound:
 	exit(EX_BAD);
 }
 
+#ifndef	NI_MAXHOST
+#ifdef	MAXHOSTNAMELEN			/* XXX remove this and sys/param.h */
+#define	NI_MAXHOST	MAXHOSTNAMELEN
+#else
+#define	NI_MAXHOST	64
+#endif
+#endif
+
 LOCAL char *
 getpeer()
 {
+#ifdef	HAVE_GETNAMEINFO
+	struct sockaddr_storage sa;
+#else
 	struct	sockaddr sa;
+	struct hostent	*he;
+#endif
+	struct	sockaddr *sap;
 	struct	sockaddr_in *s;
 	socklen_t	 sasize = sizeof (sa);
-	struct hostent	*he;
-#ifdef	MAXHOSTNAMELEN			/* XXX remove this and sys/param.h */
-static	char		buffer[MAXHOSTNAMELEN];
-#else
-static	char		buffer[64];
-#endif
+static	char		buffer[NI_MAXHOST];
 
-	if (getpeername(STDIN_FILENO, &sa, &sasize) < 0) {
+	sap = (struct  sockaddr *)&sa;
+	if (getpeername(STDIN_FILENO, sap, &sasize) < 0) {
 		int		errsav = geterrno();
 		struct stat	sb;
 
@@ -229,23 +239,47 @@ static	char		buffer[64];
 				DEBUG("rmt: stdin is a PIPE\n");
 				return ("PIPE");
 			}
-			DEBUG1("rmt: stdin st_mode %0o\n", sb.st_mode);
+			DEBUG1("rmt: stdin st_mode %0llo\n", (Llong)sb.st_mode);
 		}
 
 		DEBUG1("rmt: peername %s\n", errmsgstr(errsav));
 		return ("ILLEGAL_SOCKET");
 	} else {
 		s = (struct sockaddr_in *)&sa;
+#ifdef	AF_INET6
+		if (s->sin_family != AF_INET && s->sin_family != AF_INET6) {
+#else
 		if (s->sin_family != AF_INET) {
+#endif
+#ifdef	AF_UNIX
+			/*
+			 * AF_UNIX is not defined on BeOS
+			 */
 			if (s->sin_family == AF_UNIX) {
 				DEBUG("rmt: stdin is a PIPE (UNIX domain socket)\n");
 				return ("PIPE");
 			}
+#endif
 			DEBUG1("rmt: stdin NOT_IP socket (sin_family: %d)\n",
 							s->sin_family);
 			return ("NOT_IP");
 		}
 
+#ifdef	HAVE_GETNAMEINFO
+		buffer[0] = '\0';
+		if (debug_file &&
+		    getnameinfo(sap, sasize, buffer, sizeof (buffer), NULL, 0,
+		    NI_NUMERICHOST) == 0) {
+			DEBUG1("rmt: peername %s\n", buffer);
+		}
+		buffer[0] = '\0';
+		if (getnameinfo(sap, sasize, buffer, sizeof (buffer), NULL, 0,
+		    0) == 0) {
+			DEBUG1("rmt: peername %s\n", buffer);
+			return (buffer);
+		}
+		return ("CANNOT_MAP_ADDRESS");
+#else	/* HAVE_GETNAMEINFO */
 #ifdef	HAVE_INET_NTOA
 		(void) js_snprintf(buffer, sizeof (buffer), "%s",
 						inet_ntoa(s->sin_addr));
@@ -259,6 +293,7 @@ static	char		buffer[64];
 		if (he != NULL)
 			return (he->h_name);
 		return (buffer);
+#endif	/* HAVE_GETNAMEINFO */
 	}
 }
 

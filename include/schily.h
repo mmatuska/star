@@ -1,4 +1,4 @@
-/* @(#)schily.h	1.47 02/03/01 Copyright 1985 J. Schilling */
+/* @(#)schily.h	1.48 02/12/24 Copyright 1985-2002 J. Schilling */
 /*
  *	Definitions for libschily
  *
@@ -14,7 +14,11 @@
  *
  *	If you need stdio.h, you must include it before schily.h
  *
- *	Copyright (c) 1985 J. Schilling
+ *	NOTE: If you need ctype.h and did not include stdio.h you need to
+ *	include ctype.h past schily.h as OpenBSD does not follow POSIX and
+ *	defines EOF in ctype.h
+ *
+ *	Copyright (c) 1985-2002 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -27,9 +31,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #ifndef _SCHILY_H

@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.52 02/06/09 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)star_unix.c	1.53 02/08/16 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.52 02/06/09 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)star_unix.c	1.53 02/08/16 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -604,6 +604,9 @@ sxsymlink(info)
 	extern int Ctime;
 	int	ret;
 	int	errsav;
+#ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
+	mode_t	omask;
+#endif
 
 	tp[0].tv_sec = info->f_atime;
 	tp[0].tv_usec = info->f_ansec/1000;
@@ -623,8 +626,24 @@ sxsymlink(info)
 		settimeofday(&tp[2], 0);
 	}
 #endif
+
+#ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
+	/*
+	 * At least HP-UX-11.x seems to honour the mask when creating symlinks.
+	 * If we like to copy them correctly, we need to set the mask before.
+	 * As umask(2) is a cheap syscall and symlinks are not very frequent
+	 * this does not seem a real problem.
+	 */
+	omask = umask((mode_t)0);
+	umask(info->f_mode ^ 07777);
+#endif
+
 	ret = symlink(linkname, name);
 	errsav = geterrno();
+
+#ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
+	umask(omask);
+#endif
 
 #ifdef	SET_CTIME
 	if (Ctime) {

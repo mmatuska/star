@@ -1,7 +1,7 @@
-/* @(#)header.c	1.70 02/06/19 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.73 03/02/01 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.70 02/06/19 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.73 03/02/01 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -20,9 +20,9 @@ static	char sccsid[] =
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * You should have received a copy of the GNU General Public License along with
+ * this program; see the file COPYING.  If not, write to the Free Software
+ * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
 #include <mconfig.h>
@@ -135,6 +135,7 @@ LOCAL	void	stob		__PR((char* s, Ulong * l, int fieldw));
 LOCAL	void	stollb		__PR((char* s, Ullong * ull, int fieldw));
 LOCAL	void	btos		__PR((char* s, Ulong l, int fieldw));
 LOCAL	void	llbtos		__PR((char* s, Ullong ull, int fieldw));
+EXPORT	void	dump_info	__PR((FINFO *info));
 
 /*
  * XXX Hier sollte eine tar/bar universelle Checksummenfunktion sein!
@@ -871,6 +872,9 @@ info_to_tcb(info, ptb)
 	}
 }
 
+/*
+ * Used to create old star format header.
+ */
 LOCAL void
 info_to_star(info, ptb)
 	register FINFO	*info;
@@ -926,6 +930,9 @@ info_to_star(info, ptb)
 	}
 
 	if (is_sparse(info)) {
+		if (info->f_size > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
+			info->f_xflags |= XF_REALSIZE;
+		}
 		/* XXX Korrektes overflowchecking fuer xhdr */
 		if (info->f_size <= MAXINT32) {
 			litos(ptb->xstar_in_dbuf.t_realsize, (Ulong)info->f_size, 11);
@@ -935,6 +942,9 @@ info_to_star(info, ptb)
 	}
 }
 
+/*
+ * Used to create USTAR, PAX, SunTAR format header.
+ */
 LOCAL void
 info_to_ustar(info, ptb)
 	register FINFO	*info;
@@ -1011,6 +1021,9 @@ info_to_ustar(info, ptb)
 	}
 }
 
+/*
+ * Used to create XSTAR, XUSTAR, EXUSTAR format header.
+ */
 LOCAL void
 info_to_xstar(info, ptb)
 	register FINFO	*info;
@@ -1032,6 +1045,9 @@ info_to_xstar(info, ptb)
 		ptb->xstar_dbuf.t_xmagic[2] = 'r';
 	}
 	if (is_sparse(info)) {
+		if (info->f_size > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
+			info->f_xflags |= XF_REALSIZE;
+		}
 		/* XXX Korrektes overflowchecking fuer xhdr */
 		if (info->f_size <= MAXINT32) {
 			litos(ptb->xstar_in_dbuf.t_realsize, (Ulong)info->f_size, 11);
@@ -1041,6 +1057,9 @@ info_to_xstar(info, ptb)
 	}
 }
 
+/*
+ * Used to create GNU tar format header.
+ */
 LOCAL void
 info_to_gnutar(info, ptb)
 	register FINFO	*info;
@@ -1182,18 +1201,7 @@ static	BOOL	modewarn = FALSE;
 		stolli(ptb->dbuf.t_size, &ull);
 		info->f_size = ull;
 	}
-	info->f_rsize = 0L;
 
-#ifdef	OLD
-/*XXX	if (ptb->dbuf.t_linkflag < LNKTYPE)*/	/* Alte star Version!!! */
-	if (ptb->dbuf.t_linkflag != LNKTYPE &&
-					ptb->dbuf.t_linkflag != DIRTYPE) {
-		/* XXX
-		 * XXX Ist das die richtige Stelle um f_rsize zu setzen ??
-		 */
-		info->f_rsize = info->f_size;
-	}
-#else
 	switch (ptb->dbuf.t_linkflag) {
 
 	case LNKTYPE:
@@ -1202,13 +1210,15 @@ static	BOOL	modewarn = FALSE;
 	case BLKTYPE:
 	case FIFOTYPE:
 	case LF_META:
+		info->f_rsize = 0L;
 		break;
 
 	default:
-		info->f_rsize = info->f_size;
+		if ((info->f_xflags & XF_SIZE) == 0)
+			info->f_rsize = info->f_size;
 		break;
 	}
-#endif
+
 	if ((info->f_xflags & XF_MTIME) == 0) {
 		stoli(ptb->dbuf.t_mtime, &ul);
 		info->f_mtime = (time_t)ul;
@@ -1281,6 +1291,9 @@ static	BOOL	modewarn = FALSE;
 	return (ret);
 }
 
+/*
+ * Used to convert from old tar format header.
+ */
 LOCAL void
 tar_to_info(ptb, info)
 	register TCB	*ptb;
@@ -1304,6 +1317,9 @@ tar_to_info(ptb, info)
 	info->f_cnsec = info->f_ansec = 0L;
 }
 
+/*
+ * Used to convert from old star format header.
+ */
 LOCAL void
 star_to_info(ptb, info)
 	register TCB	*ptb;
@@ -1397,8 +1413,10 @@ star_to_info(ptb, info)
 	}
 
 	if (is_sparse(info)) {
-		stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
-		info->f_size = ull;
+		if ((info->f_xflags & XF_REALSIZE) == 0) {
+			stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
+			info->f_size = ull;
+		}
 	}
 	if (is_multivol(info)) {
 		stolli(ptb->xstar_in_dbuf.t_offset, &ull);
@@ -1406,6 +1424,9 @@ star_to_info(ptb, info)
 	}
 }
 
+/*
+ * Used to convert from USTAR, PAX, SunTAR format header.
+ */
 LOCAL void
 ustar_to_info(ptb, info)
 	register TCB	*ptb;
@@ -1478,6 +1499,9 @@ ustar_to_info(ptb, info)
 	}
 }
 
+/*
+ * Used to convert from XSTAR, XUSTAR, EXUSTAR format header.
+ */
 LOCAL void
 xstar_to_info(ptb, info)
 	register TCB	*ptb;
@@ -1500,8 +1524,10 @@ xstar_to_info(ptb, info)
 	}
 
 	if (is_sparse(info)) {
-		stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
-		info->f_size = ull;
+		if ((info->f_xflags & XF_REALSIZE) == 0) {
+			stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
+			info->f_size = ull;
+		}
 	}
 	if (is_multivol(info)) {
 		stolli(ptb->xstar_in_dbuf.t_offset, &ull);
@@ -1509,6 +1535,9 @@ xstar_to_info(ptb, info)
 	}
 }
 
+/*
+ * Used to convert from GNU tar format header.
+ */
 LOCAL void
 gnutar_to_info(ptb, info)
 	register TCB	*ptb;
@@ -1966,4 +1995,46 @@ llbtos(s, ull, fieldw)
 	} while (--fieldw > 0 && (ull /= 256) > 0);
 
 	s[0] |= 0x80;
+}
+
+/*--------------------------------------------------------------------------*/
+EXPORT void
+dump_info(info)
+	FINFO	*info;
+{
+	error("f_name:      '%s'\n", info->f_name);
+	error("f_namelen:   %lu\n", info->f_namelen);
+	error("f_lname:     '%s'\n", info->f_lname);
+	error("f_lnamelen:  %lu\n", info->f_lnamelen);
+	error("f_uname:     '%s'\n", info->f_uname);
+	error("f_umaxlen:   %lu\n", info->f_umaxlen);
+	error("f_gname:     '%s'\n", info->f_gname);
+	error("f_gmaxlen:   %lu\n", info->f_gmaxlen);
+
+	error("f_dir:       %p\n", info->f_dir);
+	error("f_dirlen:    %d\n", info->f_dirlen);
+	error("f_dev:       0x%llX\n", (Ullong)info->f_dev);
+	error("f_ino:       %llu\n", (Ullong)info->f_ino);
+	error("f_nlink:     %lu\n", info->f_nlink);
+	error("f_mode:      0%lo\n", info->f_mode);
+	error("f_uid:       %lu\n", info->f_uid);
+	error("f_gid:       %lu\n", info->f_gid);
+
+	error("f_size:      %lld\n", (Llong)info->f_size);
+	error("f_rsize:     %lld\n", (Llong)info->f_rsize);
+	error("f_contoffset:%lld\n", (Llong)info->f_contoffset);
+	error("f_flags:     0x%lX\n", info->f_flags);
+	error("f_xflags:    0x%lX\n", info->f_xflags);
+	error("f_xftype:    %lu (%s)\n", info->f_xftype, XTTONAME(info->f_xftype));
+	error("f_rxftype:   %lu (%s)\n", info->f_rxftype, XTTONAME(info->f_rxftype));
+	error("f_filetype:  %lu\n", info->f_filetype);
+	error("f_typeflag:  '%c'\n", info->f_typeflag);
+	error("f_type:      0%lo\n", info->f_type);
+	error("f_rdev:      %lu\n", info->f_rdev);
+	error("f_rdevmaj:   %lu\n", info->f_rdevmaj);
+	error("f_rdevmin:   %lu\n", info->f_rdevmin);
+	error("f_atime:     %.24s +0.%9.9lu s\n", ctime(&info->f_atime), info->f_ansec);
+	error("f_mtime:     %.24s +0.%9.9lu s\n", ctime(&info->f_mtime), info->f_mnsec);
+	error("f_ctime:     %.24s +0.%9.9lu s\n", ctime(&info->f_ctime), info->f_cnsec);
+	error("f_fflags:    0x%lX\n", info->f_fflags);
 }
