@@ -1,0 +1,7 @@
+PATH setzen
+LD_RUN_PATH loeschen
+LD_LIBRARY_PATH Loeschen
+umask setzen
+
+symlink libxxx.so -> libxxx.so.x.y
+bei install setzen

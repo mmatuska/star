@@ -1,0 +1,51 @@
+#!/bin/sh
+###########################################################################
+#ident "@(#)MKLINKS	1.7 97/04/19 "
+###########################################################################
+# Written 1996 by J. Schilling
+###########################################################################
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; see the file COPYING.  If not, write to
+# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+###########################################################################
+ln -s	mk-.id			mk-make.id
+ln -s	r-make.c4x		r-gmake.c4x
+ln -s	r-make.c4x-dep		r-gmake.c4x-dep
+ln -s	r-make.obj		r-gmake.obj
+ln -s	i586-linux-cc.rul	i386-linux-cc.rul
+ln -s	i586-linux-cc.rul	i486-linux-cc.rul
+ln -s	i586-linux-cc.rul	i686-linux-cc.rul
+ln -s	i586-linux-gcc.rul	i386-linux-gcc.rul
+ln -s	i586-linux-gcc.rul	i486-linux-gcc.rul
+ln -s	i586-linux-gcc.rul	i686-linux-gcc.rul
+ln -s	i586-linux-cc.rul	sparc-linux-cc.rul
+ln -s	i586-linux-gcc.rul	sparc-linux-gcc.rul
+ln -s	i586-linux-cc.rul	alpha-linux-cc.rul
+ln -s	i586-linux-gcc.rul	alpha-linux-gcc.rul
+ln -s	sun4-sunos4-cc.rul	sun4c-sunos4-cc.rul
+ln -s	sun4-sunos4-gcc.rul	sun4c-sunos4-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4c-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4c-sunos5-gcc.rul
+ln -s	sun4-sunos4-cc.rul	sun4m-sunos4-cc.rul
+ln -s	sun4-sunos4-gcc.rul	sun4m-sunos4-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4m-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4m-sunos5-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4u-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4u-sunos5-gcc.rul
+#
+ln -s	mk-smake.id		mk-build.id
+ln -s	r-smake.c4x		r-build.c4x
+ln -s	r-smake.c4x-dep		r-build.c4x-dep
+ln -s	r-smake.dep		r-build.dep
+ln -s	r-smake.obj		r-build.obj
+ln -s	r-smake.tag		r-build.tag

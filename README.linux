@@ -1,0 +1,14 @@
+Linux includes the gnu make program by default but it is called 'make' on linux.
+You will definitely need the shell script Gmake.linux to use gmake
+on a linux system.
+
+Install it as /usr/bin/Gmake with:
+
+cp Gmake.linux /usr/bin/Gmake
+
+Then compile the system by calling:
+
+/usr/bin/Gmake
+or ./Gmake.linux
+
+Joerg

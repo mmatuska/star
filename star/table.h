@@ -1,0 +1,90 @@
+/* @(#)table.h	1.4 96/06/26 Copyright 1994 J. Schilling */
+/*
+ *	Conversion table definitions for efficient conversion
+ *	of different file type representations
+ *
+ *	Copyright (c) 1994 J. Schilling
+ */
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; see the file COPYING.  If not, write to
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
+/*
+ * Unix uses the following file types
+ */
+#ifdef	comment
+		0000000		/* Unallocated		*/
+S_IFIFO		0010000	FIFO	/* Named pipe		*/
+S_IFCHR		0020000	CHR	/* Character special	*/
+S_IFMPC		0030000		/* UNUSED multiplexed c	*/
+S_IFDIR		0040000	DIR	/* Directory		*/
+S_IFNAM		0050000	NAM	/* Named file (XENIX)	*/
+S_IFBLK		0060000	BLK	/* Block special	*/
+S_IFMPB		0070000		/* UNUSED multiplexed b	*/
+S_IFREG		0100000	REG	/* Regular file 	*/
+S_IFCNT		0110000	CTG	/* Contiguous file	*/
+S_IFLNK		0120000	SLNK	/* Symbolic link	*/
+S_IFSHAD	0130000		/* Solaris shadow inode	*/
+S_IFSOCK	0140000	SOCK	/* UNIX domain socket	*/
+S_IFDOOR	0150000		/* Solaris DOOR		*/
+		0160000		/* UNUSED cpio acl	*/
+		0170000		/* UNUSED		*/
+#endif
+
+/*
+ * Internal table of file types.
+ *
+ * N.B. The order in this table is not important,
+ * new real file types may be added before XT_DUMPDIR,
+ * new symbolic file types may be added before XT_BAD.
+ */
+#define	XT_NONE		0	/* unallocated file			*/
+#define	XT_FILE		1	/* regular file				*/
+#define	XT_CONT		2	/* contiguous file			*/
+#define	XT_LINK		3	/* hard link (needed for internal use)	*/
+#define	XT_SLINK	4	/* symbolic link			*/
+#define	XT_DIR		5	/* directory				*/
+#define	XT_CHR		6	/* character special			*/
+#define	XT_BLK		7	/* block special			*/
+#define	XT_FIFO		8	/* fifo (named pipe)			*/
+#define	XT_SOCK		9	/* unix domain socket			*/
+				/* ... Reserved ...			*/
+#define	XT_DUMPDIR	20	/* Dir entry containing filenames	*/
+#define	XT_LONGLINK	21	/* Next file on tape has a long link	*/
+#define	XT_LONGNAME	22	/* Next file on tape has a long name	*/
+#define	XT_MULTIVOL	23	/* Continuation of a file from another tape*/
+#define	XT_NAMES	24	/* OLD					*/
+#define	XT_SPARSE	25	/* for files with holes in it		*/
+#define	XT_VOLHDR	26	/* Tape Volume header			*/
+#define	XT_BAD		31	/* illegal file type			*/
+
+extern char	iftoxt_tab[];
+extern char	ustoxt_tab[];
+extern char	gttoxt_tab[];
+
+extern int	xttoif_tab[];
+extern char	xttost_tab[];
+extern char	xttous_tab[];
+extern char	*xttostr_tab[];
+
+#define	IFTOXT(t)	(iftoxt_tab[((t)&S_IFMT) >> 12])/* UNIX to XT	*/
+#define	USTOXT(t)	(ustoxt(t))			/* ustar to XT	*/
+#define	_USTOXT(t)	(ustoxt_tab[(t)-REGTYPE])	/* ustar to XT	*/
+#define	_GTTOXT(t)	(gttoxt_tab[(t)-'A'])		/* gnutar to XT	*/
+
+#define	XTTOIF(t)	(xttoif_tab[(t)])		/* XT to UNIX	*/
+#define	XTTOST(t)	(xttost_tab[(t)])		/* XT to star	*/
+#define	XTTOUS(t)	(xttous_tab[(t)])		/* XT to ustar	*/
+#define	XTTOSTR(t)	(xttostr_tab[(t)])		/* XT to string */

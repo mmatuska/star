@@ -1,0 +1,12 @@
+Gmake compliance is included for convenience because it may
+be found on many systems and most make programs are worse
+than gmake.
+
+If you have problems with the make file system and gmake,
+you are out of luck. Gmake has a debug option, but it gives
+tons of debug messages. Less than 1% of these debug messages are
+useful. Important things are missing in these debug messages.
+
+Gmake has bug with the VPATH= option. Some of the macros are
+not correctly expanded. I had to remove all occurrences of
+$@ $* and $^ on some places for this reason.

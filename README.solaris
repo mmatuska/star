@@ -1,0 +1,25 @@
+Never compile anything in a locale ither than "C".
+To do this ensure, that you do
+
+setenv LC_ALL C
+
+in csh
+or
+
+LC_ALL=C
+export LC_ALL
+in sh
+
+before running make.
+
+The reason:
+
+1)	Solaris 'nm' dumps core in any other locale.
+	For that reason lorder will not work.
+	*** no patch available **** but fixed on Solaris 2.5.1
+	according to Sun
+
+2)	The SunPro C-compiler will not convert floating
+	point numbers correctly if e.g. in "de" locale (Germany)
+	1.3 will be interpreted as 1.0!!!!
+	*** patch available ***

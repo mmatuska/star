@@ -1,0 +1,127 @@
+I have compared several tar implementations with the standard.
+
+	(IEEE/Posix1003/IEC-9945-1 Standard Data Interchange format)
+
+Although the standard now also defines cpio as an exchange format, I cannot
+recommand the cpio archive format for data exchange. There are at least 6 
+totally incompatible archive formats - all covered by the name "cpio".
+It is most likely, that you are using an archive format that other cpio
+implementations will not understand at all.
+
+Tar in general will at least extract most of the files if you are using a
+different implementation to extract the archive.
+
+I've had a look at the following implementations:
+
+	Index:	Program description:		Source of program:
+	=====	====================		==================
+	1)	bsd 4.3 tar			(Regents of UCB)
+	2)	pax ustar i.e. SunOS 4.1	(USENIX)
+	3)	tar on  Solaris 2.3/2.4/2.5	(Sun/AT&T ??)
+	4)	gnutar	1.11.8			(gnu)
+	5)	gnucpio 2.3			(gnu)
+
+
+Summary:
+	1)	bsd 4.3 tar
+		Pre Posix 1003.1
+	
+		- Miscomputes the checksum. Therefore it is not able to extract 
+		  standard conforming tar archives if they contain 8bit chars
+		  in the filename. This is a common bug found in many other
+		  implementations too.
+
+		No additional problems on portability except with gnutar archives.
+		But this is not a problem of BSD tar.
+
+
+	2)	pax / ustar
+
+		- Dumps core on every even/odd use.
+		- Computes checksums only on the first 500 bytes of the 
+		  tar header: not conforming to Posix 1003.1 standard.
+
+		Note:	This claims to be a reference implementation for
+			the Posix 1003.1 standard!
+
+
+	3)	tar distributed with Solaris 2.3/2.4/2.5
+
+		- Transfers more than 12 Bit from stat.st_mode (violating Posix)
+		- Complains about "impossible file type" when reading 
+		  tar archives which do not contain these illegal upper bits.
+
+		- Does not handle non null terminated filenames correctly.
+		  The standard allows filenames that are exactly 100 chars
+		  and therefore are not null terminated. (Fixed in Solaris 2.5)
+
+		For the obove reasons, Sun's tar is not conforming to Posix 1003.1.
+
+		- Loops infinitely when trying to dump /dev/fd.
+		  This makes it impossible to use Solaris tar on the root filesystem.
+
+
+	4)	gnutar
+		Claims not to be conforming to Posix 1003.1. (gnu is not tar)
+
+		- Many bugs in implementation and design.
+		  (e.g. when handling/creating multi volume archives)
+		- The second logical EOF block in GNU-tar archives is missing
+		  with a 50% chance.
+		  This will cause correctly working tar implementations to complain
+		  about an illegal/missing EOF in the tar archive.
+		- Deeply nested directory trees will not be dumped:
+		  Error message is: Too many open files
+		  (This is a similar implementation bug as found in Solaris tar 
+		   with the /dev/fd loop)
+		- Hard links with long names to files with long names do not work.
+
+		- GNU-tar cannot read Posix compliant tar archives with 
+		  long file names if the filename prefix it at least 138 characters.
+		  GNU-tar will think that it found an extended sparse GNU tar archive
+		  and get out of sync for the rest of the archive.
+		  See --sparse design bug description below.
+
+		- Option --sparse produces archives which cannot be read by any 
+		  other tar implementation known to me (except star), because
+		  they will get "out of sync".
+		  Posix 1003.1 conforming tar archives let gnutar get "out of sync"
+		  even if the --portability option is used (see above).
+		  This is a severe design bug in GNU-tar.
+
+			Description:
+			The size field in a tar archive cannot reflect the
+			real size of a sparse file to have compatibility to 
+			other implementations (this is also true for "star" archives).
+
+			If the "sparse" file contains more than 4 holes,
+			the "size" field in the GNU-tar control block does not
+			reflect the total size of the (shrunk) sparse file in the archive
+			because it does not count the 'sparse' extension headers.
+			Posix conformant archives that use the name prefix field with more than
+			137 characters will have a value != 0 on a field that
+			that makes gnutar believe that such an extension
+			header is present - GNU-tar will get out of sync.
+
+			Note: The general rule for any tar is that it should
+			be able to read any "tar" compliant data stream with
+			the exception that enhancements to the standard
+			only will fail on the files that contain the extension.
+			Those files should be extracted as if they were 
+			regular files.
+
+		Note: I do not recommend GNU tar as an exchange format.
+		      Use star -Hustar for maximum portability instead.
+
+	5)	gnucpio
+
+		- Splits long filenames at the leftmost '/' instead of the 
+		  rightmost position of '/' required by my copy of the 
+		  Posix standard.
+		- The docs claim compatibility with gnutar.
+		  But extraction of gnutar archives containing 'atime' gives 
+		  funny filenames! (try this ...)
+		- Octal numbers are left padded with ' ' instead of '0'.
+		  The mode field contains more than the lower 12 bits from 
+		  stat.st_mode.
+		

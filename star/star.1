@@ -1,0 +1,1015 @@
+. \" @(#)star.1	1.8 97/04/28 Copyr 1982-1995 J. Schilling
+. \"  Manual Seite fuer star
+. \"
+.if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
+.if t .ds o \v'-0.55m'\h'0.00n'\z.\h'0.45n'\z.\v'0.55m'\h'-0.45n'o
+.if t .ds u \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'u
+.if t .ds A \v'-0.77m'\h'0.25n'\z.\h'0.45n'\z.\v'0.77m'\h'-0.70n'A
+.if t .ds O \v'-0.77m'\h'0.25n'\z.\h'0.45n'\z.\v'0.77m'\h'-0.70n'O
+.if t .ds U \v'-0.77m'\h'0.30n'\z.\h'0.45n'\z.\v'0.77m'\h'-0.75n'U
+.if t .ds s \\(*b
+.if t .ds S SS
+.if n .ds a ae
+.if n .ds o oe
+.if n .ds u ue
+.if n .ds s sz
+.TH STAR 1E "11. April 1995" "J\*org Schilling" "Schily\'s USER COMMANDS"
+.SH NAME
+star \- unique standard tape archiver
+.SH SYNOPSIS
+.B
+star
+.I command
+[
+.I options
+] 
+.I file1 .\|.\|. filen
+.SH DESCRIPTION
+.I Star
+is a tape archiver similar to
+.I tar(1)
+but faster than 
+.I tar(1)
+and with improved functionality.
+.PP
+Star archives and extracts multiple files to and from a single file
+called a 
+.I tarfile. 
+A tarfile is usually a magnetic tape, but it can be any file.
+In all cases, appearance of a directory name refers to the files and 
+(recursively) subdirectories of that directory.
+.PP
+Star's actions are controlled by the mandatory command flags from the 
+list below.
+The way star acts may be modified by additional options. 
+.SH FEATURES
+Star uses a fifo to optimize data flow from/to tape. This results in 
+a normally streaming tape during the whole backup.
+.PP
+Star includes a pattern matcher to control the list of files to be 
+processed. This gives a convenient interface for archiving and 
+restoring complex lists of files. In conjunction with the \-I flag it 
+is easy to merge a tar archive into an existing file tree. See also \-U 
+option.
+.PP
+Star includes a sophisticated diff command. Several diff options 
+allow user tailorable functionality. Star won't show you differences 
+you are not interested in.
+.PP
+Star has no limitation on filename length. Pathnames and linknames up to 
+1024\ bytes may be archived. Later versions may be able to deal with 
+longer pathnames.
+.PP
+Star deals with all 3 times, available for files on UNIX systems.
+Star is able to store and restore all 3 times (mtime, atime and even 
+ctime). On Solaris 2.x systems, star is able to do backups without 
+changing any of the 3 the times.
+.PP
+If used with the H=ustar option, star is 100% ansi compliant.
+.PP
+Star's new default format
+.I xstar
+is as posix compliant as possible. Deviations from the standard that 
+prevent correct extraction with a fully ansi compliant tar 
+implementation occur, when the pathname is longer than 100+130 chars 
+or when archiving sparse files with the \-sparse option in effect.
+.PP
+Star makes it easy to repair corrupted filesystems. After a fsck \-y 
+has been run on the filesystem, star is able to restore only 
+the missing files automatically. See EXAMPLES for more information.
+.PP
+Star automatically recognizes the type of the archive.
+Star therefore is able to handle features and properties of different 
+archive types, if it knows about the peculiarities of the archive type.
+See the 
+.BR H= headertype 
+option for more details.
+.PP
+Star automatically recognizes and handles byte swapped archives. There is no 
+option to manually control byte swapping.
+.SH COMMAND
+.TP
+.B \-c
+Create a new
+.I tarfile
+and write named files onto it.
+Writing starts at the beginning of
+.I tarfile.
+.TP
+.B \-r
+Replace files in a
+.I tarfile.
+The named files are written to the end of
+.I tarfile.
+This implies that later,
+the appropriate files will be found more than once on the 
+.I tarfile.
+This command is currently not implemented.
+.TP
+.B \-u
+Update a
+.I tarfile.
+The named files are written to the end of
+.I tarfile
+if they are not already there.
+The \-r and \-u command only work if the tar archives is a regular file or
+if the tar archive is an unblocked tape that may backspace.
+This command is currently not implemented.
+.TP
+.B \-x
+Extract the named files from the
+.I tarfile.
+If no filename argument or pattern is specified, the entire content of the
+.I tarfile
+is restored.
+If the \-U flag is not used, star extracts no file which is older than 
+the corresponding file on disk.
+.TP
+.B \-t
+Table of contents.
+List the contents of the
+.I tarfile.
+If the \-v flag is used, the listing is similar to the format of ls \-l output.
+With this option, the flags
+.BR \-a ,
+.B \-atime
+and
+.B \-ctime
+have a different meaning if the archive is in 
+.I star
+or
+.I xstar
+format.
+The option
+.B \-a
+or
+.B \-atime
+lists the access time instead of the modification time, the option
+.B \-ctime
+lists the file creation time instead of the modification time.
+.TP
+.B \-n
+No extraction. Show what star would do, in case the
+.B \-x
+command had been specified.
+.TP
+.B \-diff
+Diff the contents of the
+.I tarfile
+to the filesystem.
+This may also be used to compare two file trees in the filesystem and 
+gives with a good choice of
+.I diffopts
+- in some cases - a more readable output than diff \-r.
+See 
+.I diffopts 
+for more details.
+.PP
+One of the commands above must be specified.
+.PP
+If one or more pattern are specified, they apply to any of the command 
+listed above.
+.SH OPTIONS
+.TP
+.BR \-help ", " \-h
+Print a summary of the most important options for
+.I star(1).
+.TP
+.B \-xhelp
+Print a summary of the less important options for
+.I star(1).
+.TP
+.BR blocks= "#, " b= "#"
+Set the blocking factor of the 
+.I tarfile
+to #\ times 512\ bytes. The default is to use a blocking factor of 20 i.e. 
+10\ kBytes.
+If you want to determine the blocking factor of an unknown tar archive 
+on tape, specify a blocking factor that is higher than the supposed 
+blocking factor of the tape. Star then will determine the blocking factor 
+by reading the first record of the tape and print a message:
+.RS
+.IP
+.B 
+star: Blocksize = # records.
+.PP
+Where # is the blocking factor in multiples of 512 bytes.
+This option is now obsoleted by the
+.I bs=
+option described below.
+.RE
+.TP
+.BR file= "tarfilename, " f= "tarfilename"
+Use 
+.I tarfilename 
+as the name for the tar archive.
+.I Star
+normally uses
+.IR stdin / stdout
+for the tar archive because the most common way to use 
+.I star
+is in conjunction with pipes.
+If 
+.I star
+is installed suid root,
+.I tarfilename
+may be in remote syntax: user@host:filename as in rcp(1) even if 
+invoked by non root users.
+See SUID NOTES for more information.
+.TP
+.B \-T
+If the option 
+.B file= 
+or 
+.B f= 
+is omitted and the \-T option is present, 
+star will use the device indicated by the 
+.SB TAPE 
+environment variable, 
+if set.
+.TP
+.B \-fifo
+Use a 
+.I fifo
+to optimize data flow from/to 
+.I tarfile.
+.TP
+.B \-no_fifo
+Don't use a
+.I fifo
+to optimize data flow from/to 
+.I tarfile.
+Currently the 
+.I \-fifo 
+option is used as default. (This may be changed at compile time.)
+.TP
+.B \-shm
+Use System V shared memory for fifo. 
+Normally 
+.I star
+is compiled to use mapped /dev/zero pages for the fifo, if the operating system 
+supports this.
+If 
+.I star
+is compiled to have both code for mapped pages and for System V shared memory,
+.I star
+will use shared memory instead of the default.
+If the 
+.I \-help
+menu doesn't show the 
+.I \-shm 
+flag you have no choice.
+.TP
+.B \-v
+Be verbose.
+This normally results in more output during operation.
+See also in the description for the \-t flag.
+Normally, 
+.I star
+does its work silently.
+.TP
+.B \-tpath
+Use this option together with the \-t option to get only a list of the 
+pathnames of the files in the archive.
+This may be used in shell scripts to generate a name list.
+.TP
+.BR H= headertype
+Generate a tape archive in
+.I headertype
+format.
+If this option is used in extract/list mode this forces star to 
+interpret the headers to be of type 
+.I headertype.
+Valid parameter for 
+.I headertype
+are:
+.RS
+.TP 10
+.B help
+Print a help message about possible headertypes.
+.TP 10
+.B tar
+Old UNIX tar format. 
+This archive format may only store plain files, directories and 
+symbolic links.
+Pathnames longer than 100 chars may not be archived.
+See also \-d option as a note to some implementations.
+.TP 10
+.B star
+Old star standard format. This is an upward/downward compatible 
+enhancement of the old UNIX tar format.
+It has been introduced 1985 and therefore is not Posix compliant.
+.I Star
+format allows to archive special files and records access time and 
+creation time. Newer versions allow very long filenames (\ >\ 100+155 chars)
+and sparse files.
+.TP 10
+.B gnutar
+This is a commonly used, not Posix compliant enhancement to the old tar 
+format.
+The implementation of the gnutar archive format within 
+.I star
+is not complete, but 
+sufficient for most gnutar archives.
+See NOTES for more information.
+.TP 10
+.B ustar
+IEEE/Posix1003/IEC-9945-1 Standard Data Interchange format.
+With this option in effect, star will generate 100% ansi compliant 
+tar archives.
+Files with pathnames longer than 100+155 chars may not be archived.
+.TP 10
+.B xstar
+Extended standard tar format. The new star standard format. 
+This is an upward/downward compatible enhancement 
+of the IEEE/Posix1003/IEC-9945-1 Standard Data Interchange format.
+It allows among others very long filenames (\ >\ 100+155 chars) 
+and records access time and creation time.
+.PP
+All tar archive formats may be interchanged if the archive contains 
+no files that may not be archived by using the old tar format. 
+Archives in the 
+.I xstar 
+format may be extracted by any 100% ansi compliant tar 
+implementation if they contain no files with pathnames >100+130 chars 
+and if they contain no sparse files that have been archived by using 
+the \-sparse option.
+.RE
+.TP
+.BR C= dir
+Perform a 
+.I chdir(2)
+operation to 
+.I dir
+before storing next file.
+.I tar(1)
+goes back to the old dir after storing the file,
+.I star
+currently doesn't implement this!
+.TP
+.B \-B
+Force 
+.I star
+to perform multiple reads (if necessary) to fill a block.
+This option exists so that 
+.I star 
+can work across the Ethernet, since pipes and sockets return partial blocks 
+even when more data is coming.
+.TP
+.B \-i
+Ignore checksum errors on tar headers.
+If this option is specified,
+.I star
+will not exit if a header with a bad checksum is found but search for the
+next valid header.
+.TP
+.B \-d
+Do not store/create directories.
+Old versions of tar are not able to deal with directories in tar 
+archives. If a tar archive is generated without directories this avoids
+problems with tar implementations found on SYSVr3 and earlier.
+.TP
+.B \-m
+Do not restore access an modification time. 
+(Access time is only available if 
+.I star
+is reading 
+.IR star " or " xstar
+archives.)
+.TP
+.B \-nochown
+Do not restore owner and group of files. 
+This may be used if super user privileges are needed to overwrite 
+existing files but the local ownership of the existing files should 
+not change.
+.TP
+.BR \-atime ", " \-a
+Reset access time of files after storing them to 
+.I tarfile.
+On Solaris 2.x, (if invoked by root) star uses the 
+.I _FIOSATIME 
+ioctl to do this. This enables 
+star not to trash the 
+.I ctime
+while resetting the
+.I atime
+of the files.
+If used in conjunction with the list command, 
+.I star 
+lists access time instead of modification time. (This works only in 
+conjunction with 
+.I star 
+and 
+.I xstar 
+format.)
+.TP
+.B \-p
+Restore filemodes of directories. Without this option directories are 
+created using the present umask(2).
+If in create mode i.e. storing files to archive, star stores 
+directories past the corresponding files. This guarantees that even old 
+tar implementations will be able to restore the correct times of 
+directories.
+.TP
+.B \-l
+Do not print a warning message if not all links to hard linked files
+could be dumped. This option is evaluated in the opposite way to 
+.I tar(1).
+.TP
+.B \-L
+Follow symbolic links as if they were files.
+Normally 
+.I star
+will not follow symbolic links but stores their values in
+.I tarfile.
+.TP
+.B \-D
+Do not descend directories.
+Normally, star descends the whole tree if it encounters a directory in 
+in its file parameters.
+.TP
+.B \-M
+Do not descend mount points.
+This is useful when doing backups of complete filesystems. 
+See NOTES for more information.
+.TP
+.B \-I
+Do interactive renaming. 
+For every file that matches the list of patterns and that has a more 
+recent modification time in the tar archive (if in extract mode and
+the \-U option is not specified) star prints its name and asks:
+.RS
+.IP
+.B
+get/put ? Y(es)/N(o)/C(hange name) :
+.PP
+You may answer either 'N' for No or <Return> to skip this file.
+If you answer 'Y' the file is extracted or archived on tape with its 
+original name.
+If you answer 'C', you are prompted for a new name. This name is used 
+for the filename on disk if star is in extract mode or for the archive 
+name if star is in create mode.
+.RE
+.TP
+.B \-O
+Be compatible to old versions of tar.
+If star is invoked with this option, star generates archives which are 
+fully compatible with old UNIX tar archives. If in extract mode, star 
+ignores any additional info in the headers.
+This implies neither that archives generated with this option are 
+binary equal with archives generated by old tar versions nor that 
+star is trying to comprehend all bugs that are found in old tar 
+versions.
+The bug in old tar versions that cause a reversal of a space and a NULL byte 
+in the checksum field is not repeated. 
+If you want to have signed checksums you have to specify the
+\-singed_checksum option too. 
+This option is superseeded by the 
+.BR H= headertype 
+option.
+.TP
+.B \-P
+Allow 
+.I star
+to write a partial record as the last record. 
+Normally, star writes each record with the same size.
+This option is useful on unblocked tapes i.e. cartridge tapes like QIC.
+.TP
+.B \-S
+Do not store/create special files.
+You need to be super user to extract special files.
+.TP
+.B \-U
+Restore files unconditionally.
+Normally, an older file will not replace a corresponding newer file on 
+disk.
+.TP
+.BR diffopts= optlst
+Comma separated list of diffopts.
+Valid members in
+.I optlst
+are:
+.RS
+.TP 10
+.B help
+Print a summary of possible members of the diffopts list.
+.TP 10
+.B not
+Invert the meaning of all members in the diffopts list i.e. exclude 
+all present options from the compare list.
+.TP 10
+.B perm
+Compare file permissions. With this option in effect, star compares the 
+low order 12 bits of the st_mode field.
+.TP 10
+.B mode
+Same as 
+.I perm.
+.TP 10
+.B type
+Compare file type.
+.TP 10
+.B nlink
+Compare link count on hardlinks (currently not supported).
+.TP 10
+.B uid
+Compare numerical user id of file.
+.TP 10
+.B gid
+Compare numerical group id of file.
+.TP 10
+.B uname
+Compare ASCII version of user id of file.
+.TP 10
+.B gname
+Compare ASCII version of group id of file.
+.TP 10
+.B id
+Compare all user/group related info of file.
+.TP 10
+.B size
+Compare file size.
+.TP 10
+.B data
+Compare content of file.
+.TP 10
+.B cont
+Same as 
+.I data.
+.TP
+.B rdev
+Compare major/minor numbers for device nodes.
+.TP 10
+.B hardlink
+Compare target of hardlinks.
+.TP 10
+.B symlink
+Compare target of symlinks. This evaluates the value returned by the 
+readlink(2) call.
+.TP 10
+.B atime
+Compare access time of file. 
+This only works with tar archives in
+.I star
+and
+.I xstar
+format.
+.TP 10
+.B mtime
+Compare modification time of file.
+.TP 10
+.B ctime
+Compare creation time of file.
+This only works with tar archives in
+.I star
+and
+.I xstar
+format.
+.TP 10
+.B times
+Shorthand for:
+.IR "atime,mtime,ctime" .
+.PP
+If 
+.I optlst
+starts with a ! the meaning of all members in 
+.I optlst
+is inverted as with the 
+.I not
+optlist member.
+.PP
+If 
+.I diffopts
+are not specified, star compares everything but the access time of the files.
+.RE
+.TP
+.BR pattern= "pattern, " pat= pattern
+Set matching pattern to
+.I pattern.
+A maximum of 10 pattern=pat options may be specified. 
+If more than one pattern is specified, a file matches if any of the 
+specified pattern matches.
+Note that the method to restore subtrees used by tar(1) does not work 
+with
+.I star.
+See manual page for match(1) for more details of the pattern matcher.
+.TP
+.BR \-not ", " \-V
+Invert the meaning of the pattern list. i.e. use those files which do not match
+any of the pattern.
+.TP
+.BR list= filename
+Read filenames for store/create/list command from
+.I filename.
+The file
+.I filename
+must contain a list of filenames, each on a separate line.
+This option implies the \-D option.
+.TP
+.BR VOLHDR= name
+Use
+.I name
+to generate a volume header.
+.TP
+.BR \-keep_old_files ", " \-k
+Keep existing files rather than restoring them from 
+.I tarfile. 
+This saves files from being clobbered even if 
+.I tarfile
+contains a more recent version.
+.TP
+.B \-/
+Don't strip leading slashes from file names.
+Tar archives containing absolute pathnames are usually a bad idea. 
+They may possibly never extracted without clobbering existing files. 
+Star therefore, normally strips leading slashes from filenames.
+.TP
+.BR maxsize= #
+Do not store files in
+.I tarfile
+if they are bigger than # kBytes.
+.TP
+.BR newer= filename
+Do not store files to 
+.I tarfile
+if they are not newer than 
+.I filename.
+.TP
+.B \-ctime
+If used with the list command, this lists 
+.I ctime 
+rather than 
+.I mtime.
+If used with the extract command, this tries to restore even the 
+.I ctime 
+of a file by generating time storms.
+You should not do this when in multi user mode because this may 
+confuse programs like cron and the news system.
+If used with the create command this changes the result of the
+.I newer=
+option. Star, in this case compares the
+.I ctime
+of all files to the 
+.I mtime
+of the stamp file rather then comparing the
+.I mtimes
+of both files.
+.TP
+.BR bs= #
+Set output block size to #.
+You may use the same method as in dd(1) and sdd(1).
+The size is taken in bytes unless otherwise specified.
+If the size is followed by b, k or m,
+the size is multiplied by 512, 1024 or 1024*1024.
+If the size consists of numbers separated by x, multiplication of the 
+two numbers is performed.
+Blocksize must be a multiple of 512 bytes.
+.TP
+.BR fs= #
+Set fifo size to #.
+See 
+.I bs=
+for possible syntax.
+The default size of the fifo is 1 Mbyte.
+.TP
+.BR tsize= #
+Set tape volume size to # 512 byte blocks. With this option in effect, 
+star is able to archive filesystems that are bigger then the tape size.
+Files that do not fit on a single tape may not be stored with the 
+current version of star.
+.TP
+.B \-qic24
+Set tape volume size to 61440 kBytes.
+.TP
+.B \-qic120
+Set tape volume size to 128000 kBytes.
+.TP
+.B \-qic150
+Set tape volume size to 153600 kBytes.
+.TP
+.B \-qic250
+Set tape volume size to 256000 kBytes.
+.TP
+.B \-nowarn
+Do not print warning messages.
+This sometimes is useful to make the output more readable.
+.TP
+.B \-time
+Print timing info.
+See DIAGNOSTICS for more information.
+.TP
+.B \-no_statistics
+Do not print statistic messages at the end.
+.TP
+.B \-fifostats
+Print fifo statistics at the end.
+.TP
+.B \-numeric
+Use the numeric user/group fields in the listing rather than the 
+default.
+The default is to list the ASCII version of user/group of the file.
+.TP
+.B \-newest
+In conjunction with the list command this lists you only the newest file in
+.I tarfile.
+.TP
+.B \-newest_file
+In conjunction with the list command this lists you only the newest regular 
+file in
+.I tarfile.
+.TP
+.B \-signed_checksum
+Use signed chars to calculate checksums. This violates the tar specs but old 
+versions of tar are implemented in this way.
+Note: Only filenames and linknames containing chars with the most 
+significant bit set may trigger this problem because all 
+other fields only contain ASCII characters, octal digits or binary 
+zeroes.
+.TP
+.B \-sparse
+Handle files with holes effectively on store/create.
+.TP
+.B \-force_hole
+Try to extract all files with holes. This even works with files that 
+are created without the \-sparse option. Star, in this case examines 
+the content of the files in the archive and replaces writes to parts containing 
+binary zeroes with seeks. This option should be used with extreme care 
+because you sometimes get in trouble when files get unattended holes.
+.TP
+.B \-to_stdout
+Extract files to stdout. This option may be used to extract tarfiles 
+containing tarfiles (see examples below).
+.TP
+.B \-wready
+This option is added as a hack for a bug in the SunOS/Solaris
+.I st
+device driver. This driver has problems to sense the loading time 
+with Exabyte drives with factory settings.
+Star waits up to one minute for the drive to become ready if this option
+is specified.
+.TP
+.B \-debug
+Print debug messages. Among other things, this gives debug messages for
+headertype recognition, tar type properties, EOF recognition, opening 
+of remote archives and fifo internals.
+.SH SIGNALS
+.PP
+If star handles a signal, it first prints the statistics. Star 
+handles the following signals:
+.TP 10
+.B SIGINT
+usually generated by ^C from the controlling tty. 
+Upon receipt of a SIGINT, star prints statistics and exits. 
+If in create mode i.e. storing files 
+to archive, star finishes with the current file to ensure that no 
+partial file is written to the archive, write an eof record and then exits.
+.TP 10
+.B SIGHUP
+not to be generated from a tty. The actions are the same as upon receipt 
+of a SIGINT.
+.TP 10
+.B SIGQUIT
+usually generated by ^\\ from the controlling tty.
+Upon receipt of a SIGQUIT, star prints statistics and
+continues with the current operation. This is 
+useful to watch the progress of the current operation.
+.SH EXAMPLES
+.PP
+To get a listing in a way similar to ls \-l one might use:
+.IP
+.B
+example% star \-tv f=/dev/nrst1
+.PP
+To compare the content of a tape to the filesystem one might use:
+.IP
+.B
+example% star \-diff \-v f=/dev/nrst1
+.PP
+To compare two directory trees one might use:
+.IP
+.B
+.nf
+example% star \-c . | (cd todir ; star \-diff \-v diffopts=!times)
+.fi
+.PP
+To extract a backup of the /usr tree without all files residing below 
+/usr/openwin one might use:
+.IP
+.B 
+example% star \-xp \-V pat=openwin/\\* f=/dev/nrst1
+.PP
+To backup a list of files generated by the find(1) command:
+.IP
+.B 
+.nf
+example% find . \fIfind_options\fP \-print | star \-c list=\- f=/dev/nrst1
+.fi
+.PP
+To extract tarfiles that contain tarfiles one might use:
+.IP
+.B
+.nf
+example% star \-x \-to_stdout f=/dev/nrst1 pat=\fIpat\fP | star \-xp
+.fi
+.PP
+.I Pat, 
+in this case should match the tarfile in the tarfile on tape that 
+should be extracted.
+.PP
+To make a backup of the root filesystem to a tape drive connected to a 
+remote machine, one might use:
+.IP
+.B
+example# cd /
+.br
+.B
+example# star \-cM bs=63k f=tape@remotehost:/dev/nrst1 .
+.PP
+You need a line in /etc/passwd like the following to enable this:
+.IP
+.B
+tape:NP:60001:60001:Tape:/etc/tapehome:/etc/rmt
+.PP
+And a .rhosts file in /etc/tapehome to allow remote connections from 
+the appropriate hosts.
+.PP
+To repair a corrupted filesystem for which no recent backup exists, 
+do the following:
+.IP
+.B
+example# fsck \-y /filesys
+.br
+.B
+example# mount /filesys
+.br
+.B
+example# cd /filesys
+.br
+.B
+example# star \-xpk f=/dev/nrst1
+.br
+.B
+example# mt \-f /dev/nrst1 rewind
+.br
+.B
+example# star \-diff \-v diffopts=!times f=/dev/nrst1
+.PP
+Now check the differences and decide whether to restore additional 
+files. This may be done by generating a list containing the needed 
+filenames and using the list= option or by using the interactive mode 
+(see \-I option).
+.SH FILES
+None.
+.SH "SEE ALSO"
+tar(1), cpio(1), rcp(1), mt(1), rmt(1), match(1), dd(1), sdd(1), star(4/5),
+rcmd(3)
+.SH DIAGNOSTICS
+star: f records + p bytes (total of x bytes = d.nnk).
+.PP
+The number of full records, the number of bytes in partial records
+and the total amount of data in KBytes.
+.PP
+star: Total time x.yyysec (z kBytes/sec)
+.PP
+The time used and the transfer speed from/to the archive.
+.SH NOTES
+.PP
+Star strips leading ./ sequences from pathnames. This lets star in many 
+cases store longer pathnames than other implementations.
+.PP
+The ansi method (ustar format) of storing files with pathnames that are 
+longer than 100 chars has some limitations:
+.IP
+The name field (100 chars) and the prefix field (155 chars) produce 
+the pathname of the file. Name and prefix are concatenated by using 
+a slash character in the middle. If a pathname does not fit in the 
+space provided or may not be split at a slash character so that the 
+parts fit into 100 + 155 chars, the file may not be archived. Linknames longer 
+than 100 chars may not be archived too.
+.PP
+The 
+.I star,
+.I xstar
+and
+.I gnutar
+archive formats don't have these limitations. While gnutar uses a 
+method that makes it impossible for other tar implementations (except 
+star) to restore filenames that are longer than 100 chars, the
+.I xstar 
+archive format uses a method that allows an ansi compliant way of 
+storing filenames, if the ansi method would allow this.
+.PP
+Some buggy tar implementations will generate incorrect filenames 
+during a restore operation if the archive contains pathnames of 
+exactly 100 chars length.
+.PP
+There is no way to ask for the 
+.IR n -th
+occurrence of a file.
+.PP
+The way EOF is handled differs, weather the fifo is in effect or not.
+If the fifo is not used, star stops reading the archive if it 
+encounters a logical EOF record in the archive. 
+If the fifo us used, star reads until the real EOF is reached.
+.PP
+Old versions of tar found on SYSVr3 and eralier cannot read tar archives 
+with a blocksize greater than 10\ kBytes.
+.PP
+The method of storing 
+.I sparse
+files currently used with the 
+.I star
+and
+.I xstar
+format is not guaranteed to be used in later versions of star.
+If the author decides to change this method, later versions of 
+.I star 
+may not be able to restore sparse files from tar 
+archives made by the current version of star.
+.PP
+Some tar implementations violate the standard in using only the first 500 
+Bytes of the header for checksum computation. These tar implementations 
+will not accept 
+.I star 
+and 
+.I xstar
+type tar archives.
+.PP
+Sun's Solaris 2.x tar implementation violates the Posix standard. Tar 
+archives generated by 
+.I star
+cause Sun's tar to print tar: impossible file type messages. You may 
+ignore these messages.
+.PP
+Gnutar's dumpdirs are currently not implemented.
+.PP
+If gnutar archives sparse files with more than four holes, it produces 
+archives that violate the standard in a way that prevents other tar 
+implementations to read these archives. Star knows about that and is 
+able to handle these gnutar archives.
+.PP
+The filetype 
+.I N
+(LF_NAMES) from gnutar (an obsolete method of storing long names) will never be 
+implemented.
+.SH SUID NOTES
+If 
+.I star
+is installed suid root, 
+.I star
+is able to make connections to remote archives for non root users. 
+This is done by using the
+rcmd(3) interface to get a connection to a rmt(1) server.
+.PP
+.I Star
+resets its effective uid back to the real user id immediately after setting up
+the remote connection to the rmt server.
+.SH LIMITATIONS
+Star currently handles files up to a size of 2 GB and
+archives up to 2000000 TB.
+The maximum file size limitation of 2 GB may easily be expanded to 8 GB. 
+With a non standard extension star will handle files up to 200000000 TB.
+.PP
+Access control list are currently not handled.
+.SH BUGS
+There is currently no way to set the fifo lowwater and highwater marks.
+.PP
+There is currently no way to automatically delete files in the target file tree
+if the are obsolete.
+Star should implement something similar to gnutar's dumpdirs.
+.PP
+If not invoked by the super user star may not be able to extract files 
+if they reside in read only directories.
+.PP
+Star is not able to make a complete backup of a filesystem if files 
+are hidden by a mount that is in effect on a directory of this 
+filesystem. This could be avoided if the loopback filesystem had an 
+option that tells 
+.I lofs 
+not to traverse mountpoints.
+.PP
+The actual version of the IEC-9945-1 standard has been changed to 
+allow character specials, block specials and fifo files to have 
+garbage sizes in the tar archive header. The current version of star 
+does not implement this. This implies that tape archives that use 
+this feature may not be processed by star.
+.PP
+Star does not evaluate the environment variable TAPE.
+.PP
+On Solaris systems, star should use the _FIOAI file ioctl to examine 
+sparse files.
+.SH AUTHOR
+.nf
+J\*org Schilling
+Seestr. 110
+D-13353 Berlin
+Germany
+.fi
+.PP
+Mail bugs and suggestions to:
+.PP
+.B
+joerg@schily.isdn.cs.tu-berlin.de
+or
+.B
+js@cs.tu-berlin.de
