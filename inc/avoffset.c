@@ -1,7 +1,7 @@
-/* @(#)avoffset.c	1.9 98/05/31 Copyright 1987 J. Schilling */
+/* @(#)avoffset.c	1.13 99/10/18 Copyright 1987 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)avoffset.c	1.9 98/05/31 Copyright 1987 J. Schilling";
+	"@(#)avoffset.c	1.13 99/10/18 Copyright 1987 J. Schilling";
 #endif
 /*
  * This program is a tool to generate the file "avoffset.h".
@@ -33,9 +33,8 @@ static	char sccsid[] =
 #include <mconfig.h>
 #include <stdio.h>
 #include <standard.h>
-#ifdef	HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
+#include <stdxlib.h>
+#include <signal.h>
 
 #ifdef	NO_SCANSTACK
 #	ifdef	HAVE_SCANSTACK
@@ -44,10 +43,20 @@ static	char sccsid[] =
 #endif
 
 #ifdef	HAVE_SCANSTACK
-#	include "frame.h"
+#	include <stkframe.h>
 #endif
 
-extern	void **getfp();
+LOCAL	RETSIGTYPE handler __PR((int signo));
+EXPORT	int	main	__PR((int ac, char** av));
+
+LOCAL	RETSIGTYPE
+handler(signo)
+	int	signo;
+{
+	fprintf(stderr, "Warning: Cannot scan stack on this environment.\n");
+	exit(0);
+}
+
 
 int main(ac, av)
 	int	ac;
@@ -57,6 +66,8 @@ int main(ac, av)
 	register struct frame *fp = (struct frame *)getfp();
 	register int	i = 0;
 #endif
+
+signal(SIGSEGV, handler);
 
 	printf("/*\n");
 	printf(" * This file has been generated automatically\n");
@@ -77,13 +88,18 @@ int main(ac, av)
 	fflush(stdout);
 
 #ifdef	HAVE_SCANSTACK
-	printf("#define	AV_OFFSET	%d\n", (int)(av-(char **)fp));
 	while (fp->fr_savfp) {
 		fp = (struct frame *)fp->fr_savfp;
 		if (fp->fr_savpc == 0)
 			break;
 		i++;
 	}
+	/*
+	 * Do not add any printf()'s before this line to allow avoffset
+	 * to abort without printing more than the comment above.
+	 */
+	fp = (struct frame *)getfp();
+	printf("#define	AV_OFFSET	%d\n", (int)(av-(char **)fp));
 	printf("#define	FP_INDIR	%d\n", i);
 #endif
 	exit(0);

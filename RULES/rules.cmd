@@ -1,4 +1,4 @@
-#ident @(#)rules.cmd	1.1 97/01/18 
+#ident @(#)rules.cmd	1.4 01/02/04 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,13 +15,17 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.obj
 ###########################################################################
+
+_INSMODEI=	$(_UNIQ)$(INSMODE)
+__INSMODEI=	$(_INSMODEI:$(_UNIQ)=$(INSMODEX))
+INSMODEI=	$(__INSMODEI:$(_UNIQ)%=%)
 
 all:		$(PTARGET)
 
@@ -30,9 +34,11 @@ $(PTARGET):	$(OFILES) $(SRCLIBS)
 #		$(CC) -o $@ $(OFILES) $(LDPATH) $(RUNPATH) $(SRCLIBS) $(LIBS)
 
 ###########################################################################
+include		$(SRCROOT)/$(RULESDIR)/rules.lnt
 include		$(SRCROOT)/$(RULESDIR)/rules.clr
 include		$(SRCROOT)/$(RULESDIR)/rules.ins
 include		$(SRCROOT)/$(RULESDIR)/rules.tag
 include		$(SRCROOT)/$(RULESDIR)/rules.hlp
+include		$(SRCROOT)/$(RULESDIR)/rules.cnf
 include		$(SRCROOT)/$(RULESDIR)/rules.dep
 ###########################################################################

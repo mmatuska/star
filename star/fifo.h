@@ -1,4 +1,4 @@
-/* @(#)fifo.h	1.3 97/04/27 Copyright 1989 J. Schilling */
+/* @(#)fifo.h	1.6 00/11/09 Copyright 1989 J. Schilling */
 /*
  *	Definitions for a "fifo" that uses
  *	shared memory between two processes
@@ -27,6 +27,7 @@ typedef	struct	{
 	long	blocksize;	/* Blocksize for each transfer		*/
 	long	blocks;		/* Full blocks transfered on Volume	*/
 	long	parts;		/* Bytes fom partial transferes on Volume */
+	long	lastsize;	/* Size of last transfer (for backtape)	*/
 	long	Tblocks;	/* Total blocks transfered		*/
 	long	Tparts;		/* Total Bytes fom parttial transferes	*/
 	int	volno;		/* Volume #				*/
@@ -62,12 +63,17 @@ typedef struct {
 
 #define	FIFO_AMOUNT(p)	((p)->icnt - (p)->ocnt)
 
-#define	FIFO_IBLOCKED	0x01	/* input  (put side) is blocked	*/
-#define	FIFO_OBLOCKED	0x02	/* output (get size) is blocked	*/
-#define	FIFO_FULL	0x04	/* fifo is full			*/
-#define	FIFO_MEOF	0x08	/* EOF on input (put side)	*/
-#define	FIFO_MERROR	0x10	/* error on input (put side)	*/
+#define	FIFO_IBLOCKED	0x001	/* input  (put side) is blocked	*/
+#define	FIFO_OBLOCKED	0x002	/* output (get side) is blocked	*/
+#define	FIFO_FULL	0x004	/* fifo is full			*/
+#define	FIFO_MEOF	0x008	/* EOF on input (put side)	*/
+#define	FIFO_MERROR	0x010	/* error on input (put side)	*/
+#define	FIFO_EXIT	0x020	/* exit() on non tape side	*/
 
-#define	FIFO_IWAIT	0x20	/* input (put side) waits after first record */
-#define	FIFO_I_CHREEL	0x40	/* change input tape reel if fifo gets empty */
-#define	FIFO_O_CHREEL	0x80	/* change output tape reel if fifo gets empty*/
+#define	FIFO_IWAIT	0x200	/* input (put side) waits after first record */
+#define	FIFO_I_CHREEL	0x400	/* change input tape reel if fifo gets empty */
+#define	FIFO_O_CHREEL	0x800	/* change output tape reel if fifo gets empty*/
+
+#if	!defined(HAVE_SMMAP) && !defined(HAVE_USGSHM) && !defined(HAVE_DOSALLOCSHAREDMEM)
+#undef	FIFO			/* We cannot have a FIFO on this platform */
+#endif

@@ -1,5 +1,9 @@
-Never compile anything in a locale ither than "C".
-To do this ensure, that you do
+Never compile anything in a locale other than "C" unless you are sure
+that your C-compiler and the program 'nm' has been patched.
+This is not needed with Solrais 2.6 or later and with the Workshop 5.0
+compiler or later.
+
+To ensure that locale "C"' is set, do
 
 setenv LC_ALL C
 
@@ -14,7 +18,7 @@ before running make.
 
 The reason:
 
-1)	Solaris 'nm' dumps core in any other locale.
+1)	On Solaris before 2.5.1 'nm' dumps core in any other locale.
 	For that reason lorder will not work.
 	*** no patch available **** but fixed on Solaris 2.5.1
 	according to Sun
@@ -31,4 +35,18 @@ entry.
 To be able to use 'make' 'as' and 'ld' you need to make sure that 
 /usr/ccs/bin is in your path.
 
+Make sure - even if you use GCC - you don't use GNU as, GNU ld 
+and GNU tsort/lorder.
+
 For CD-Recording please read the README.volmgt too.
+
+On Solaris you need to stop the volume management if you like to use the USCSI
+fallback SCSI transport code. Even things like cdrecord -scanbus
+will not work if the volume management is running.
+
+If you run Solaris 7 FCS, install patch 107465-02 to fix a read ahead bug in the
+hsfs code.
+
+If you have problems with 12 byte SCSI commands on Solaris (mainly x86) get
+Patch 108779-01
+

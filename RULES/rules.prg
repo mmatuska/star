@@ -1,4 +1,4 @@
-#ident "@(#)rules.prg	1.6 97/02/20 "
+#ident "@(#)rules.prg	1.12 00/03/19 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -47,7 +47,8 @@ RM_RF=		$(RM_RECURS) $(RM_FORCE)
 
 RM_F=		$(RM) $(RM_FORCE)
 
-INSMODE_DEF=	755
+INSMODEF_DEF=	444
+INSMODEX_DEF=	755
 INSUSR_DEF=	bin
 INSGRP_DEF=	bin
 
@@ -55,9 +56,13 @@ _DEFUMASK=	$(_UNIQ)$(DEFUMASK)
 __DEFUMASK=	$(_DEFUMASK:$(_UNIQ)=$(UMASK_DEF))
 UMASK_VAL=	$(__DEFUMASK:$(_UNIQ)%=%)
 
-_DEFINSMODE=	$(_UNIQ)$(DEFINSMODE)
-__DEFINSMODE=	$(_DEFINSMODE:$(_UNIQ)=$(INSMODE_DEF))
-INSMODE=	$(__DEFINSMODE:$(_UNIQ)%=%)
+_DEFINSMODEF=	$(_UNIQ)$(DEFINSMODEF)
+__DEFINSMODEF=	$(_DEFINSMODEF:$(_UNIQ)=$(INSMODEF_DEF))
+INSMODEF=	$(__DEFINSMODEF:$(_UNIQ)%=%)
+
+_DEFINSMODEX=	$(_UNIQ)$(DEFINSMODEX)
+__DEFINSMODEX=	$(_DEFINSMODEX:$(_UNIQ)=$(INSMODEX_DEF))
+INSMODEX=	$(__DEFINSMODEX:$(_UNIQ)%=%)
 
 _DEFINSUSR=	$(_UNIQ)$(DEFINSUSR)
 __DEFINSUSR=	$(_DEFINSUSR:$(_UNIQ)=$(INSUSR_DEF))
@@ -70,7 +75,7 @@ INSGRP=		$(__DEFINSGRP:$(_UNIQ)%=%)
 
 LD=		@echo "	==> LINKING   \"$@\""; ld
 LOCALIZE=	@echo "	==> LOCALIZING \"$@\""; $(RM_F) $@; cp
-INSTALL=	@echo "	==> INSTALLING \"$@\""; $(RM_F) $@; cp
+INSTALL=	@echo "	==> INSTALLING \"$@\""; sh $(SRCROOT)/conf/install-sh -c -m $(INSMODEINS) -o $(INSUSR) -g $(INSGRP)
 CHMOD=		@echo "	==> SEETING PERMISSIONS ON \"$@\""; chmod
 CHOWN=		@echo "	==> SETTING OWNER ON \"$@\""; chown
 CHGRP=		@echo "	==> SETTING GROUP ON \"$@\""; chgrp
@@ -78,6 +83,7 @@ AR=		@echo "	==> ARCHIVING  \"$@\""; ar
 #YACC=		@echo "	==> YACCING \"$@\""; yacc
 #LEX=		@echo "	==> LEXING \"$@\""; lex
 #AWK=		@echo "	==> AWKING \"$@\""; awk
-MKDEP=		@echo "	==> MAKE DEPENDENCIES \"$@\""; makedepend
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; makedepend
 MKDEP_OUT=	-f -
-MKDIR=		@echo "	==> MAKE DIRECTORY \"$@\""; $(UMASK); mkdir
+MKDIR=		@echo "	==> MAKING DIRECTORY \"$@\""; $(UMASK); mkdir
+MKDIR_SH=	@echo "	==> MAKING DIRECTORY \"$@\""; $(UMASK); sh $(SRCROOT)/conf/mkdir-sh

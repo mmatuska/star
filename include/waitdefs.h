@@ -1,4 +1,4 @@
-/* @(#)waitdefs.h	1.4 96/06/26 Copyright 1995 J. Schilling */
+/* @(#)waitdefs.h	1.8 00/11/08 Copyright 1995 J. Schilling */
 /*
  *	Definitions to deal with various kinds of wait flavour
  *
@@ -23,10 +23,24 @@
 #ifndef	_WAITDEFS_H
 #define	_WAITDEFS_H
 
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+
 #if	defined(HAVE_WAIT_H)
 #	include <wait.h>
-#elif	defined(HAVE_SYS_WAIT_H)
-#	include <sys/wait.h>
+#else
+/*
+ * K&R Compiler doesn't like #elif
+ */
+#	if	defined(HAVE_SYS_WAIT_H)	/* POSIX.1 compat sys/wait.h */
+#	undef	HAVE_UNION_WAIT			/* POSIX.1 doesn't use U_W   */
+#		include <sys/wait.h>
+#	endif
+#endif
+
+#ifdef	__cplusplus
+extern "C" {
 #endif
 
 #ifdef HAVE_UNION_WAIT
@@ -80,6 +94,10 @@
 
 #ifndef	WCONTFLG
 #define	WCONTFLG	0xFFFF
+#endif
+
+#ifdef	__cplusplus
+}
 #endif
 
 #endif	/* _WAITDEFS_H */

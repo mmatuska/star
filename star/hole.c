@@ -1,8 +1,8 @@
 /*#define	DEBUG*/
-/* @(#)hole.c	1.12 98/06/23 Copyright 1990 J. Schilling */
+/* @(#)hole.c	1.18 00/05/07 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)hole.c	1.12 98/06/23 Copyright 1990 J. Schilling";
+	"@(#)hole.c	1.18 00/05/07 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
@@ -28,14 +28,15 @@ static	char sccsid[] =
 #include <mconfig.h>
 #include <stdio.h>
 #include <stdxlib.h>
+#include <sys/types.h>
+#include <unixstd.h>
 #include <standard.h>
+#include <schily.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
 #include "starsubs.h"
 #ifdef	sun
-#	include <unixstd.h>
-#	include <sys/types.h>
 #	include <sys/filio.h>
 #	if	_FIOAI == _FIOOBSOLETE67
 #	undef	_FIOAI
@@ -71,17 +72,17 @@ typedef	struct {
 } fh_t;
 
 LOCAL	int	force_hole_func	__PR((fh_t * fh, char* p, int amount));
-EXPORT	BOOL	get_forced_hole	__PR((FILE * f, FINFO * info));
+EXPORT	int	get_forced_hole	__PR((FILE * f, FINFO * info));
 LOCAL	int	get_sparse_func	__PR((fh_t * fh, char* p, int amount));
 LOCAL	int	cmp_sparse_func	__PR((fh_t * fh, char* p, int amount));
 LOCAL	int	put_sparse_func	__PR((fh_t * fh, char* p, int amount));
 LOCAL	sp_t*	grow_sp_list	__PR((sp_t * sparse, int* nspp));
 LOCAL	sp_t*	get_sp_list	__PR((FINFO * info));
-LOCAL	int	mk_sp_list	__PR((FILE * f, FINFO * info, sp_t ** spp));
+LOCAL	int	mk_sp_list	__PR((int *fp, FINFO * info, sp_t ** spp));
 EXPORT	int	gnu_skip_extended __PR((TCB * ptb));
-EXPORT	BOOL	get_sparse	__PR((FILE * f, FINFO * info));
+EXPORT	int	get_sparse	__PR((FILE * f, FINFO * info));
 EXPORT	BOOL	cmp_sparse	__PR((FILE * f, FINFO * info));
-EXPORT	void	put_sparse	__PR((FILE * f, FINFO * info));
+EXPORT	void	put_sparse	__PR((int *fp, FINFO * info));
 LOCAL	void	put_sp_list	__PR((FINFO * info, sp_t * sparse, int nsparse));
 
 #define	vp_force_hole_func ((int(*)__PR((void *, char *, int)))force_hole_func)
@@ -97,8 +98,10 @@ force_hole_func(fh, p, amount)
 	fh->fh_newpos += amount;
 	if (amount < fh->fh_size &&
 				cmpbytes(bigptr, zeroblk, amount) >= amount) {
-		if (fileseek(fh->fh_file, fh->fh_newpos) < 0)
+		if (lseek(fdown(fh->fh_file), fh->fh_newpos, SEEK_SET) < 0) {
+			xstats.s_rwerrs++;
 			errmsg("Error seeking '%s'.\n", fh->fh_name);
+		}
 
 		fh->fh_size -= amount;
 		return (amount);
@@ -119,9 +122,7 @@ get_forced_hole(f, info)
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize;
 	fh.fh_newpos = 0L;
-	xt_file(info, vp_force_hole_func, &fh, TBLOCK, "writing");
-	fclose(f);
-	return (TRUE);
+	return (xt_file(info, vp_force_hole_func, &fh, TBLOCK, "writing"));
 }
 
 #define	vp_get_sparse_func ((int(*)__PR((void *, char *, int)))get_sparse_func)
@@ -142,9 +143,11 @@ get_sparse_func(fh, p, amount)
 		EDEBUG(("seek to: %d\n",
 				fh->fh_sparse[fh->fh_spindex].sp_offset));
 
-		if (fileseek(fh->fh_file,
-				fh->fh_sparse[fh->fh_spindex].sp_offset) < 0)
+		if (lseek(fdown(fh->fh_file),
+				fh->fh_sparse[fh->fh_spindex].sp_offset, SEEK_SET) < 0) {
+			xstats.s_rwerrs++;
 			errmsg("Error seeking '%s'.\n", fh->fh_name);
+		}
 
 		fh->fh_newpos = fh->fh_sparse[fh->fh_spindex].sp_offset;
 	}
@@ -266,9 +269,11 @@ put_sparse_func(fh, p, amount)
 		EDEBUG(("seek to: %d\n",
 				fh->fh_sparse[fh->fh_spindex].sp_offset));
 
-		if (fileseek(fh->fh_file,
-				fh->fh_sparse[fh->fh_spindex].sp_offset) < 0)
+		if (lseek(*(int *)(fh->fh_file),
+				fh->fh_sparse[fh->fh_spindex].sp_offset, SEEK_SET) < 0) {
+			xstats.s_rwerrs++;
 			errmsg("Error seeking '%s'.\n", fh->fh_name);
+		}
 
 		fh->fh_newpos = fh->fh_sparse[fh->fh_spindex].sp_offset;
 	}
@@ -279,7 +284,7 @@ put_sparse_func(fh, p, amount)
 		if (cnt > fh->fh_size)
 			cnt = fh->fh_size;
 	} else {
-		cnt = ffileread(fh->fh_file, p, amount);
+		cnt = _fileread((int *)fh->fh_file, p, amount);
 	}
 	fh->fh_size -= cnt;
 	fh->fh_newpos += cnt;
@@ -440,8 +445,8 @@ get_sp_list(info)
 }
 
 LOCAL int
-mk_sp_list(f, info, spp)
-	FILE	*f;
+mk_sp_list(fp, info, spp)
+	int	*fp;
 	FINFO	*info;
 	sp_t	**spp;
 {
@@ -467,7 +472,7 @@ mk_sp_list(f, info, spp)
 	fai.fai_size = 512;
 	fai.fai_num = 1;
 	fai.fai_daddr = fai_arr;
-	use_ai = ioctl(fdown(f), _FIOAI, &fai) >= 0;	/* Use if operational*/
+	use_ai = ioctl(*fp, _FIOAI, &fai) >= 0;	/* Use if operational*/
 	fai_idx = 0;
 #endif	/* _FIOAI */
 
@@ -485,7 +490,7 @@ mk_sp_list(f, info, spp)
 				fai.fai_off = pos;
 				fai.fai_size = 512 * NFAI;
 				fai.fai_num = NFAI;
-				ioctl(fdown(f), _FIOAI, &fai);
+				ioctl(*fp, _FIOAI, &fai);
 				if (fai.fai_num == 0)
 					break;
 				fai_idx = 0;
@@ -494,7 +499,7 @@ mk_sp_list(f, info, spp)
 			amount = 512;
 #endif	/* _FIOAI */
 		} else {
-			if ((amount = ffileread(f, rbuf, TBLOCK)) == 0)
+			if ((amount = _fileread(fp, rbuf, TBLOCK)) == 0)
 				break;
 			is_hole = cmpbytes(rbuf, zeroblk, amount) >= amount;
 		}
@@ -514,7 +519,7 @@ mk_sp_list(f, info, spp)
 				if (i >= nsparse) {
 					if ((sparse = grow_sp_list(sparse,
 							&nsparse)) == 0) {
-						fileseek(f, 0L);
+						lseek(*fp, 0L, SEEK_SET);
 						return (0);
 					}
 				}
@@ -545,7 +550,7 @@ mk_sp_list(f, info, spp)
 				sparse[i].sp_offset,
 				sparse[i].sp_numbytes));
 	}
-	fileseek(f, 0L);
+	lseek(*fp, 0L, SEEK_SET);
 	*spp = sparse;
 	return (++i);
 }
@@ -561,19 +566,19 @@ gnu_skip_extended(ptb)
 	return (0);
 }
 
-EXPORT BOOL
+EXPORT int
 get_sparse(f, info)
 	FILE	*f;
 	FINFO	*info;
 {
 	fh_t	fh;
 	sp_t	*sparse = get_sp_list(info);
+	int	ret;
 
 	if (sparse == 0) {
-		errmsgno(BAD, "Skipping '%s' sorry ...\n", info->f_name);
-		errmsgno(BAD, "Warning  '%s' is damaged\n", info->f_name);
+		errmsgno(EX_BAD, "Skipping '%s' sorry ...\n", info->f_name);
+		errmsgno(EX_BAD, "Warning  '%s' is damaged\n", info->f_name);
 		void_file(info);
-		fclose(f);
 		return (FALSE);
 	}
 	fh.fh_file = f;
@@ -582,10 +587,9 @@ get_sparse(f, info)
 	fh.fh_newpos = 0L;
 	fh.fh_sparse = sparse;
 	fh.fh_spindex = 0;
-	xt_file(info, vp_get_sparse_func, &fh, TBLOCK, "writing");
-	fclose(f);
+	ret = xt_file(info, vp_get_sparse_func, &fh, TBLOCK, "writing");
 	free(sparse);
-	return (TRUE);
+	return (ret);
 }
 
 EXPORT BOOL
@@ -597,7 +601,7 @@ cmp_sparse(f, info)
 	sp_t	*sparse = get_sp_list(info);
 
 	if (sparse == 0) {
-		errmsgno(BAD, "Skipping '%s' sorry ...\n", info->f_name);
+		errmsgno(EX_BAD, "Skipping '%s' sorry ...\n", info->f_name);
 		void_file(info);
 		fclose(f);
 		return (FALSE);
@@ -609,15 +613,17 @@ cmp_sparse(f, info)
 	fh.fh_sparse = sparse;
 	fh.fh_spindex = 0;
 	fh.fh_diffs = 0;
-	xt_file(info, vp_cmp_sparse_func, &fh, TBLOCK, "reading");
-	fclose(f);
+	if (xt_file(info, vp_cmp_sparse_func, &fh, TBLOCK, "reading") < 0)
+		die(EX_BAD);
+	if (fclose(f) != 0)
+		xstats.s_rwerrs++;
 	free(sparse);
 	return (fh.fh_diffs == 0);
 }
 
 EXPORT void
-put_sparse(f, info)
-	FILE	*f;
+put_sparse(fp, info)
+	int	*fp;
 	FINFO	*info;
 {
 	fh_t	fh;
@@ -625,13 +631,13 @@ put_sparse(f, info)
 	int	nsparse;
 	long	rsize;
 
-	nsparse = mk_sp_list(f, info, &sparse);
+	nsparse = mk_sp_list(fp, info, &sparse);
 	if (nsparse == 0) {
 		info->f_rsize = info->f_size;
 		put_tcb(info->f_tcb, info);
 		vprint(info);
-		errmsgno(BAD, "Dumping SPARSE '%s' as file\n", info->f_name);
-		put_file(f, info);
+		errmsgno(EX_BAD, "Dumping SPARSE '%s' as file\n", info->f_name);
+		put_file(fp, info);
 		return;
 	}
 	rsize = info->f_rsize;
@@ -639,7 +645,7 @@ put_sparse(f, info)
 	EDEBUG(("rsize: %d\n", rsize));
 
 	put_sp_list(info, sparse, nsparse);
-	fh.fh_file = f;
+	fh.fh_file = (FILE *)fp;
 	fh.fh_name = info->f_name;
 	fh.fh_size = info->f_rsize = rsize;
 	fh.fh_newpos = 0L;

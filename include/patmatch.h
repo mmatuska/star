@@ -1,4 +1,4 @@
-/* @(#)patmatch.h	1.4 96/02/04 Copyright 1985 J. Schilling */
+/* @(#)patmatch.h	1.7 00/11/12 Copyright 1985 J. Schilling */
 
 #ifndef	_PATMATCH_H
 #define	_PATMATCH_H
@@ -42,6 +42,14 @@
  *
  *	Any number in the following comment is zero or more occurrencies
  */
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
 #define	ALT	'!'	/* Alternation in match i.e. this!that!the_other */
 #define	REP	'#'	/* Any number of occurrences of the following expr */
 #define	NIL	'%'	/* Empty string (exactly nothing) */
@@ -59,17 +67,23 @@
 
 #define	MAXPAT	128	/* Maximum length of pattern */
 
-#ifdef	__STDC__
+extern	int	     patcompile	__PR((const unsigned char * __pat, int __patlen, int * __aux));
 
-extern	int		patcompile(const unsigned char *, int, int *);
-extern	unsigned char	*patmatch(const unsigned char *, const int *,
-				  const unsigned char *, int, int, int);
+extern	unsigned char *opatmatch	__PR((const unsigned char * __pat, const int * __aux,
+						const  unsigned char * __str, int __soff, int __slen,
+						int __alt));
+extern	unsigned char *opatlmatch __PR((const unsigned char * __pat, const int * __aux,
+						const  unsigned char * __str, int __soff, int __slen,
+						int __alt));
+extern	unsigned char *patmatch	__PR((const unsigned char * __pat, const int * __aux,
+						const  unsigned char * __str, int __soff, int __slen,
+						int __alt, int __state[]));
+extern	unsigned char *patlmatch __PR((const unsigned char * __pat, const int * __aux,
+						const  unsigned char * __str, int __soff, int __slen,
+						int __alt, int __state[]));
 
-#else
-
-extern	int		patcompile();
-extern	unsigned char	*patmatch();
-
+#ifdef	__cplusplus
+}
 #endif
 
 #endif	/* _PATMATCH_H */

@@ -1,8 +1,7 @@
-#ifdef	FIFO
-/* @(#)fifo.c	1.10 97/06/14 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.21 01/02/25 Copyright 1989 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.10 97/06/14 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.21 01/02/25 Copyright 1989 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -26,27 +25,39 @@ static	char sccsid[] =
  */
 
 /*#define	DEBUG*/
-#if !defined(USE_MMAP) && !defined(USE_SHM)
+
+#include <mconfig.h>
+#if	!defined(HAVE_SMMAP) && !defined(HAVE_USGSHM) && !defined(HAVE_DOSALLOCSHAREDMEM)
+#undef	FIFO			/* We cannot have a FIFO on this platform */
+#endif
+#ifdef	FIFO
+#if !defined(USE_MMAP) && !defined(USE_USGSHM)
 #define	USE_MMAP
 #endif
-#include <mconfig.h>
 #include <fctldefs.h>
 #include <sys/types.h>
 #if defined(HAVE_SMMAP) && defined(USE_MMAP)
-#include <sys/mman.h>
+#include <mmapdefs.h>
 #endif
 #include <stdio.h>
 #include <stdxlib.h>
 #include <unixstd.h>
 #include <standard.h>
 #include <errno.h>
+#include <schily.h>
 #include "star.h"
 #include "fifo.h"
 #include "starsubs.h"
 
 #ifndef	HAVE_SMMAP
 #	undef	USE_MMAP
-#	define	USE_SHM	/* SYSV shared memory is the default */
+#	define	USE_USGSHM	/* SYSV shared memory is the default */
+#endif
+
+#ifdef	HAVE_DOSALLOCSHAREDMEM	/* This is for OS/2 */
+#	undef	USE_MMAP
+#	undef	USE_USGSHM
+#	define	USE_OS2SHM
 #endif
 
 #ifdef DEBUG
@@ -62,7 +73,7 @@ char	*buf;
 m_head	*mp;
 int	buflen;
 
-extern	int	debug;
+extern	BOOL	debug;
 extern	BOOL	shmflag;
 extern	BOOL	no_stats;
 extern	long	fs;
@@ -79,8 +90,6 @@ long	ibs;
 long	obs;
 int	hiw;
 int	low;
-
-int	shmflag;
 
 EXPORT	void	initfifo	__PR((void));
 LOCAL	void	fifo_setparams	__PR((void));
@@ -104,8 +113,11 @@ LOCAL	void	do_out		__PR((void));
 #ifdef	USE_MMAP
 LOCAL	char*	mkshare		__PR((int size));
 #endif
-#ifdef	USE_SHM
+#ifdef	USE_USGSHM
 LOCAL	char*	mkshm		__PR((int size));
+#endif
+#ifdef	USE_OS2SHM
+LOCAL	char*	mkos2shm	__PR((int size));
 #endif
 
 EXPORT void
@@ -130,7 +142,7 @@ initfifo()
 	buflen = roundup(fs, pagesize) + pagesize;
 	EDEBUG(("bs: %d obs: %d fs: %d buflen: %d\n", bs, obs, fs, buflen));
 
-#if	defined(USE_MMAP) && defined(USE_SHM)
+#if	defined(USE_MMAP) && defined(USE_USGSHM)
 	if (shmflag)
 		buf = mkshm(buflen);
 	else
@@ -139,8 +151,11 @@ initfifo()
 #if	defined(USE_MMAP)
 	buf = mkshare(buflen);
 #endif
-#if	defined(USE_SHM)
+#if	defined(USE_USGSHM)
 	buf = mkshm(buflen);
+#endif
+#if	defined(USE_OS2SHM)
+	buf = mkos2shm(buflen);
 #endif
 #endif
 	mp = (m_head *)buf;
@@ -233,6 +248,9 @@ runfifo()
 	}
 
 	if (pid == 0) {
+#ifdef USE_OS2SHM
+		DosGetSharedMem(buf,3);	/* PAG_READ|PAG_WRITE */
+#endif
 		if (cflag) {
 			mp->ibs = mp->size;
 			mp->obs = bs;
@@ -243,6 +261,12 @@ runfifo()
 			mp->obs = mp->size;
 			do_in();
 		}
+#ifdef	USE_OS2SHM
+		DosFreeMem(buf);
+		sleep(30000);	/* XXX If calling _exit() here the parent process seems to be blocked */
+				/* XXX This should be fixed soon */
+#endif
+		exit(0);
 	} else {
 		extern	FILE	*tarf;
 
@@ -285,10 +309,10 @@ fifo_stats()
 	if (no_stats)
 		return;
 
-	errmsgno(BAD, "fifo had %d puts %d gets.\n", mp->puts, mp->gets);
-	errmsgno(BAD, "fifo was %d times empty and %d times full.\n",
+	errmsgno(EX_BAD, "fifo had %d puts %d gets.\n", mp->puts, mp->gets);
+	errmsgno(EX_BAD, "fifo was %d times empty and %d times full.\n",
 						mp->empty, mp->full);
-	errmsgno(BAD, "fifo held %d bytes max, size was %d bytes\n",
+	errmsgno(EX_BAD, "fifo held %d bytes max, size was %d bytes\n",
 						mp->maxfill, mp->size);
 }
 
@@ -309,7 +333,8 @@ swait(f)
 		ret = read(f, &c, 1);
 	} while (ret < 0 && geterrno() == EINTR);
 	if (ret < 0 || (ret == 0 && pid)) {
-		errmsg("Sync pipe read error on pid %d.\n", pid);
+		if ((mp->flags & FIFO_EXIT) == 0)
+			errmsg("Sync pipe read error on pid %d.\n", pid);
 		prstats();
 		exit(1);
 	}
@@ -484,7 +509,7 @@ again:
 		cnt = c;
 
 	if (rmp->getptr + cnt > rmp->end) {
-		errmsgno(BAD, "getptr >: %X %X %d end: %X\n",
+		errmsgno(EX_BAD, "getptr >: %p %p %d end: %p\n",
 				rmp->getptr, &rmp->getptr[cnt], cnt, rmp->end);
 	}
 	{
@@ -546,6 +571,15 @@ fifo_sync()
 }
 
 EXPORT void
+fifo_exit()
+{
+	mp->flags |= FIFO_EXIT;
+	/*
+	 * XXX Wake up other side ???
+	 */
+}
+
+EXPORT void
 fifo_chtape()
 {
 	char	c;
@@ -575,7 +609,6 @@ do_in()
 	} while (amt > 0);
 
 	fifo_oflush();
-	exit(0);
 }
 
 LOCAL void
@@ -592,14 +625,13 @@ do_out()
 		amt = writetape(mp->getptr, cnt);
 
 		if (amt < 0)
-			comerr("write error getptr: %X, cnt: %d %X\n",
+			comerr("write error getptr: %p, cnt: %d %p\n",
 					mp->getptr, cnt, &mp->getptr[cnt]);
 		if (amt < cnt)
 			error("wrote: %d (%d)\n", amt, cnt);
 
 		fifo_iwake(amt);
 	}
-	exit(0);
 }
 
 #ifdef	USE_MMAP
@@ -612,23 +644,23 @@ mkshare(size)
 
 #ifdef	MAP_ANONYMOUS	/* HP/UX */
 	f = -1;
-	addr = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, f, 0);
+	addr = mmap(0, mmap_sizeparm(size), PROT_READ|PROT_WRITE, MAP_SHARED|MAP_ANONYMOUS, f, 0);
 #else
 	if ((f = open("/dev/zero", O_RDWR)) < 0)
 		comerr("Cannot open '/dev/zero'.\n");
-	addr = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED, f, 0);
+	addr = mmap(0, mmap_sizeparm(size), PROT_READ|PROT_WRITE, MAP_SHARED, f, 0);
 #endif
 	if (addr == (char *)-1)
 		comerr("Cannot get mmap for %d Bytes on /dev/zero.\n", size);
 	close(f);
 
-	if (debug) errmsgno(BAD, "shared memory segment attached: %x\n", addr);
+	if (debug) errmsgno(EX_BAD, "shared memory segment attached: %p\n", (void *)addr);
 
 	return (addr);
 }
 #endif
 
-#ifdef	USE_SHM
+#ifdef	USE_USGSHM
 #include <sys/ipc.h>
 #include <sys/shm.h>
 LOCAL char *
@@ -654,15 +686,37 @@ mkshm(size)
 	if ((id = shmget(IPC_PRIVATE, size, IPC_CREAT|0600)) == -1)
 		comerr("shmget failed\n");
 
-	if (debug) errmsgno(BAD, "shared memory segment allocated: %d\n", id);
+	if (debug) errmsgno(EX_BAD, "shared memory segment allocated: %d\n", id);
 
 	if ((addr = shmat(id, (char *)0, 0600)) == (char *)-1)
 		comerr("shmat failed\n");
 
-	if (debug) errmsgno(BAD, "shared memory segment attached: %x\n", addr);
+	if (debug) errmsgno(EX_BAD, "shared memory segment attached: %p\n", addr);
 
 	if (shmctl(id, IPC_RMID, 0) < 0)
 		comerr("shmctl failed\n");
+
+	return (addr);
+}
+#endif
+
+#ifdef	USE_OS2SHM
+LOCAL char *
+mkos2shm(size)
+	int	size;
+{
+	char	*addr;
+
+	/*
+	 * The OS/2 implementation of shm (using shm.dll) limits the size of one shared
+	 * memory segment to 0x3fa000 (aprox. 4MBytes). Using OS/2 native API we have
+	 * no such restriction so I decided to use it allowing fifos of arbitrary size.
+         */
+	if(DosAllocSharedMem(&addr,NULL,size,0X100L | 0x1L | 0x2L | 0x10L))
+		comerr("DosAllocSharedMem() failed\n");
+
+	if (debug)
+		errmsgno(EX_BAD, "shared memory allocated at address: %x\n", addr);
 
 	return (addr);
 }

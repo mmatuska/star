@@ -1,4 +1,4 @@
-/* @(#)ffileread.c	1.4 97/05/15 Copyright 1986 J. Schilling */
+/* @(#)ffileread.c	1.7 00/12/03 Copyright 1986 J. Schilling */
 /*
  *	Copyright (c) 1986 J. Schilling
  */
@@ -18,11 +18,11 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <stdio.h>
 #include "io.h"
 #include <errno.h>
 
-int ffileread(f, buf, len)
+EXPORT int
+ffileread(f, buf, len)
 	register FILE	*f;
 	void	*buf;
 	int	len;
@@ -33,7 +33,7 @@ int ffileread(f, buf, len)
 	down2(f, _IOREAD, _IORW);
 	fd = fileno(f);
 
-	while((ret = read(fd, buf, len)) < 0 && errno == EINTR)
+	while((ret = read(fd, buf, len)) < 0 && geterrno() == EINTR)
 		;
 	return(ret);
 }

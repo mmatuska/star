@@ -1,4 +1,4 @@
-#ident "@(#)r-smake.dep	1.6 97/02/18 "
+#ident "@(#)r-smake.dep	1.7 99/11/01 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -50,8 +50,12 @@ $(ARCHDIR):
 # appropriate dependency file.
 #
 ###########################################################################
-.d=	.c
-	$(MKDEP) $(CPPFLAGS) $(MKDEP_OUT)  $< \
+.d:	.c
+	$(MKDEP) $(CPPFLAGS) $(MKDEP_OUT) $< \
+		| sed -e "s;^\(.*\).o:;\1.o \1.d:;" > $(ARCHDIR)/$@
+
+%.d: %.c
+	$(MKDEP) $(CPPFLAGS) $(MKDEP_OUT) $< \
 		| sed -e "s;^\(.*\).o:;\1.o \1.d:;" > $(ARCHDIR)/$@
 
 Dnull: $(ARCHDIR)

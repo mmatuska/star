@@ -1,4 +1,4 @@
-/* @(#)fctldefs.h	1.1 96/06/26 Copyright 1996 J. Schilling */
+/* @(#)fctldefs.h	1.8 00/12/17 Copyright 1996 J. Schilling */
 /*
  *	Generic header for users of open(), creat() and chmod()
  *
@@ -27,17 +27,47 @@
 #include <mconfig.h>
 #endif
 
-#include <sys/types.h>
-#include <sys/stat.h>
+#ifndef	_INCL_SYS_TYPES_H
+#include <sys/types.h>		/* Needed for sys/stat.h		*/
+#define	_INCL_SYS_TYPES_H
+#endif
+#ifndef	_INCL_SYS_STAT_H
+#include <sys/stat.h>		/* For 3rd arg of open() and chmod()	*/
+#define	_INCL_SYS_STAT_H
+#endif
 
-#ifdef	HAVE_FCNTL_H
-
-#	include <fcntl.h>
-
-#else	/* HAVE_FCNTL_H */
-
+#ifdef	HAVE_SYS_FILE_H
+/*
+ * Historical systems with flock() only need sys/file.h
+ */
 #	include <sys/file.h>
+#endif
+#ifdef	HAVE_FCNTL_H
+#	include <fcntl.h>
+#endif
 
-#endif	/* HAVE_FCNTL_H */
+/*
+ * Do not define more than O_RDONLY / O_WRONLY / O_RDWR / O_BINARY
+ * The values may differ.
+ *
+ * O_BINARY is defined here to allow all applications to compile on a non DOS
+ * environment without repeating this definition.
+ */
+#ifndef	O_RDONLY
+#	define	O_RDONLY	0
+#endif
+#ifndef	O_WRONLY
+#	define	O_WRONLY	1
+#endif
+#ifndef	O_RDWR
+#	define	O_RDWR		2
+#endif
+#ifndef	O_BINARY			/* Only present on DOS or similar */
+#	define	O_BINARY	0
+#endif
+
+#ifndef	O_ACCMODE
+#define	O_ACCMODE		(R_RDONLY|O_WRONLY|O_RDWR)
+#endif
 
 #endif	/* _FCTLDEFS_H */

@@ -1,4 +1,4 @@
-/* @(#)fillbytes.c	1.9 98/02/15 Copyright 1987 J. Schilling */
+/* @(#)fillbytes.c	1.11 00/05/07 Copyright 1987 J. Schilling */
 /*
  *	fill memory with data
  *
@@ -22,6 +22,7 @@
 
 #include <standard.h>
 #include <align.h>
+#include <schily.h>
 
 #define	DO8(a)	a;a;a;a;a;a;a;a;
 
@@ -40,7 +41,10 @@ char *fillbytes(tov, cnt, val)
 	register int	n;
 	register long	lval;
 
-	if ((n = cnt) == 0)
+	/*
+	 * If we change cnt to be unsigned, check for == instead of <=
+	 */
+	if ((n = cnt) <= 0)
 		return (to);
 
 	lval = val & 0xFF;
@@ -50,7 +54,7 @@ char *fillbytes(tov, cnt, val)
 		n--;
 	}
 
-	if (n >= 8 * sizeof(long)) {
+	if (n >= (int)(8 * sizeof(long))) {
 		register int rem = n % (8 * sizeof (long));
 
 		lval |= (lval<<8);

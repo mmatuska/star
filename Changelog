@@ -1,3 +1,365 @@
+*************** Release 1.3 *******************
+
+Tue Jul 13 10:50:26 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.36
+	  Typo in get_volhdr() Prototype.
+
+Tue Jul 13 08:14:10 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.32
+	* star.1 1.14
+	* star.c 1.69
+	  New Option -refresh_old_files
+
+Tue Jul 13 01:41:49 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.31
+	  HAVE_LONGLONG instead of SVR4
+
+Fri Jun 18 02:50:06 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.31
+	  DOS Filesystem time workaround always active because a DOS FS
+	  may also bei present on UNIX
+
+Fri Jun 18 02:44:19 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* list.c 1.25
+	  Paranoia while copying filenames: clear PATH_MAX index.
+
+Fri Jun 18 02:40:21 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.30
+	  PATH_MAX now is minimal 1024
+
+Fri Jun 18 02:38:40 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* longnames.c 1.20
+	  get_tcb() past void_file() on extract if Filename too long
+
+Fri Jun 18 02:31:50 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* create.c 1.35
+	  fileopen() with "b" Binary for DOS, test for HAVE_SEEKDIR
+
+Tue Jun 15 01:33:26 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* diff.h 1.6
+	  common long diffopts -> extern long diffopts
+
+Tue Jun 15 01:32:30 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.68
+	  common diffopts -> int difftopts (data)
+
+Tue Jun 15 01:31:50 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* remote.c 1.14
+	  common int debug -> extern BOOL debug
+
+Tue Jun 15 01:31:00 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* props.c 1.13
+	  debug int -> BOOL
+
+Tue Jun 15 01:30:02 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* fifo.c 1.13
+	  debug int -> BOOL, shmflag common -> extern
+
+Sun Jun  6 17:30:00 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star_unix.c 1.21
+	  #ifndef S_IFLNK -> #ifndef HAVE_LSTAT, #ifndef SVR4 -> #ifndef HAVE_LCHOWN
+
+Sun Jun  6 17:27:30 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star_unix.c 1.20
+	  Workaround for DOS problem with set time & Read Only Files
+
+Sun May  2 16:36:12 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star_unix.c 1.19
+	  Now using S_IS???() macros
+
+Sun May  2 16:34:06 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.30
+	  Timestamp for DOS is always modulo 2
+	  Workaround for ENOTEMPTY & GYGWIN32 when doing rmdir(file)
+
+Sun May  2 16:32:26 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* buffer.c 1.37
+	  O_BINARY & "b" for DOS
+
+Sun May  2 03:26:40 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.29
+	  To allow DOS use "b" for fileopen()
+	  Do not remove '/' for symlinks
+
+Sun May  2 03:25:58 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* diff.c 1.29
+	  For DOS, use  "b" for fileopen()
+
+Sat Feb  6 19:05:38 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.35
+	  Compress/gzip recognition and printout if an unknown format is found
+
+Mon Jan 25 21:18:48 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.28
+	  Typo in Parameter
+
+Sun Jan 24 14:42:54 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* starsubs.h 1.9
+	* header.c 1.34
+	* extract.c 1.27
+	  Check VOLHDR on extract.
+
+Sun Jan 24 14:32:39 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.1 1.13
+	  New option -bz.
+
+Sun Jan 24 14:31:47 1999 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.66
+	* buffer.c 1.35
+	  New option -bz, Check VOLHDR on extract.
+
+Sat Nov 21 13:50:51 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star_unix.c 1.18
+	* star.c 1.65
+	* header.c 1.33
+	* device.c 1.4
+	  #include <sys/types.h> for #include <device.h> and SCO
+
+Sat Nov 21 13:47:59 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.64
+	  call closepattern() if -c und !cflag in match() to allow pat= to
+	  work with -c flag
+
+Sun Nov 15 19:26:23 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.32
+	  Warning for partial EOF Blocks (only 1 EOF block)
+
+Fri Nov 13 00:02:08 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.31
+	  Workaround for ptb->dbuf.t_name[NAMSIZ] == '\0' (buggy Sun tar)
+
+Tue Nov 10 00:29:08 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* create.c 1.34
+	  Don't use get_block() to allocate TCB buffer if -p Flag & directory
+
+Sun Nov  8 18:31:09 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.29
+	  New descrition on how to recognise xstar archives
+
+Sun Nov  8 01:18:35 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.1 1.12
+	  -h Option removed
+
+Sun Nov  8 00:43:31 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.30
+	  isxmagic() enhanced
+	  force t_prefix[130] = '\0' for xstar
+
+Sun Nov  8 00:00:06 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* create.c 1.33
+	  _fileopen()/_fileread() new
+	  put_file(FILE *) -> put_file(int *)
+
+Sat Nov  7 23:59:01 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* hole.c 1.16
+	* starsubs.h 1.8
+	  _fileopen()/_fileread() new
+	  put_file(FILE *) -> put_file(int *)
+	  put_sparse(FILE *) -> put_sparse(int *)
+
+Sat Nov  7 21:20:10 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* starsubs.h 1.7
+	* star_unix.c 1.17
+	  rs_acctime(FILE *f, ...) -> rs_acctime(int fd, ...)
+
+Sat Nov  7 18:09:39 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* fifo.c 1.12
+	  USE_SHM -> USE_USGSHM (similar to cdrecord)
+
+Sat Nov  7 18:06:12 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.63
+	  Converted to use dirdefs.h/maxpath.h/getcwd.h
+	  USE_SHM -> USE_USGSHM (similar to cdrecord)
+	  usage() for bad Compat Option
+
+Sat Nov  7 17:55:32 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.28
+	  star_ext_header -> xstar_ext_header
+	  xstar_in_header better modeled similar to xstar_header (t_prefix[])
+
+Sun Sep 13 18:22:33 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* create.c 1.32
+	* extract.c 1.26
+	* header.c 1.29
+	* list.c 1.24
+	* star_unix.c 1.16
+	* diff.c 1.28
+	  Converted to use dirdefs.h
+
+Sun Sep 13 17:02:56 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* extract.c 1.25
+	  Recognition of unexpected end of archive even if amount % 512 != 0
+	  EEXIST now yields to removes the File in get_file()
+
+Sun Sep 13 16:23:21 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star_unix.c 1.15
+	* buffer.c 1.34
+	  BSD4_2 define removed
+
+Sun Sep 13 16:19:20 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* buffer.c 1.33
+	  converted to use vadefs.h
+
+Mon Aug 10 23:42:03 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.62
+	  backtape() call new to allow -u & -r
+	  -u/-r enabled
+	  no_fifo = TRUE for -u/-r
+	  D_SPARSE/sparse new for -diff
+	  H_XUSTAR new
+
+Mon Aug 10 23:39:34 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.28
+	  H_XUSTAR without "tar" magic new 
+	  hdrtxt[] enhanced for H_XUSTAR
+	  isxmagic() new
+
+Mon Aug 10 04:06:27 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* starsubs.h 1.6
+	  markeof() / backtape() / mtioctl() / mtseek() / update_newer() new
+
+Mon Aug 10 04:05:01 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* buffer.c 1.32
+	  markeof() / backtape() / mtioctl() / mtseek() new
+	  syncbuf() corrected 
+	 -nullout enhanced for -rflag/-uflag
+
+Mon Aug 10 03:46:56 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* diff.c 1.27
+	  D_TYPE if Statement remodeled to make it more readable
+	  D_SPARS new
+	  Don't evaluate D_SIZE for hard links
+
+Mon Aug 10 03:42:59 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.27
+	  H_XUSTAR new
+	  comment for recognition of xstar
+
+Mon Aug 10 03:41:43 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* props.c 1.12
+	  H_XUSTAR new
+
+Mon Aug 10 03:41:15 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* create.c 1.31
+	  checkdirexclude() / checkexclude() new
+	  xstats Support new
+	  uflag / update_newer() Support new
+
+Sun Aug  9 20:41:36 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* hole.c 1.15
+	  change from  fileseek() -> lseek() to fix Sparse Problems on FreeBSD & Linux
+
+Sun Aug  9 16:42:24 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* diff.h 1.5
+	  new Option D_SPARS
+
+Sun Aug  9 14:52:15 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* longnames.c 1.19
+	  s_toolong Increment for cannot split correctly moved to coditional part.
+
+Thu Jul 30 00:22:10 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* fifo.h 1.4
+	  lastsize new for append Option
+
+Mon Jul  6 02:09:37 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.61
+	  copt[] -> *copt for K&R automatic Vars
+
+Sun Jul  5 23:05:38 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.27
+	  numeric now works in create Mode too
+
+Sun Jul  5 23:02:47 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* names.c 1.7
+	  Cachesize enhanced from 1 -> 16 and new Code
+
+Sun Jul  5 21:48:12 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.60
+	  filename() new
+	  -F Option new
+	  checkerrs() new
+	  -w Option in Usage
+	  av[0] == "tar" now uses  xstar Format as default
+
+Sun Jul  5 21:36:25 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* hole.c 1.14
+	* diff.c 1.26
+	* extract.c 1.24
+	* longnames.c 1.18
+	  xstats new
+
+Sun Jul  5 21:14:38 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* buffer.c 1.31
+	  checkerrs() new
+	  Allow overwriting of empty files in compat mode (tar cf <filename>)
+
+Sun Jul  5 21:05:29 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* starsubs.h 1.5
+	  checkerrs() and filename() new
+
+Sun Jul  5 20:35:49 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.26
+	  struct star_stats enhanced
+
+Thu Jul  2 23:12:58 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.59
+	  nameprefix() nee
+	  namefound() new
+	  addarg() new
+	  addfile() new
+	  File selection for Extraction now compatible to old tar
+
+Thu Jul  2 21:45:39 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* list.c 1.23
+	* extract.c 1.23
+	* diff.c 1.25
+	* create.c 1.30
+	* append.c 1.10
+	  npat -> havepat
+
+Thu Jul  2 01:54:31 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.h 1.25
+	* lhash.c 1.7
+	* remote.c 1.13
+	* longnames.c 1.17
+	* list.c 1.22
+	* hole.c 1.13
+	* header.c 1.26
+	* fifo.c 1.11
+	* extract.c 1.22
+	* create.c 1.29
+	* buffer.c 1.30
+	* star.c 1.58
+	  BAD -> EX_BAD
+
+Thu Jul  2 01:35:33 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* header.c 1.25
+	  Print warning if found more than 12 Bits in mode Feld
+
+Thu Jul  2 01:33:37 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.c 1.57
+	  include getargs.h
+	  __malloc()/__savestr() new
+	  docompat() for old option syntax new
+	  fcompat new
+	  -version pption new
+	  -h Option removed
+	  -w Option new
+	  av[0] == "ustar" fixed
+	  av[0] == "tar" new 
+
+Mon Jun 29 21:37:07 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* buffer.c 1.29
+	  fcompat new (Option compat for old tar)
+
+Mon Jun 29 21:36:27 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* starsubs.h 1.4
+	  __malloc()/__savestr() new
+
+Wed Jun 24 19:41:04 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>
+	* star.1 1.11
+	  _FIOAI Bug description removed
+
 *************** Release 1.2 *******************
 
 Tue Jun 23 03:00:40 1998 Joerg Schilling <joerg@schily.isdn.cs.tu-berlin.de>

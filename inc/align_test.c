@@ -1,7 +1,7 @@
-/* @(#)align_test.c	1.8 98/02/17 Copyright 1995 J. Schilling */
+/* @(#)align_test.c	1.12 00/01/07 Copyright 1995 J. Schilling */
 #ifndef	lint
 static	char sccsid[] =
-	"@(#)align_test.c	1.8 98/02/17 Copyright 1995 J. Schilling";
+	"@(#)align_test.c	1.12 00/01/07 Copyright 1995 J. Schilling";
 #endif
 /*
  *	Generate machine dependant align.h
@@ -31,6 +31,8 @@ static	char sccsid[] =
 /*#define	FORCE_ALIGN*/
 /*#define	OFF_ALIGN*/
 /*#define	CHECK_ALIGN*/
+
+EXPORT	int	main	__PR((int ac, char** av));
 
 #if	!defined(FORCE_ALIGN) && !defined(OFF_ALIGN) &&	!defined(CHECK_ALIGN)
 #define	OFF_ALIGN
@@ -63,6 +65,7 @@ char	*buf_aligned;
 #define	ALIGN_longlong	sizeof (long long)
 #define	ALIGN_float	sizeof (float)
 #define	ALIGN_double	sizeof (double)
+#define	ALIGN_ptr	sizeof (char *)
 
 #endif
 
@@ -79,6 +82,7 @@ LOCAL	int	check_long	__PR((char *, int));
 LOCAL	int	check_longlong	__PR((char *, int));
 LOCAL	int	check_float	__PR((char *, int));
 LOCAL	int	check_double	__PR((char *, int));
+LOCAL	int	check_ptr	__PR((char *, int));
 
 LOCAL	int	speed_check	__PR((char *, void (*)(char*, int), int));
 LOCAL	void	speed_short	__PR((char *, int));
@@ -87,6 +91,7 @@ LOCAL	void	speed_long	__PR((char *, int));
 LOCAL	void	speed_longlong	__PR((char *, int));
 LOCAL	void	speed_float	__PR((char *, int));
 LOCAL	void	speed_double	__PR((char *, int));
+LOCAL	void	speed_ptr	__PR((char *, int));
 
 #define	ALIGN_short	check_align(check_short, speed_short, sizeof (short))
 #define	ALIGN_int	check_align(check_int, speed_int, sizeof (int))
@@ -94,6 +99,7 @@ LOCAL	void	speed_double	__PR((char *, int));
 #define	ALIGN_longlong	check_align(check_longlong, speed_longlong, sizeof (long long))
 #define	ALIGN_float	check_align(check_float, speed_float, sizeof (float))
 #define	ALIGN_double	check_align(check_double, speed_double, sizeof (double))
+#define	ALIGN_ptr	check_align(check_ptr, speed_ptr, sizeof (char *))
 
 #endif
 
@@ -107,6 +113,7 @@ LOCAL	int	off_long	__PR((void));
 LOCAL	int	off_longlong	__PR((void));
 LOCAL	int	off_float	__PR((void));
 LOCAL	int	off_double	__PR((void));
+LOCAL	int	off_ptr		__PR((void));
 
 #define	ALIGN_short	off_short()
 #define	ALIGN_int	off_int()
@@ -114,6 +121,7 @@ LOCAL	int	off_double	__PR((void));
 #define	ALIGN_longlong	off_longlong()
 #define	ALIGN_float	off_float()
 #define	ALIGN_double	off_double()
+#define	ALIGN_ptr	off_ptr()
 
 #endif
 
@@ -149,11 +157,14 @@ char	lo[] = "long";
 char	ll[] = "long long";
 char	fl[] = "float";
 char	db[] = "double";
+char	pt[] = "pointer";
 
 #define	xalign(x, a, m)		( ((char *)(x)) + ( (a) - (((int)(x))&(m))) )
 
 EXPORT int
-main()
+main(ac, av)
+	int	ac;
+	char	**av;
 {
 	char	*p;
 	int	i;
@@ -178,6 +189,9 @@ main()
 	printf(" * by %s\n", sccsid);
 	printf(" * do not edit by hand.\n");
 	printf(" */\n");
+	printf("#ifndef	_UTYPES_H\n");
+	printf("#include <utypes.h>\n");
+	printf("#endif\n");
 
 	s = sizeof(short);
 	i  = ALIGN_short;
@@ -229,6 +243,14 @@ main()
 	printf("#define	ALIGN_DMASK	%d\t/* %s(%s *)\t*/\n", i-1, ms, db);
 	printf("#define	SIZE_DOUBLE	%d\t/* %s(%s)\t\t\t*/\n", s, so, db);
 
+	s = sizeof(char *);
+	i  = ALIGN_ptr;
+	i = min_align(i);
+	printf("\n");
+	printf("#define	ALIGN_PTR	%d\t/* %s(%s *)\t*/\n", i, al, pt);
+	printf("#define	ALIGN_PMASK	%d\t/* %s(%s *)\t*/\n", i-1, ms, pt);
+	printf("#define	SIZE_PTR	%d\t/* %s(%s)\t\t\t*/\n", s, so, pt);
+
 	printmacs();
 	return (0);
 }
@@ -236,9 +258,15 @@ main()
 LOCAL void
 printmacs()
 {
-printf("\n");
-printf("#define	xaligned(a, s)		((((int)(a)) & s) == 0 )\n");
-printf("#define	x2aligned(a, b, s)	(((((int)(a)) | ((int)(b))) & s) == 0 )\n");
+printf("\n\n");
+printf("/*\n * There used to be a cast to an int but we get a warning from GCC.\n");
+printf(" * This warning message from GCC is wrong.\n");
+printf(" * Believe me that this macro would even be usable if I would cast to short.\n");
+printf(" * In order to avoid this warning, we are now using UIntptr_t\n */\n");
+/*printf("\n");*/
+/*printf("\n");*/
+printf("#define	xaligned(a, s)		((((UIntptr_t)(a)) & s) == 0 )\n");
+printf("#define	x2aligned(a, b, s)	(((((UIntptr_t)(a)) | ((UIntptr_t)(b))) & s) == 0 )\n");
 printf("\n");
 printf("#define	saligned(a)		xaligned(a, ALIGN_SMASK)\n");
 printf("#define	s2aligned(a, b)		x2aligned(a, b, ALIGN_SMASK)\n");
@@ -257,11 +285,16 @@ printf("#define	f2aligned(a, b)		x2aligned(a, b, ALIGN_FMASK)\n");
 printf("\n");
 printf("#define	daligned(a)		xaligned(a, ALIGN_DMASK)\n");
 printf("#define	d2aligned(a, b)		x2aligned(a, b, ALIGN_DMASK)\n");
+printf("\n");
+printf("#define	paligned(a)		xaligned(a, ALIGN_PMASK)\n");
+printf("#define	p2aligned(a, b)		x2aligned(a, b, ALIGN_PMASK)\n");
 
 printf("\n\n");
-printf("/*\n * I know excatly what I am doing here!\n * The warning message from GCC is wrong.\n");
-printf(" * Believe me that this macro would even be usable if I would cast to short.\n */\n");
-printf("#define	xalign(x, a, m)		( ((char *)(x)) + ( (a) - (((int)(x))&(m))) )\n");
+printf("/*\n * There used to be a cast to an int but we get a warning from GCC.\n");
+printf(" * This warning message from GCC is wrong.\n");
+printf(" * Believe me that this macro would even be usable if I would cast to short.\n");
+printf(" * In order to avoid this warning, we are now using UIntptr_t\n */\n");
+printf("#define	xalign(x, a, m)		( ((char *)(x)) + ( (a) - 1 - ((((UIntptr_t)(x))-1)&(m))) )\n");
 printf("\n");
 printf("#define	salign(x)		xalign((x), ALIGN_SHORT, ALIGN_SMASK)\n");
 printf("#define	ialign(x)		xalign((x), ALIGN_INT, ALIGN_IMASK)\n");
@@ -269,6 +302,7 @@ printf("#define	lalign(x)		xalign((x), ALIGN_LONG, ALIGN_LMASK)\n");
 printf("#define	llalign(x)		xalign((x), ALIGN_LLONG, ALIGN_LLMASK)\n");
 printf("#define	falign(x)		xalign((x), ALIGN_FLOAT, ALIGN_FMASK)\n");
 printf("#define	dalign(x)		xalign((x), ALIGN_DOUBLE, ALIGN_DMASK)\n");
+printf("#define	palign(x)		xalign((x), ALIGN_PTR, ALIGN_PMASK)\n");
 }
 
 #ifdef	CHECK_ALIGN
@@ -401,6 +435,18 @@ check_double(p, i)
 	return (0);
 }
 
+LOCAL int
+check_ptr(p, i)
+	char	*p;
+	int	i;
+{
+	char	**pp;
+
+	pp = (char  **)&p[i];
+	*pp = (char *)1;
+	return (0);
+}
+
 /*
  * Routines to compute the alignement by checking the speed of the
  * assignement.
@@ -494,6 +540,20 @@ speed_double(p, n)
 		*dp = i;
 }
 
+LOCAL void
+speed_ptr(p, n)
+	char	*p;
+	int	n;
+{
+	char	**pp;
+	int	i;
+
+	pp = (char **)&p[n];
+
+	for (i = 1000000; --i >= 0;)
+		*pp = (char *)i;
+}
+
 #include <sys/times.h>
 LOCAL int
 speed_check(p, sfunc, n)
@@ -532,6 +592,7 @@ off_short()
 		char	c;
 		short	s;
 	} ss;
+	ss.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct ss *, s));
 }
@@ -543,6 +604,7 @@ off_int()
 		char	c;
 		int	i;
 	} si;
+	si.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct si *, i));
 }
@@ -554,6 +616,7 @@ off_long()
 		char	c;
 		long	l;
 	} sl;
+	sl.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct sl *, l));
 }
@@ -566,6 +629,7 @@ off_longlong()
 		char	c;
 		long long	ll;
 	} sll;
+	sll.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct sll *, ll));
 }
@@ -578,6 +642,7 @@ off_float()
 		char	c;
 		float	f;
 	} sf;
+	sf.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct sf *, f));
 }
@@ -589,7 +654,21 @@ off_double()
 		char	c;
 		double	d;
 	} sd;
+	sd.c = 0;		/* fool C-compiler */
 
 	return (sm_off(struct sd *, d));
 }
+
+LOCAL int
+off_ptr()
+{
+	struct sp {
+		char	c;
+		char	*p;
+	} sp;
+	sp.c = 0;		/* fool C-compiler */
+
+	return (sm_off(struct sp *, p));
+}
+
 #endif	/* OFF_ALIGN */

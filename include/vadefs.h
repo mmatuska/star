@@ -1,4 +1,4 @@
-/* @(#)vadefs.h	1.2 98/03/02 Copyright 1998 J. Schilling */
+/* @(#)vadefs.h	1.4 99/11/27 Copyright 1998 J. Schilling */
 /*
  *	Generic header for users of var args ...
  *
@@ -31,14 +31,28 @@
 #include <mconfig.h>
 #endif
 
-#ifdef	HAVE_STDARG_H
-#	include <stdarg.h>
+#ifdef	PROTOTYPES
+/*
+ * For ANSI C-compilers prefer stdarg.h
+ */
+#	ifdef	HAVE_STDARG_H
+#		include <stdarg.h>
+#	else
+#		include <varargs.h>
+#	endif
 #else
-#	include <varargs.h>
+/*
+ * For K&R C-compilers prefer varargs.h
+ */
+#	ifdef	HAVE_VARARGS_H
+#		include <varargs.h>
+#	else
+#		include <stdarg.h>
+#	endif
 #endif
 
 #if (defined(__linux__) || defined(__linux) || defined(sun)) && \
-			(defined(__ppc) || defined(__PPC) || defined(powerpc))
+		(defined(__ppc) || defined(__PPC) || defined(powerpc) || defined(__powerpc__))
 
 #	ifndef	VA_LIST_IS_ARRAY
 #	define	VA_LIST_IS_ARRAY
@@ -63,7 +77,11 @@
  * compatibility.
  */
 #if !defined(va_copy) && !defined(HAVE_VA_COPY)
+#ifdef	VA_LIST_IS_ARRAY
+#	define	va_copy(to, from)	((to)[0] = (from)[0])
+#else
 #	define	va_copy(to, from)	((to) = (from))
+#endif
 #endif
 
 /*

@@ -1,7 +1,7 @@
-/* @(#)cmpbytes.c	1.11 98/02/15 Copyright 1988 J. Schilling */
+/* @(#)cmpbytes.c	1.13 00/05/07 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)cmpbytes.c	1.11 98/02/15 Copyright 1988 J. Schilling";
+	"@(#)cmpbytes.c	1.13 00/05/07 Copyright 1988 J. Schilling";
 #endif  /* lint */
 /*
  *	compare data
@@ -26,6 +26,7 @@ static	char sccsid[] =
 
 #include <standard.h>
 #include <align.h>
+#include <schily.h>
 
 #define	DO8(a)	a;a;a;a;a;a;a;a;
 
@@ -38,10 +39,13 @@ int cmpbytes(fromp, top, cnt)
 	register const char	*to	= (char *)top;
 	register int		n;
 
-	if ((n = cnt) == 0)
+	/*
+	 * If we change cnt to be unsigned, check for == instead of <=
+	 */
+	if ((n = cnt) <= 0)
 		return (cnt);
 
-	if (n >= 8 * sizeof(long)) {
+	if (n >= (int)(8 * sizeof(long))) {
 		if (l2aligned(from, to)) {
 			register const long *froml = (const long *)from;
 			register const long *tol   = (const long *)to;

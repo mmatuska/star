@@ -3,13 +3,17 @@ Porting FAQ for SING (Schily Is Not Gnu) utilities.
 -	The base for porting is the makefile system.
 	Always look into:
 		ftp://ftp.fokus.gmd.de/pub/unix/makefiles
-	for the newest version.
+	for a version that might be newer than the one used
+	inside the program that should be ported.
 
-	Then read the man pages located in man/man4/*
+	If you want to know more about the makefile system,
+	read the man pages makefiles4 and makerules.4,
+	they are located in man/man4/*
 
-		to convert a manpage troff->postscript:
+		to convert a manpage troff->postscript use:
 			gtroff -man file.tr | grops > file.ps
-		to convert a manpage troff->Terminal:
+
+		to convert a manpage troff->Terminal use:
 			nroff -man file.tr | more -s
 
 
@@ -19,13 +23,30 @@ Porting FAQ for SING (Schily Is Not Gnu) utilities.
 	Currently, the following make programs meet this
 	minimum requirements: Smake (my program), SunPro Make and Gmake
 
+	A good idea is to first compile 'smake' if you don't
+	have it already.
+
+	The smake source can be found on:
+
+		ftp://fokus.gmd.de/pub/unix/smake/
+	or
+		ftp://fokus.gmd.de/pub/unix/smake/alpha
+
+	for the most recent version.
 
 -	To be able to use the makefile system with gmake,
 	the operating system must have a command named 'uname'.
 	If not, you have to provide it as a shell script.
 
 
-1)	First step for adding a new architecture is creating
+1)	If you are using smake release 1.1 or newer and 
+	a recent makefile system, the next step should be done
+	automagically (smake-1.1 or newer implement a -version
+	option to retrieve the version number).
+
+	If you are using gmake, you need to do this by hand.
+
+	First step for adding a new architecture is creating
 	the appropriate rule files in the RULES directory:
 
 		RULES/os-{newos}.id	For OS identification
@@ -39,32 +60,46 @@ Porting FAQ for SING (Schily Is Not Gnu) utilities.
 
 	Have a look in similar files for a template.
 
-2)	All porting control is located in include/mconfig.h
-	There is a checklist with comment at the beginning
-	of the file and a template for a new system at the end of
-	the file.
+	If the files hae been generated automagically by smake,
+	please check the content and mail me a working set for your OS.
 
-	Read the manuals of your operating system and have a look
-	into the OS-supplied files in /usr/include to create 
-	a new entry for your architecture.
+2)	All C-porting control is located in include/mconfig.h
+	and in the file incs/{newarch}-{newos}-{cc!gcc}/xconfig.h
+	The later file is created automatically using GNU 
+	configure. The File conf/xconfig.h.in contains all
+	templates and comments for the various things that are tested.
 
-	If some time, GNU autoconf will deal with all I need,
-	this file will be created by autoconf.
-
-	NOTE: in cdrecord-1.4 is a bug in mconfig.h
-	the define HAVE_SYS_TIME_H is not included in the
-	checklist and not included in the template.
-	It may be important however.
+	In any case, it is recommended to carefully watch the
+	outout from the 'configure' run (which is automatically
+	started from within 'make'). You may also wish to check all
+	files that are created in the directory 
+	incs/{newarch}-{newos}-{cc!gcc}/
 
 3)	Everything should compile now.
 	If not, try to hack the files and mail me your problems.
 
-Notice for porting tools, that use the SCSI library:
+	You should have a closer look at the sources as it may be that
+	the first attempt to port a utility will not support
+	all possible features of the new OS.
+	If your OS supportes these features in a non standard way,
+	you need to hack conf/configure.in and the source and add 
+	support for the non standard behaviour of your OS.
+
+	This is definitely recommended if you want to port programs 
+	like 'cdrecord' 'star' and similar which need fork(2) and
+	mmap(2) or setprioriry(2) or if you check programs on
+	non POSIX operating systems like W95/W98/WNT OS/2 and
+	similar.
+
+
+Notice for porting tools, that use the SCSI library libscg:
 
 I)	Cdrecord should compile at this moment if you are using
 	a new architecture. The SCSI transport however will not work.
 	Check this!
 
+	All files that contain low level code for SCSI transport are 
+	located in the directory libscg/
 
 II)	Implementing a SCSI Transport Layer for your architecture:
 
@@ -84,6 +119,10 @@ II)	Implementing a SCSI Transport Layer for your architecture:
 	Add a new file that will be called scsi-{newarch}.c
 	Have a look into scsi-linux-sg.c for a template how to do this.
 
+	More hints for writing the needed SCSI low level transport functions
+	is in:
+
+		ftp://fokus.gmd.de/pub/unix/cdrecord/README.scsi-IF
 
 4)	Test your ported program.
 

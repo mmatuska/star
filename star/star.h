@@ -1,4 +1,4 @@
-/* @(#)star.h	1.24 98/06/23 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.h	1.33 01/04/07 Copyright 1985, 1995 J. Schilling */
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
  */
@@ -18,6 +18,9 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <utypes.h>
+#include <timedefs.h>
+
 #define tarblocks(s)	(((s) + (TBLOCK-1)) / TBLOCK)
 #define tarsize(s)	(tarblocks(s) * TBLOCK)
 
@@ -35,15 +38,17 @@
 #define	H_GNUTAR	4	/* gnu tar format */
 #define	H_USTAR		5	/* ieee 1003.1 format */
 #define	H_XSTAR		6	/* extended 1003.1 format */
-#define	H_BAR		7	/* SUN bar format */
-#define	H_CPIO		8	/* XXX entfällt */
-#define	H_CPIO_BIN	8	/* cpio Binär */
-#define	H_CPIO_CHR	9	/* cpio -c format */
-#define	H_CPIO_NBIN	10	/* cpio neu Binär */
-#define	H_CPIO_CRC	11	/* cpio crc Binär */
-#define	H_CPIO_ASC	12	/* cpio ascii expanded maj/min */
-#define	H_CPIO_ACRC	13	/* cpio crc expanded maj/min */
-#define	H_MAX_ARCH	13	/* Highest possible # */
+#define	H_XUSTAR	7	/* extended 1003.1 format without "tar" signature */
+#define	H_RES8		8	/* Reserved */
+#define	H_BAR		9	/* SUN bar format */
+#define	H_CPIO		10	/* XXX entfällt */
+#define	H_CPIO_BIN	10	/* cpio Binär */
+#define	H_CPIO_CHR	11	/* cpio -c format */
+#define	H_CPIO_NBIN	12	/* cpio neu Binär */
+#define	H_CPIO_CRC	13	/* cpio crc Binär */
+#define	H_CPIO_ASC	14	/* cpio ascii expanded maj/min */
+#define	H_CPIO_ACRC	15	/* cpio crc expanded maj/min */
+#define	H_MAX_ARCH	15	/* Highest possible # */
 
 
 #define TBLOCK		512
@@ -81,6 +86,8 @@
 /* Note that the standards committee allows only capital A through
    capital Z for user-defined expansion.  This means that defining something
    as, say '8' is a *bad* idea. */
+
+#define	LF_ACL		'A'	/* Access Control List	*/
 #define LF_DUMPDIR	'D'	/* This is a dir entry that contains
 					   the names of files that were in
 					   the dir at the time the dump
@@ -165,6 +172,20 @@ struct star_header {
 
 /*
  * This is the new (post Posix 1003.1) xstar header.
+ *
+ * t_prefix[130]	is garanteed to be '\0' to prevent ustar compliant
+ *			implementations from failing.
+ * t_mfill & t_xmagic	need to be zero for a 100% ustar compliant
+ *			implementation, so setting t_xmagic to "tar" should
+ *			be avoided in the future.
+ *
+ * A different method to recognise this format is to verify that
+ * t_prefix[130]	is equal to '\0' and
+ * t_atime[0]/t_ctime[0] is an octal number and
+ * t_atime[11]		is equal to ' ' and
+ * t_ctime[11]		is equal to ' '.
+ *
+ * Note that t_atime[11]/t_ctime[11] may be changed in future.
  */
 struct xstar_header {
 	char t_name[NAMSIZ];	/*   0	Dateiname	*/
@@ -200,10 +221,12 @@ struct sparse {
 #define	SEH		SPARSE_EXT_HDR
 
 struct xstar_in_header {
-	char t_fill[345];
-	char t_fill2[10];
+	char t_fill[345];	/*   0  Everything that is before t_prefix */
+	char t_prefix[1];	/* 345	Prefix fuer t_name */
+	char t_fill2;		/* 346  */
+	char t_fill3[8];	/* 347  */
 	char t_isextended;	/* 355	*/
-	struct sparse t_sp[SIH];/* 356	*/
+	struct sparse t_sp[SIH];/* 356	8 x 12		*/
 	char t_realsize[12];	/* 452	Echte Größe bei sparse Dateien */
 	char t_offset[12];	/* 464	Offset für Multivol cont. Dateien */
 	char t_atime[12];	/* 476	Zeit d. letzten Zugriffs */
@@ -212,7 +235,7 @@ struct xstar_in_header {
 	char t_xmagic[4];	/* 508	"tar"		*/
 };
 
-struct star_ext_header {
+struct xstar_ext_header {
 	struct sparse t_sp[SEH];
 	char t_isextended;
 };
@@ -306,31 +329,13 @@ typedef union hblock {
 	struct star_header star_dbuf;
 	struct xstar_header xstar_dbuf;
 	struct xstar_in_header xstar_in_dbuf;
+	struct xstar_ext_header xstar_ext_dbuf;
 	struct header ustar_dbuf;
 	struct gnu_header gnu_dbuf;
 	struct gnu_in_header gnu_in_dbuf;
 	struct gnu_extended_header gnu_ext_dbuf;
 	struct bar_header bar_dbuf;
 }TCB ;
-
-#ifndef	NO_LONGLONG
-#	if	defined(__GNUC__)
-#		define	LONGLONG
-#	endif
-#	if	defined(sun) && defined(SVR4)
-#		define	LONGLONG
-#	endif
-#endif
-
-#ifdef	LONGLONG
-typedef	long long	Llong;
-#else
-typedef	unsigned long	Llong;	/* give maximum precision */
-#endif
-typedef	unsigned long	Ulong;
-typedef	unsigned int	Uint;
-typedef	unsigned short	Ushort;
-typedef	unsigned char	Uchar;
 
 typedef	struct	{
 	TCB	*f_tcb;
@@ -358,12 +363,12 @@ typedef	struct	{
 	Ulong	f_rdev;		/* Major/Minor bei Geraeten	*/
 	Ulong	f_rdevmaj;	/* Major bei Geraeten		*/
 	Ulong	f_rdevmin;	/* Minor bei Geraeten		*/
-	Ulong	f_atime;	/* Zeit d. letzten Zugriffs	*/
-	Ulong	f_spare1;
-	Ulong	f_mtime;	/* Zeit d. letzten Aenderung */
-	Ulong	f_spare2;
-	Ulong	f_ctime;	/* Zeit d. letzten Statusaend. */
-	Ulong	f_spare3;
+	time_t	f_atime;	/* Zeit d. letzten Zugriffs	*/
+	Ulong	f_ansec;	/* nsec Teil "			*/
+	time_t	f_mtime;	/* Zeit d. letzten Aenderung	*/
+	Ulong	f_mnsec;	/* nsec Teil "			*/
+	time_t	f_ctime;	/* Zeit d. letzten Statusaend.	*/
+	Ulong	f_cnsec;	/* nsec Teil "			*/
 } FINFO;
 
 #define	F_LONGNAME	0x01	/* Langer Name passt nicht in Header	     */
@@ -387,6 +392,7 @@ typedef	struct	{
 #define	is_bdev(i)	((i)->f_xftype == XT_BLK)
 #define	is_cdev(i)	((i)->f_xftype == XT_CHR)
 #define	is_dev(i)	(is_bdev(i) || is_cdev(i))
+#define	is_fifo(i)	((i)->f_xftype == XT_FIFO)
 #define	is_link(i)	((i)->f_xftype == XT_LINK)
 #define	is_volhdr(i)	((i)->f_xftype == XT_VOLHDR)
 #define	is_sparse(i)	((i)->f_xftype == XT_SPARSE)
@@ -395,28 +401,32 @@ typedef	struct	{
 #define isoctal(c)	((c) >= '0' && (c) <= '7')
 #define	isupper(c)	((c) >= 'A' && (c) <= 'Z')
 #define	toupper(c)	(isupper(c) ? (c) : (c) - ('a' - 'A'))
+/*
+ * Needed for QNX
+ */
+#ifdef	max
+#undef	max
+#endif
+#ifdef	min
+#undef	min
+#endif
 #define	max(a,b)	((a) < (b) ? (b) : (a))
 #define	min(a,b)	((a) < (b) ? (a) : (b))
 
 
 struct star_stats {
-	int	s_staterrs;
-	int	s_readerrs;
-	int	s_openerrs;
-	int	s_toolong;
-	int	s_toobig;
-	int	s_isspecial;
-	int	s_sizeerrs;
+	int	s_staterrs;	/* Could not stat(2) file	*/
+	int	s_openerrs;	/* Open/Create error for file	*/
+	int	s_rwerrs;	/* Read/Write error from file	*/
+	int	s_sizeerrs;	/* File changed size		*/
+	int	s_misslinks;	/* Missing links to file	*/
+	int	s_toolong;	/* File name too long		*/
+	int	s_toobig;	/* File does not fit on one tape*/
+	int	s_isspecial;	/* File is special - not dumped	*/
 };
 
 extern	struct	star_stats	xstats;
 
-
-#ifdef	JOS
-#	define	BAD	(1)
-#else
-#	define	BAD	(-1)
-#endif
 
 #include <sys/param.h>
 
@@ -425,5 +435,14 @@ extern	struct	star_stats	xstats;
 #endif
 
 #ifndef	PATH_MAX
+#define	PATH_MAX	1024
+#endif
+
+/*
+ * Make sure that regardless what the OS defines, star reserves
+ * space for 1024 chars in filenames.
+ */
+#if	PATH_MAX < 1024
+#undef	PATH_MAX
 #define	PATH_MAX	1024
 #endif

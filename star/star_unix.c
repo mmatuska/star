@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.14 98/04/05 Copyright 1985, 1995 J. Schilling */
+/* @(#)star_unix.c	1.27 01/04/07 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.14 98/04/05 Copyright 1985, 1995 J. Schilling";
+	"@(#)star_unix.c	1.27 01/04/07 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -27,22 +27,24 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include <errno.h>
 #include "star.h"
 #include "table.h"
-#include "dir.h"
 #include <standard.h>
 #include <unixstd.h>
-#include <timedefs.h>
+#include <dirdefs.h>
+#include <statdefs.h>
 #include <device.h>
+#include <schily.h>
 #include "dirtime.h"
 #include "xutimes.h"
 #include "starsubs.h"
 
-#ifndef	S_IFLNK
+#ifndef	HAVE_LSTAT
 #define	lstat	stat
 #endif
-#ifndef	SVR4
+#ifndef	HAVE_LCHOWN
 #define	lchown	chown
 #endif
 
@@ -59,8 +61,9 @@ EXPORT	BOOL	getinfo		__PR((char* name, FINFO * info));
 EXPORT	void	checkarch	__PR((FILE *f));
 EXPORT	void	setmodes	__PR((FINFO * info));
 LOCAL	int	sutimes		__PR((char* name, FINFO *info));
+EXPORT	int	snulltimes	__PR((char* name, FINFO *info));
 EXPORT	int	sxsymlink	__PR((FINFO *info));
-EXPORT	int	rs_acctime	__PR((FILE * f, FINFO * info));
+EXPORT	int	rs_acctime	__PR((int fd, FINFO * info));
 
 EXPORT BOOL
 getinfo(name, info)
@@ -95,11 +98,25 @@ getinfo(name, info)
 	} else {
 		info->f_rdev = (Ulong) stbuf.st_rdev;
 	}
-	info->f_rdevmaj	= dev_major(info->f_rdev);
-	info->f_rdevmin	= dev_minor(info->f_rdev);
+	info->f_rdevmaj	= major(info->f_rdev);
+	info->f_rdevmin	= minor(info->f_rdev);
 	info->f_atime	= stbuf.st_atime;
 	info->f_mtime	= stbuf.st_mtime;
 	info->f_ctime	= stbuf.st_ctime;
+#ifdef	HAVE_ST_SPARE1		/* if struct stat contains st_spare1 (usecs) */
+	info->f_ansec	= stbuf.st_spare1*1000;
+	info->f_mnsec	= stbuf.st_spare2*1000;
+	info->f_cnsec	= stbuf.st_spare3*1000;
+#else
+
+#ifdef	HAVE_ST_NSEC		/* if struct stat contains st_atim.st_nsec (nanosecs */ 
+	info->f_ansec	= stbuf.st_atim.tv_nsec;
+	info->f_mnsec	= stbuf.st_mtim.tv_nsec;
+	info->f_cnsec	= stbuf.st_ctim.tv_nsec;
+#else
+	info->f_ansec = info->f_mnsec = info->f_cnsec = 0L;
+#endif	/* HAVE_ST_NSEC */
+#endif	/* HAVE_ST_SPARE1 */
 
 	switch ((int)(stbuf.st_mode & S_IFMT)) {
 
@@ -122,14 +139,16 @@ getinfo(name, info)
 			info->f_filetype = F_SPEC;
 	}
 	info->f_xftype = IFTOXT(info->f_type);
-#ifdef	BSD4_2
+
+#ifdef	HAVE_ST_BLOCKS
 #if	defined(hpux) || defined(__hpux)
 	if (info->f_size > (stbuf.st_blocks * 1024 + 1024))
 #else
 	if (info->f_size > (stbuf.st_blocks * 512 + 512))
 #endif
 		info->f_flags |= F_SPARSE;
-#endif	/* BSD4_2 */
+#endif
+
 	return (TRUE);
 }
 
@@ -144,12 +163,12 @@ checkarch(f)
 	if (fstat(fdown(f), &stbuf) < 0)
 		return;
 	
-	if ((stbuf.st_mode & S_IFMT) == S_IFREG) {
+	if (S_ISREG(stbuf.st_mode)) {
 		tape_dev = stbuf.st_dev;
 		tape_ino = stbuf.st_ino;
 	} else if (((stbuf.st_mode & S_IFMT) == 0) ||
-			((stbuf.st_mode & S_IFMT) == S_IFIFO) ||
-			((stbuf.st_mode & S_IFMT) == S_IFSOCK)) {
+			S_ISFIFO(stbuf.st_mode) ||
+			S_ISSOCK(stbuf.st_mode)) {
 		/*
 		 * This is a pipe or similar on different UNIX implementations.
 		 */
@@ -161,6 +180,16 @@ EXPORT void
 setmodes(info)
 	register FINFO	*info;
 {
+	if (!nomtime && !is_symlink(info)) {
+		/*
+		 * With Cygwin32,
+		 * DOS will not allow us to set file times on read-only files.
+		 * We set the time before we change the access modes to
+		 * overcode this problem.
+		 */
+		if (!is_dir(info))
+			sutimes(info->f_name, info);
+	}
 	if ((!is_dir(info) || dirmode) && !is_symlink(info))
 		if (chmod(info->f_name, (int)info->f_mode) < 0) {
 			;
@@ -201,14 +230,28 @@ sutimes(name, info)
 	struct	timeval tp[3];
 
 	tp[0].tv_sec = info->f_atime;
-	tp[0].tv_usec = info->f_spare1;
+	tp[0].tv_usec = info->f_ansec/1000;
 
 	tp[1].tv_sec = info->f_mtime;
-	tp[1].tv_usec = info->f_spare2;
+	tp[1].tv_usec = info->f_mnsec/1000;
 #ifdef	SET_CTIME
 	tp[2].tv_sec = info->f_ctime;
-	tp[2].tv_usec = info->f_spare3;
+	tp[2].tv_usec = info->f_cnsec/1000;
+#else
+	tp[2].tv_sec = 0;
+	tp[2].tv_usec = 0;
 #endif
+	return (xutimes(name, tp));
+}
+
+EXPORT int
+snulltimes(name, info)
+	char	*name;
+	FINFO	*info;
+{
+	struct	timeval tp[3];
+
+	fillbytes((char *)tp, sizeof(tp), '\0');
 	return (xutimes(name, tp));
 }
 
@@ -263,13 +306,13 @@ sxsymlink(info)
 	int	errsav;
 
 	tp[0].tv_sec = info->f_atime;
-	tp[0].tv_usec = info->f_spare1;
+	tp[0].tv_usec = info->f_ansec/1000;
 
 	tp[1].tv_sec = info->f_mtime;
-	tp[1].tv_usec = info->f_spare2;
+	tp[1].tv_usec = info->f_mnsec/1000;
 #ifdef	SET_CTIME
 	tp[2].tv_sec = info->f_ctime;
-	tp[2].tv_usec = info->f_spare3;
+	tp[2].tv_usec = info->f_cnsec/1000;
 #endif
 	linkname = info->f_lname;
 	name = info->f_name;
@@ -300,13 +343,13 @@ sxsymlink(info)
 	return (ret);
 }
 
-#ifdef	HAS_FILIO
+#ifdef	HAVE_SYS_FILIO_H
 #include <sys/filio.h>
 #endif
 
 EXPORT int
-rs_acctime(f, info)
-		 FILE	*f;
+rs_acctime(fd, info)
+		 int	fd;
 	register FINFO	*info;
 {
 	if (is_symlink(info))
@@ -317,22 +360,16 @@ rs_acctime(f, info)
 	 * On Solaris 2.x root may reset accesstime without changing ctime.
 	 */
 	if (uid == ROOT_UID)
-		return (ioctl(fdown(f), _FIOSATIME, &info->f_atime));
+/*		return (ioctl(fdown(f), _FIOSATIME, &info->f_atime));*/
+		return (ioctl(fd, _FIOSATIME, &info->f_atime));
 #endif
 	return (sutimes(info->f_name, info));
 }
 
 #ifndef	HAVE_UTIMES
-#include <sys/types.h>
-#ifdef	HAVE_UTIME_H
-#include <utime.h>
-#else
-struct utimbuf {
-	time_t	actime;
-	time_t	modtime;
-} ;
-#endif
+#include <utimdefs.h>
 
+EXPORT int
 utimes(name, tp)
 	char		*name;
 	struct timeval	*tp;

@@ -82,6 +82,10 @@ Summary:
 		  and get out of sync for the rest of the archive.
 		  See --sparse design bug description below.
 
+		- GNU-tar even has a not yet identified bug which causes GNUtar
+		  not to be able to partially read star archives if these archives
+		  are not created with star -Hustar
+
 		- Option --sparse produces archives which cannot be read by any 
 		  other tar implementation known to me (except star), because
 		  they will get "out of sync".

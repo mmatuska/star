@@ -1,4 +1,4 @@
-#ident "@(#)mk-.id	1.6 97/06/22 "
+#ident "@(#)mk-.id	1.10 98/10/13 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -35,15 +35,17 @@ MAKEPROG=	make		# Sun make
 #
 ###########################################################################
 
-XP_ARCH:sh=	(mach || uname -p || true)2>/dev/null | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
-XK_ARCH:sh=	uname -m                              | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
-XM_ARCH:sh=	(arch || true)2>/dev/null             | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
+XP_ARCH:sh=	(mach || uname -p || true)2>/dev/null      | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',------'
+XK_ARCH:sh=	uname -m                                   | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',------'
+XM_ARCH:sh=	(arch || /usr/ucb/arch || true)2>/dev/null | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',------'
 
 P_ARCH=		$(XP_ARCH)
 K_ARCH=		$(XK_ARCH)
 M_ARCH=		$(XM_ARCH)
 
-_P_ARCH=	$(_UNIQ)$(XP_ARCH)
+_XP_ARCH=	$(XP_ARCH:unknown=$(K_ARCH))
+
+_P_ARCH=	$(_UNIQ)$(_XP_ARCH)
 __P_ARCH=	$(_P_ARCH:$(_UNIQ)=$(K_ARCH))
 P_ARCH=		$(__P_ARCH:$(_UNIQ)%=%)
 
@@ -51,5 +53,5 @@ _M_ARCH=	$(_UNIQ)$(XM_ARCH)
 __M_ARCH=	$(_M_ARCH:$(_UNIQ)=$(K_ARCH))
 M_ARCH=		$(__M_ARCH:$(_UNIQ)%=%)
 
-OSNAME:sh=	uname -s | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
-OSREL:sh=	uname -r | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
+OSNAME:sh=	uname -s | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',------'
+OSREL:sh=	uname -r | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',------'

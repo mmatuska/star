@@ -1,10 +1,10 @@
-/* @(#)mtio.h	1.1 96/06/26 Copyright 1995 J. Schilling */
+/* @(#)mtio.h	1.2 00/11/15 Copyright 1995,2000 J. Schilling */
 /*
  *	Simplyfied mtio definitions
  *	to be able to do at least remote mtio on systems
  *	that have no local mtio
  *
- *	Copyright (c) 1995 J. Schilling
+ *	Copyright (c) 1995,2000 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -23,54 +23,58 @@
  */
 
 #ifndef	_MTIO_H
-#define	__MTIO_H
+#define	_MTIO_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 /*
- * Structures and definitions for mag tape io control commands
+ * Definitions for magnetic tape io control commands
  */
 
 /*
- * structure for MTIOCTOP - mag tape op command
+ * structure for MTIOCTOP - magnetic tape operation command
  */
-struct	mtop	{
-	short	mt_op;		/* operations defined below */
-	daddr_t	mt_count;	/* how many of them */
+struct	mtop {
+	short	mt_op;		/* op code (see below)			*/
+	daddr_t	mt_count;	/* repeat count or param		*/
 };
 
 /*
- * values for mt_op
+ * op code values for mt_op
  */
-#define	MTWEOF		0	/* write an end-of-file record */
-#define	MTFSF		1	/* forward space over file mark */
-#define	MTBSF		2	/* backward space over file mark (1/2" only ) */
-#define	MTFSR		3	/* forward space to inter-record gap */
-#define	MTBSR		4	/* backward space to inter-record gap */
-#define	MTREW		5	/* rewind */
-#define	MTOFFL		6	/* rewind and put the drive offline */
-#define	MTNOP		7	/* no operation, sets status only */
+#define	MTWEOF		0	/* write EOF record(s)			*/
+#define	MTFSF		1	/* fwd space over file mark(s)		*/
+#define	MTBSF		2	/* back space over file mark(s) (1/2" only ) */
+#define	MTFSR		3	/* fwd space record(s) (to inter-record gap) */
+#define	MTBSR		4	/* back space record(s) (to inter-record gap)*/
+#define	MTREW		5	/* rewind tape				*/
+#define	MTOFFL		6	/* rewind and put the drive offline	*/
+#define	MTNOP		7	/* no operation (sets status ?)		*/
 
 /*
- * structure for MTIOCGET - mag tape get status command
+ * structure for MTIOCGET - magnetic tape get status command
  */
-struct	mtget	{
-	short	mt_type;	/* type of magtape device */
-	/* the following two registers are grossly device dependent */
-	short	mt_dsreg;	/* ``drive status'' register */
-	short	mt_erreg;	/* ``error'' register */
-	/* optional error info. */
-	daddr_t	mt_resid;	/* residual count */
-	daddr_t	mt_fileno;	/* file number of current position */
-	daddr_t	mt_blkno;	/* block number of current position */
+struct	mtget {
+	short	mt_type;	/* type of magnetic tape device		*/
+				/* the next two regs are device dependent */
+	short	mt_dsreg;	/* drive status 'register'		*/
+	short	mt_erreg;	/* error 'register'			*/
+	daddr_t	mt_resid;	/* transfer residual count		*/
+	daddr_t	mt_fileno;	/* file # for current position		*/
+	daddr_t	mt_blkno;	/* block # for current position		*/
 };
 
+#define	HAVE_MTGET_TYPE
 #define	HAVE_MTGET_DSREG
+#define	HAVE_MTGET_ERREG
 #define	HAVE_MTGET_RESID
 #define	HAVE_MTGET_FILENO
 #define	HAVE_MTGET_BLKNO
+
+#define	MTIOCGET	0x12340001
+#define	MTIOCTOP	0x12340002
 
 #ifdef	__cplusplus
 }

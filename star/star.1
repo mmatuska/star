@@ -1,4 +1,4 @@
-. \" %Z%%M%	%I% %E% Copyr 1982-1995 J. Schilling
+. \" @(#)star.1	1.18 01/04/14 Copyr 1982-1995 J. Schilling
 . \"  Manual Seite fuer star
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -60,7 +60,7 @@ option to get information on how to find the best fifo size.
 includes a pattern matcher to control the list of files to be 
 processed. This gives a convenient interface for archiving and 
 restoring complex lists of files. In conjunction with the 
-.B \-I 
+.B \-w 
 flag it is easy to merge a tar archive into an existing file tree. See also 
 .B \-U 
 option.
@@ -216,7 +216,7 @@ If one or more pattern are specified, they apply to any of the command
 listed above.
 .SH OPTIONS
 .TP
-.BR \-help ", " \-h
+.B \-help
 Print a summary of the most important options for
 .BR star (1).
 .TP
@@ -256,6 +256,18 @@ option is now obsoleted by the
 option described below.
 .RE
 .TP
+.B \-copylinks
+This option allows to copy hard/symlinks targets
+rather than creating a link.
+It helps to extract tar files on systems that do not implement
+links (e.g. OS/2).
+To extract and copy all symlinks correctly, you may need to call
+.B star
+twice as 
+.B star
+cannot copy files that appear in the archive later than a symlink
+pointing to them.
+.TP
 .BR file= "tarfilename, " f= "tarfilename"
 Use 
 .I tarfilename 
@@ -273,6 +285,28 @@ is installed suid root,
 may be in remote syntax: user@host:filename as in rcp(1) even if 
 invoked by non root users.
 See SUID NOTES for more information.
+.sp
+Note that star talks to an old 
+.B rmt
+remote tape server, it does not open a remote tape with the 
+.B O_CREAT
+open flag because this would be extremely dangerous.
+If the 
+.B rmt 
+server on the other side is the 
+.B rmt
+server that comes with star or the GNU
+.B rmt
+server,
+.B star
+may use the symbolic mode for the open flags.
+Only the symbolic open modes allow to send all possible open
+modes in a portable way to remote tape servers.
+.sp
+It is recommended to use the 
+.B rmt
+server that comes with
+.BR star .
 .TP
 .B \-T
 If the option 
@@ -300,7 +334,22 @@ of the tape drive and less then half of the real memory of the machine.
 A good choice would be to use 8 or 16 MB. This may increase backup speed up
 to 5% compared to the speed achieved with the default fifo size.
 .TP
+.B \-hpdev
+Allow 24 bits for the minor device number using 8 octal digits.
+Note that although it allows to create tar archives
+that can be read with HP-UX tar, this creates tar archives
+which violate POSIX.
+.TP
+.B \-modebits
+This options allows you to create tar archives that include
+more than 12 bits from st_mode. Note this create tar archives
+that violate POSIX but some tar implementations insist in reading
+such nonstandard archives.
+.TP
 .B \-no_fifo
+obsoleted
+.TP
+.B \-no-fifo
 Don't use a
 .I fifo
 to optimize data flow from/to 
@@ -430,6 +479,17 @@ This is an upward/downward compatible enhancement
 of the IEEE/Posix1003/IEC-9945-1 Standard Data Interchange format.
 It allows among others very long filenames (\ >\ 100+155 chars) 
 and records access time and creation time.
+.TP
+.B xustar
+New (exerimental) format that omits the
+.I tar
+signature at the end of the tar header. It is otherwise identical
+to the
+.B xstar
+format.
+As some tar implementations do not follow the POSIX rules and compute
+the checksum for less than 512 bytes of the tar header, this format may help
+to avoid problems with these tar implementations.
 .PP
 All tar archive formats may be interchanged if the archive contains 
 no files that may not be archived by using the old tar format. 
@@ -525,6 +585,11 @@ or
 .I "star -c . | gzip | sdd ibs=4k obs=32k -fill ovsize=60m of=/nrst0
 .br
 if the tape can hold 60 MB.
+.TP
+.B \-bz
+run the input or output through a 
+.B bzip2
+pipe - see option -z above.
 .TP
 .B \-B
 Force 
@@ -647,6 +712,10 @@ This is useful when doing backups of complete filesystems.
 See NOTES for more information.
 .TP
 .B \-I
+Obsolete option, otherwise identical to
+.BR \-I .
+.TP
+.B \-w
 Do interactive creation, extraction or renaming. 
 For every file that matches the list of patterns and that has a more 
 recent modification time in the tar archive (if in extract mode and
@@ -687,7 +756,8 @@ versions.
 The bug in old tar versions that cause a reversal of a space and a NULL byte 
 in the checksum field is not repeated. 
 If you want to have signed checksums you have to specify the
-\-singed_checksum option too. 
+.I \-singed-checksum
+option too. 
 This option is superseeded by the 
 .BR H= headertype 
 option.
@@ -848,6 +918,34 @@ option.
 Invert the meaning of the pattern list. i.e. use those files which do not match
 any of the pattern.
 .TP
+.BR \-F , \-FF " ..."
+Fast and simple exclude option for create mode.
+With one
+.B \-F
+argument,
+.B star
+ignores all directories called
+.IR SCCS " and " RCS.
+With two
+.B \-F
+arguments,
+.B star
+in addition ignores all files called
+.I core errs a.out
+all files ending with
+.I .o
+and all directories
+.IR OBJ/ .
+With three
+.B \-F
+arguments,
+.B star
+in addition ignores all sub trees starting from a directory that
+includes a file
+.I .mirror
+or
+.I .exclude
+.TP
 .BR list= filename
 Read filenames for store/create/list command from
 .I filename.
@@ -875,12 +973,29 @@ This is useful when for some reason, the directories are recorded
 after their content, or when the permissions of some directories
 must be set in any case.
 .TP
-.BR \-keep_old_files ", " \-k
+.B \-keep_old_files
+obsoleted
+.TP
+.BR \-keep-old-files ", " \-k
 Keep existing files rather than restoring them from 
 .I tarfile. 
 This saves files from being clobbered even if 
 .I tarfile
 contains a more recent version of the corresponding file.
+.TP
+.B \-refresh_old_files
+obsoleted
+.TP
+.B \-refresh-old-files
+.TP
+.B \-refresh
+Do not create new files. Only already existing files may be overwritten from
+.I tarfile 
+if either newer versions are present in the archive or if the 
+.B \-U
+flag ise used. 
+This allows to overwrite files by more recent files from an archive 
+that contains more files than the target directory should contain.
 .TP
 .B \-/
 Don't strip leading slashes from file names.
@@ -986,6 +1101,9 @@ Print timing info.
 See DIAGNOSTICS for more information.
 .TP
 .B \-no_statistics
+obsoleted
+.TP
+.B \-no-statistics
 Do not print statistic messages at the end of a
 .B star
 run.
@@ -1003,11 +1121,17 @@ In conjunction with the list command this lists you only the newest file in
 .I tarfile.
 .TP
 .B \-newest_file
+obsoleted
+.TP
+.B \-newest-file
 In conjunction with the list command this lists you only the newest regular 
 file in
 .I tarfile.
 .TP
 .B \-signed_checksum
+obsoleted
+.TP
+.B \-signed-checksum
 Use signed chars to calculate checksums. This violates the tar specs but old 
 versions of 
 .B tar 
@@ -1024,6 +1148,9 @@ On Solaris 2.x there may be a special ioctl() called
 that allows root to get the allocation info more efficiently.
 .TP
 .B \-force_hole
+obsoleted
+.TP
+.B \-force-hole
 Try to extract all files with holes. This even works with files that 
 are created without the 
 .B \-sparse 
@@ -1035,6 +1162,9 @@ binary zeroes with seeks. This option should be used with extreme care
 because you sometimes get in trouble when files get unattended holes.
 .TP
 .B \-to_stdout
+obsoleted
+.TP
+.B \-to-stdout
 Extract files to stdout. This option may be used to extract tarfiles 
 containing tarfiles (see examples below).
 .TP
@@ -1048,6 +1178,9 @@ waits up to one minute for the drive to become ready if this option
 is specified.
 .TP
 .B \-force_remove
+obsoleted
+.TP
+.B \-force-remove
 Force to remove non writable files on extraction.
 By default, 
 .B star
@@ -1057,6 +1190,9 @@ If this option is in effect,
 will silently remove these files to allow the extraction of a file.
 .TP
 .B \-ask_remove
+obsoleted
+.TP
+.B \-ask-remove
 Ask to remove non writable files on extraction.
 By default, 
 .B star
@@ -1071,6 +1207,9 @@ in the following way:
 .RE
 .TP
 .B \-remove_first
+obsoleted
+.TP
+.B \-remove-first
 Remove files before extraction.
 If this option is in effect, 
 .B star
@@ -1078,14 +1217,17 @@ will remove files before extracting a file from the archive.
 This is needed if you want to change the file type or if you need
 to break a hard link.
 If you do not use either
-.B \-ask_remove
+.B \-ask-remove
 or
-.B \-force_remove
+.B \-force-remove
 together with 
-.BR \-remove_first , 
+.BR \-remove-first , 
 this option is useless and no files will be removed.
 .TP
 .B \-remove_recursive
+obsoleted
+.TP
+.B \-remove-recursive
 Remove files recursive.
 If removing of a file is permitted, 
 .B star
@@ -1094,7 +1236,7 @@ If this option is in effect,
 .B star
 will be allowed to recursively removes non empty directories too.
 .TP
-.B \-nullout
+.BR \-onull ", " \-nullout
 Do not actually write to the archive but compute and add the sizes.
 This is useful when trying to figure out if a tape may hold
 the current backup.
@@ -1103,6 +1245,9 @@ the current backup.
 Print debug messages. Among other things, this gives debug messages for
 headertype recognition, tar type properties, EOF recognition, opening 
 of remote archives and fifo internals.
+.TP
+.B \-version
+Print version information and exit.
 .SH SIGNALS
 .PP
 If 
@@ -1209,7 +1354,7 @@ To extract tarfiles that contain tarfiles one might use:
 .IP
 .B
 .nf
-example% star \-x \-to_stdout f=/dev/nrst1 pat=\fIpat\fP | star \-xp
+example% star \-x \-to-stdout f=/dev/nrst1 pat=\fIpat\fP | star \-xp
 .fi
 .PP
 .I Pat, 
@@ -1259,7 +1404,7 @@ example# star \-diff \-v diffopts=!times f=/dev/nrst1
 Now check the differences and decide whether to restore additional 
 files. This may be done by generating a list containing the needed 
 filenames and using the list= option or by using the interactive mode 
-(see \-I option).
+(see \-w option).
 .PP
 If you want a list that only contains all filenames from files with
 differences you may use:
@@ -1280,7 +1425,7 @@ None.
 .BR cpio (1), 
 .BR rcp (1), 
 .BR mt (1),
-.BR rmt(1), 
+.BR rmt (1), 
 .BR match (1), 
 .BR dd (1), 
 .BR sdd (1), 
@@ -1370,7 +1515,7 @@ There is no way to ask for the
 .IR n -th
 occurrence of a file.
 .PP
-The way EOF is handled differs, weather the fifo is in effect or not.
+The way EOF is handled differs, whether the fifo is in effect or not.
 If the fifo is not used, 
 .B star 
 stops reading the archive if it 
@@ -1504,7 +1649,10 @@ Germany
 Mail bugs and suggestions to:
 .PP
 .B
-joerg@schily.isdn.cs.tu-berlin.de
+schilling@fokus.gmd.de
 or
 .B
 js@cs.tu-berlin.de
+or
+.B
+joerg@schily.isdn.cs.tu-berlin.de

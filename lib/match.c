@@ -1,4 +1,4 @@
-/* @(#)match.c	1.16 96/05/09 Copyright 1985 J. Schilling */
+/* @(#)match.c	1.18 00/11/12 Copyright 1985 J. Schilling */
 #include <standard.h>
 #include <patmatch.h>
 /*
@@ -6,7 +6,8 @@
  *
  *	Copyright (c) 1985,1995 J. Schilling
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -15,10 +16,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 /*
  *	The pattern matching functions below are based on the algorithm
@@ -38,6 +39,11 @@
  *	to be used.
  *	Start of line '^' and end of line '$' have been added.
  */
+
+#ifdef	__LINE_MATCH
+#define	opatmatch	opatlmatch
+#define	patmatch	patlmatch
+#endif
 
 #define	ENDSTATE	(-1)
 typedef	unsigned char	Uchar;
@@ -106,12 +112,12 @@ typedef	unsigned char	Uchar;
 }
 
 /*
- *	patmatch - the external interpreter interface.
+ *	opatmatch - the old external interpreter interface.
  *
  *	Trys to match a string beginning at offset
  *	against the compiled pattern.
  */
-Uchar *patmatch(pat, aux, str, soff, slen, alt)
+Uchar *opatmatch(pat, aux, str, soff, slen, alt)
 	const Uchar	*pat;
 	const int	*aux;
 	const Uchar	*str;
@@ -119,14 +125,37 @@ Uchar *patmatch(pat, aux, str, soff, slen, alt)
 	int		slen;
 	int		alt;
 {
+	int		state[MAXPAT];
+
+	return (patmatch(pat, aux, str, soff, slen, alt, state));
+}
+
+/*
+ *	patmatch - the external interpreter interface.
+ *
+ *	Trys to match a string beginning at offset
+ *	against the compiled pattern.
+ */
+Uchar *patmatch(pat, aux, str, soff, slen, alt, state)
+	const Uchar	*pat;
+	const int	*aux;
+	const Uchar	*str;
+	int		soff;
+	int		slen;
+	int		alt;
+	int		state[];
+{
 	register int	*sp;
 	register int	*n;
 	register int	*i;
 	register int	p;
 	register int	q, s, k;
 	int		c;
-	int		state[MAXPAT];
 	const Uchar	*lastp = (Uchar *)NULL;
+
+#ifdef	__LINE_MATCH
+for( ;soff <= slen; soff++) {
+#endif
 
 	sp = state;
 	put(sp, state, state, 0);
@@ -221,12 +250,26 @@ Uchar *patmatch(pat, aux, str, soff, slen, alt)
 			}
 			put(sp, state, sp, aux[p]);
 		}
-		if (sp == state)		/* if no new states return */
+		if (sp == state) {		/* if no new states return */
+#ifdef	__LINE_MATCH
+
+			if (lastp || (soff == slen - 1))
+				return ((Uchar *)lastp);
+			else
+				break;
+#else
 			return ((Uchar *)lastp);
+#endif
+		}
 	}
+#ifdef	__LINE_MATCH
+   }
+   return ((Uchar *)lastp);
+#endif
 }
 
 
+#ifndef	__LINE_MATCH
 /*---------------------------------------------------------------------------
 |
 |	The Compiler
@@ -402,3 +445,4 @@ int patcompile(pat, len, aux)
 	setexits(aux, i, ENDSTATE);
 	return (alt);
 }
+#endif	/* LMATCH */

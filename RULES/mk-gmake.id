@@ -1,4 +1,4 @@
-#ident "@(#)mk-gmake.id	1.5 97/06/22 "
+#ident "@(#)mk-gmake.id	1.10 98/12/06 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -37,18 +37,20 @@ MAKEPROG=	gmake
 
 ifndef		ARCH_DONE
 
-_MACHCMD=	(mach || uname -p || true) 2> /dev/null
-_ARCHCMD=	(arch || true)             2> /dev/null
+_MACHCMD=	(mach || uname -p || true)	2> /dev/null
+_ARCHCMD=	(arch || /usr/ucb/arch || true)	2> /dev/null
 
-XP_ARCH:=	$(shell $(_MACHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
-XK_ARCH:=	$(shell uname -m    | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
-XM_ARCH:=	$(shell $(_ARCHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
+XP_ARCH:=	$(shell $(_MACHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',//////' | tr ',/' ',-')
+XK_ARCH:=	$(shell uname -m    | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',//////' | tr ',/' ',-')
+XM_ARCH:=	$(shell $(_ARCHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',//////' | tr ',/' ',-')
 
 P_ARCH=		$(XP_ARCH)
 K_ARCH=		$(XK_ARCH)
 M_ARCH=		$(XM_ARCH)
 
-_P_ARCH=	$(_UNIQ)$(XP_ARCH)
+_XP_ARCH=	$(XP_ARCH:unknown=$(K_ARCH))
+
+_P_ARCH=	$(_UNIQ)$(_XP_ARCH)
 __P_ARCH=	$(_P_ARCH:$(_UNIQ)=$(K_ARCH))
 P_ARCH=		$(__P_ARCH:$(_UNIQ)%=%)
 
@@ -56,8 +58,8 @@ _M_ARCH=	$(_UNIQ)$(XM_ARCH)
 __M_ARCH=	$(_M_ARCH:$(_UNIQ)=$(K_ARCH))
 M_ARCH=		$(__M_ARCH:$(_UNIQ)%=%)
 
-OSNAME:=	$(shell uname -s | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
-OSREL:=		$(shell uname -r | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
+OSNAME:=	$(shell uname -s | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',//////' | tr ',/' ',-')
+OSREL:=		$(shell uname -r | tr '[A-Z]' '[a-z]' | tr ', /\\()"' ',//////' | tr ',/' ',-')
 
 ARCH_DONE=	TRUE
 

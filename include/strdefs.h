@@ -1,4 +1,4 @@
-/* @(#)strdefs.h	1.1 96/06/26 Copyright 1996 J. Schilling */
+/* @(#)strdefs.h	1.3 00/11/08 Copyright 1996 J. Schilling */
 /*
  *	Definitions for strings
  *
@@ -30,6 +30,10 @@
 #ifdef	HAVE_STRING_H
 #include <string.h>
 #else	/* HAVE_STRING_H */
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 #ifndef NULL
 #define	NULL	0
@@ -76,6 +80,10 @@ extern int strncasecmp	__PR((const char *, const char *, int));
 
 /*#define	index	strchr*/
 /*#define	rindex	strrchr*/
+
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* HAVE_STRING_H */
 

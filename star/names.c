@@ -1,10 +1,10 @@
-/* @(#)names.c	1.6 97/05/29 Copyright 1993 J. Schilling */
+/* @(#)names.c	1.7 98/07/05 Copyright 1993 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)names.c	1.6 97/05/29 Copyright 1993 J. Schilling";
+	"@(#)names.c	1.7 98/07/05 Copyright 1993 J. Schilling";
 #endif
 /*
- *	Handle user/group names for archive hheader
+ *	Handle user/group names for archive header
  *
  *	Copyright (c) 1993 J. Schilling
  */
@@ -33,18 +33,19 @@ static	char sccsid[] =
 #include <strdefs.h>
 #include "starsubs.h"
 
-/*#define	C_SIZE	10*/
+#define	C_SIZE	16
 
-#define TUNMLEN	32
-#define TGNMLEN	32
+typedef struct id {
+	Ulong	id;
+	char	name[TUNMLEN];		/* TUNMLEN == TGNMLEN	    */
+	char	valid;
+} idc_t;
 
-LOCAL	Ulong	lastuid;
-LOCAL	char	lastuname[TUNMLEN];
-LOCAL	int	uvalid;
+LOCAL	idc_t	uidcache[C_SIZE];
+LOCAL	int	lastuidx;		/* Last index for new entry */
 
-LOCAL	Ulong	lastgid;
-LOCAL	char	lastgname[TGNMLEN];
-LOCAL	int	gvalid;
+LOCAL	idc_t	gidcache[C_SIZE];
+LOCAL	int	lastgidx;		/* Last index for new entry */
 
 EXPORT	BOOL	nameuid	__PR((char* name, int namelen, Ulong uid));
 EXPORT	BOOL	uidname	__PR((char* name, int namelen, Ulong* uidp));
@@ -61,18 +62,28 @@ nameuid(name, namelen, uid)
 	Ulong	uid;
 {
 	struct passwd	*pw;
+	register int	i;
+	register idc_t	*idp;
 
-	if (uvalid <= 0 || uid != lastuid) {
-		lastuid = uid;
-		lastuname[0] = '\0';
-
-		if ((pw = getpwuid(uid)) != NULL) {
-			strncpy(lastuname, pw->pw_name, TUNMLEN);
-			lastuname[namelen-1] = 0;
-		}
-		uvalid = 1;	/* force not to look again for invalid uid */
+	for (i=0, idp = uidcache; i < C_SIZE; i++, idp++) {
+		if (idp->valid == 0)		/* Entry not yet filled */
+			break;
+		if (idp->id == uid)
+			goto out;
 	}
-	strcpy(name, lastuname);
+	idp = &uidcache[lastuidx++];		/* Round robin fill next ent */
+	if (lastuidx >= C_SIZE)
+		lastuidx = 0;
+
+	idp->id = uid;
+	idp->name[0] = '\0';
+	idp->valid = 1;
+	if ((pw = getpwuid(uid)) != NULL) {
+		strncpy(idp->name, pw->pw_name, TUNMLEN);
+		idp->name[namelen-1] = 0;
+	}
+out:
+	strcpy(name, idp->name);
 	return (name[0] != '\0');
 }
 
@@ -86,30 +97,42 @@ uidname(name, namelen, uidp)
 	Ulong	*uidp;
 {
 	struct passwd	*pw;
-	char	uname[TUNMLEN+1];
-	int	len = namelen>TUNMLEN?TUNMLEN:namelen;
+	register int	len = namelen>TUNMLEN?TUNMLEN:namelen;
+	register int	i;
+	register idc_t	*idp;
 
 	if (name[0] == '\0')
 		return (FALSE);
 
-	if (!uvalid || name[0] != lastuname[0] ||
-					strncmp(name, lastuname, len) != 0) {
-		
-		strncpy(uname, name, len);
-		uname[len] = '\0';
-
-		if ((pw = getpwnam(uname)) != NULL) {
-			strncpy(lastuname, pw->pw_name, TUNMLEN);
-			lastuid = pw->pw_uid;
-		}
-		uvalid = TRUE;
-		if (!pw) {
-			*uidp = 0; /* XXX */
-			return (FALSE);
+	for (i=0, idp = uidcache; i < C_SIZE; i++, idp++) {
+		if (idp->valid == 0)		/* Entry not yet filled */
+			break;
+		if (name[0] == idp->name[0] && 
+					strncmp(name, idp->name, len) == 0) {
+			*uidp = idp->id;
+			if (idp->valid == 2)	/* Name not found */
+				return (FALSE);
+			return (TRUE);
 		}
 	}
-	*uidp = lastuid;
-	return (TRUE);
+	idp = &uidcache[lastuidx++];		/* Round robin fill next ent */
+	if (lastuidx >= C_SIZE)
+		lastuidx = 0;
+
+	idp->id = 0;
+	idp->name[0] = '\0';
+	strncpy(idp->name, name, len);
+	idp->name[len] = '\0';
+	idp->valid = 1;
+	if ((pw = getpwnam(idp->name)) != NULL) {
+		idp->id = pw->pw_uid;
+		*uidp = idp->id;
+		return (TRUE);
+	} else {
+		idp->valid = 2;			/* Mark name as not found */
+		*uidp = 0;			/* XXX ??? */
+		return (FALSE);
+	}
 }
 
 /*
@@ -122,18 +145,28 @@ namegid(name, namelen, gid)
 	Ulong	gid;
 {
 	struct group	*gr;
+	register int	i;
+	register idc_t	*idp;
 
-	if (!gvalid || gid != lastgid) {
-		lastgid = gid;
-		lastgname[0] = '\0';
-
-		if ((gr = getgrgid(gid)) != NULL) {
-			strncpy(lastgname, gr->gr_name, TGNMLEN);
-			lastgname[namelen-1] = 0;
-		}
-		gvalid = TRUE;	/* force not to look again for invalid gid */
+	for (i=0, idp = gidcache; i < C_SIZE; i++, idp++) {
+		if (idp->valid == 0)		/* Entry not yet filled */
+			break;
+		if (idp->id == gid)
+			goto out;
 	}
-	strcpy(name, lastgname);
+	idp = &gidcache[lastgidx++];		/* Round robin fill next ent */
+	if (lastgidx >= C_SIZE)
+		lastgidx = 0;
+
+	idp->id = gid;
+	idp->name[0] = '\0';
+	idp->valid = 1;
+	if ((gr = getgrgid(gid)) != NULL) {
+		strncpy(idp->name, gr->gr_name, TUNMLEN);
+		idp->name[namelen-1] = 0;
+	}
+out:
+	strcpy(name, idp->name);
 	return (name[0] != '\0');
 }
 
@@ -147,27 +180,40 @@ gidname(name, namelen, gidp)
 	Ulong	*gidp;
 {
 	struct group	*gr;
-	char	gname[TGNMLEN+1];
-	int	len = namelen>TGNMLEN?TGNMLEN:namelen;
+	register int	len = namelen>TGNMLEN?TGNMLEN:namelen;
+	register int	i;
+	register idc_t	*idp;
 
 	if (name[0] == '\0')
 		return (FALSE);
-	if (!gvalid || name[0] != lastgname[0] ||
-					strncmp(name, lastgname, len) != 0) {
-		
-		strncpy(gname, name, len);
-		gname[len] = '\0';
 
-		if ((gr = getgrnam(gname)) != NULL) {
-			strncpy(lastgname, gr->gr_name, TGNMLEN);
-			lastgid = gr->gr_gid;
-		}
-		gvalid = TRUE;
-		if (!gr) {
-			*gidp = 0; /* XXX */
-			return (FALSE);
+	for (i=0, idp = gidcache; i < C_SIZE; i++, idp++) {
+		if (idp->valid == 0)		/* Entry not yet filled */
+			break;
+		if (name[0] == idp->name[0] && 
+					strncmp(name, idp->name, len) == 0) {
+			*gidp = idp->id;
+			if (idp->valid == 2)	/* Name not found */
+				return (FALSE);
+			return (TRUE);
 		}
 	}
-	*gidp = lastgid;
-	return (TRUE);
+	idp = &gidcache[lastgidx++];		/* Round robin fill next ent */
+	if (lastgidx >= C_SIZE)
+		lastgidx = 0;
+
+	idp->id = 0;
+	idp->name[0] = '\0';
+	strncpy(idp->name, name, len);
+	idp->name[len] = '\0';
+	idp->valid = 1;
+	if ((gr = getgrnam(idp->name)) != NULL) {
+		idp->id = gr->gr_gid;
+		*gidp = idp->id;
+		return (TRUE);
+	} else {
+		idp->valid = 2;			/* Mark name as not found */
+		*gidp = 0;			/* XXX ??? */
+		return (FALSE);
+	}
 }

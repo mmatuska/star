@@ -1,0 +1,31 @@
+HP-UX SCSI hints:
+
+On HP-UX 9.x you need gcc. On newer releases, you may compile with 
+the HP ANSI C-Compiler using
+
+	make CCOM=cc
+
+To compile with the free K&R C-compiler call:
+
+	gmake CCOM=cc 'COPTS= ' 
+or
+	smake CCOM=cc 'COPTS= ' 
+
+
+Note that there are no device nodes for userland SCSI on HP-UX,
+you have to call the included shell script MKNOD.hpux first.
+
+If you own a HP-9000-800 series machine, you need to install
+the file MKNOD.hpux-800 in the /etc init shell script directory 
+in order to call it after each boot.
+
+This script will create the files in /dev/scsi/... and /dev/rscsi/...
+The permissions will be set to read/write for root only.
+
+
+HP does not handle CD-ROMs as well as it should. On the HP have a look at
+the man pages for
+    pfs
+    pfsd
+    pfs_mount
+and anymore that they refer too.

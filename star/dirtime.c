@@ -1,7 +1,7 @@
-/* @(#)dirtime.c	1.7 96/06/26 Copyright 1988 J. Schilling */
+/* @(#)dirtime.c	1.9 01/04/07 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)dirtime.c	1.7 96/06/26 Copyright 1988 J. Schilling";
+	"@(#)dirtime.c	1.9 01/04/07 Copyright 1988 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1988 J. Schilling
@@ -42,9 +42,9 @@ static	char sccsid[] =
  * NOTE: I am not shure if degenerate filenames will fool this algorithm.
  */
 #include <mconfig.h>
-#include <timedefs.h>
 #include "star.h"
 #include <standard.h>
+#include <schily.h>
 #include "xutimes.h"
 
 #ifdef DEBUG
@@ -85,13 +85,13 @@ sdirtimes(name, info)
 	struct timeval	tp[NT];
 
 	tp[0].tv_sec = info->f_atime;
-	tp[0].tv_usec = info->f_spare1;
+	tp[0].tv_usec = info->f_ansec/1000;
 
 	tp[1].tv_sec = info->f_mtime;
-	tp[1].tv_usec = info->f_spare2;
+	tp[1].tv_usec = info->f_mnsec/1000;
 #ifdef	SET_CTIME
 	tp[2].tv_sec = info->f_ctime;
-	tp[2].tv_usec = info->f_spare3;
+	tp[2].tv_usec = info->f_cnsec/1000;
 #endif
 
 	dirtimes(name, tp);

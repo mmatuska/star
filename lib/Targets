@@ -12,13 +12,14 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 # Otherwise getfp.o would be made as dependency of avoffset
 #
 
-CFILES_REST=	astoi.c \
+CFILES_REST=	astoi.c astoll.c \
 		comerr.c cmpbytes.c \
 		error.c \
 		fconv.c fexec.c fillbytes.c \
 		format.c \
 		getfp.c \
 		getargs.c getav0.c geterrno.c \
+		jsprintf.c jssnprintf.c jssprintf.c \
 		match.c movebytes.c \
 		printf.c \
 		raisecond.c \

@@ -1,4 +1,4 @@
-/* @(#)getargs.h	1.5 96/05/09 Copyright 1985 J. Schilling */
+/* @(#)getargs.h	1.7 00/11/08 Copyright 1985 J. Schilling */
 /*
  *	Definitions for getargs()/getallargs()/getfiles()
  *
@@ -23,6 +23,14 @@
 #ifndef	_GETARGS_H
 #define	_GETARGS_H
 
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
 #define	NOARGS		  0	/* No more args			*/
 #define	NOTAFLAG	  1	/* Not a flag type argument	*/
 #define BADFLAG		(-1)	/* Not a valid flag argument	*/
@@ -30,5 +38,9 @@
 #define	NOTAFILE	(-3)	/* Seems to be a flag type	*/
 
 typedef	int	(*getargfun)	__PR((const void *, void *));
+
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* _GETARGS_H */

@@ -1,8 +1,8 @@
-/* @(#)stdxlib.h	1.1 96/06/26 Copyright 1996 J. Schilling */
+/* @(#)stdxlib.h	1.3 01/02/19 Copyright 1996 J. Schilling */
 /*
  *	Definitions for stdlib
  *
- *	Copyright (c) 199g J. Schilling
+ *	Copyright (c) 1996 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,11 @@
 #ifdef	HAVE_STDLIB_H
 #include <stdlib.h>
 #else
+
+extern	char	*malloc();
+extern	char	*realloc();
+
+extern	double	atof();
 
 #endif	/* HAVE_STDLIB_H */
 

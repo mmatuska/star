@@ -1,4 +1,4 @@
-#ident "@(#)i86pc-sunos5-cc.rul	1.2 97/04/27 "
+#ident "@(#)i86pc-sunos5-cc.rul	1.4 01/02/04 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -25,6 +25,8 @@ include $(SRCROOT)/$(RULESDIR)/rules.prg
 
 CPPFLAGS=	$(CPPOPTS) $(CPPOPTX)
 CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
+
+LINTFLAGS=	-Nlevel=4 
 
 OSDEFS=		-D__SVR4 -DSVR4
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
@@ -61,5 +63,5 @@ RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; true
 ARFLAGS=	crs
 
 RMDEP=		:
-MKDEP=		@echo "	==> MAKE DEPENDENCIES \"$@\""; $(RMDEP); cc -xM
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); cc -xM
 MKDEP_OUT=

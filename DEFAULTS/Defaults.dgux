@@ -20,7 +20,7 @@ CWARNOPTS=
 
 DEFINCDIRS=	$(SRCROOT)/include
 LDPATH=		-L/opt/schily/lib
-RUNPATH=	-R$(INS_BASE)/lib -R/opt/schily/lib -R $(OLIBSDIR)
+RUNPATH=	-R$(INS_BASE)/lib -R/opt/schily/lib -R$(OLIBSDIR)
 
 ###########################################################################
 #
@@ -32,6 +32,7 @@ INS_KBASE=	/
 #
 DEFUMASK=	002
 #
-DEFINSMODE=    755
-DEFINSUSR=     bin
-DEFINSGRP=     bin
+DEFINSMODEF=	444
+DEFINSMODEX=	755
+DEFINSUSR=	bin
+DEFINSGRP=	bin

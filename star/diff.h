@@ -1,4 +1,4 @@
-/* @(#)diff.h	1.4 96/06/26 Copyright 1993 J. Schilling */
+/* @(#)diff.h	1.6 99/06/15 Copyright 1993 J. Schilling */
 /*
  *	Definitions for the taylorable diff command
  *
@@ -33,6 +33,7 @@
 #define	D_RDEV	0x00400
 #define	D_HLINK	0x01000
 #define	D_SLINK	0x02000
+#define	D_SPARS	0x04000
 #define	D_ATIME	0x10000
 #define	D_MTIME	0x20000
 #define	D_CTIME	0x40000
@@ -41,4 +42,4 @@
 #define	D_DEFLT	(~(D_NLINK|D_ATIME))
 #define	D_ALL	(~0L);
 
-long	diffopts;
+extern	long	diffopts;

@@ -1,7 +1,7 @@
-/* @(#)list.c	1.21 98/06/23 Copyright 1985, 1995 J. Schilling */
+/* @(#)list.c	1.30 01/04/07 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)list.c	1.21 98/06/23 Copyright 1985, 1995 J. Schilling";
+	"@(#)list.c	1.30 01/04/07 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	List the content of an archive
@@ -26,19 +26,19 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
-#include <time.h>
 #include "star.h"
 #include "table.h"
-#include "dir.h"
+#include <dirdefs.h>
 #include <standard.h>
 #include <strdefs.h>
+#include <schily.h>
 #include "starsubs.h"
 
 extern	FILE	*tarf;
 extern	FILE	*vpr;
 extern	char	*listfile;
 
-extern	int	npat;
+extern	BOOL	havepat;
 extern	BOOL	verbose;
 extern	BOOL	tpath;
 extern	BOOL	numeric;
@@ -54,7 +54,7 @@ extern	BOOL	listnew;
 extern	BOOL	listnewf;
 
 EXPORT	void	list		__PR((void));
-LOCAL	void	modstr		__PR((char* s, Ulong  mode));
+LOCAL	void	modstr		__PR((FINFO * info, char* s, Ulong  mode));
 EXPORT	void	list_file	__PR((FINFO * info));
 EXPORT	void	vprint		__PR((FINFO * info));
 
@@ -81,14 +81,26 @@ list()
 		if (tcb_to_info(ptb, &finfo) == EOF)
 			return;
 		if (listnew || listnewf) {
+			/*
+			 * XXX nsec beachten wenn im Archiv!
+			 */
 			if (finfo.f_mtime > newinfo.f_mtime &&
 					(!listnewf || is_file(&finfo))) {
 				movebytes(&finfo, &newinfo, sizeof(finfo));
 				movebytes(&tb, &newtb, sizeof(tb));
-				strcpy(newname, name);
+				/*
+				 * Paranoia.....
+				 */
+				strncpy(newname, name, PATH_MAX);
+				newname[PATH_MAX] = '\0';
 				newinfo.f_name = newname;
 				if (newinfo.f_lname[0] != '\0') {
-					strcpy(newlname, newinfo.f_lname);
+					/*
+					 * Paranoia.....
+					 */
+					strncpy(newlname, newinfo.f_lname,
+								PATH_MAX);
+					newlname[PATH_MAX] = '\0';
 					newinfo.f_lname = newlname;
 				}
 				newinfo.f_flags |= F_HAS_NAME;
@@ -96,7 +108,7 @@ list()
 		} else if (listfile) {
 			if (hash_lookup(finfo.f_name))
 				list_file(&finfo);
-		} else if (npat == 0 || match(finfo.f_name))
+		} else if (!havepat || match(finfo.f_name))
 			list_file(&finfo);
 
 		void_file(&finfo);
@@ -117,7 +129,8 @@ static char *typetab[] =
 #endif
 
 LOCAL void
-modstr(s, mode)
+modstr(info, s, mode)
+		FINFO	*info;
 		 char	*s;
 	register Ulong	mode;
 {
@@ -140,10 +153,14 @@ modstr(s, mode)
 			str[8] = 'T';
 	}
 	if (mode & 02000) {
-		if (mode & 010)
+		if (mode & 010) {
 			str[5] = 's';
-		else
-			str[5] = 'S';
+		} else {
+			if (is_dir(info))
+				str[5] = 'S';
+			else
+				str[5] = 'l';
+		}
 	}
 	if (mode & 04000) {
 		if (mode & 0100)
@@ -166,8 +183,10 @@ list_file(info)
 
 	f = vpr;
 	if (verbose) {
-		tp = (time_t *) (acctime ? &info->f_atime :
-				(Ctime ? &info->f_ctime : &info->f_mtime));
+/*		tp = (time_t *) (acctime ? &info->f_atime :*/
+/*				(Ctime ? &info->f_ctime : &info->f_mtime));*/
+		tp = acctime ? &info->f_atime :
+				(Ctime ? &info->f_ctime : &info->f_mtime);
 		tstr = ctime(tp);
 		if (numeric || info->f_uname == NULL) {
 			sprintf(nuid, "%lu", info->f_uid);
@@ -181,18 +200,18 @@ list_file(info)
 		}
 
 		if (is_special(info))
-			fprintf(f, "%3ld %3ld",
+			fprintf(f, "%3lu %3lu",
 				info->f_rdevmaj, info->f_rdevmin);
 		else
 			fprintf(f, "%7lu", info->f_size);
-		modstr(mstr, info->f_mode);
+		modstr(info, mstr, info->f_mode);
 
 /*
  * XXX Übergangsweise, bis die neue Filetypenomenklatur sauber eingebaut ist.
  */
 if (info->f_xftype == 0) {
 	info->f_xftype = IFTOXT(info->f_type);
-	errmsgno(BAD, "XXXXX xftype == 0\n");
+	errmsgno(EX_BAD, "XXXXX xftype == 0\n");
 }
 		fprintf(f,
 			" %s%s %3.*s/%-3.*s %.12s %4.4s ",

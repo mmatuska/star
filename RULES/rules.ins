@@ -1,4 +1,4 @@
-#ident @(#)rules.ins	1.7 97/06/20 
+#ident @(#)rules.ins	1.9 00/11/07 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -34,8 +34,12 @@ $(SRCROOT)/bins/$(OARCH)/$(TARGET):	$(PTARGET)
 PHARDLINKS=	$(HARDLINKS:%=$(INS_BASE)/$(INSDIR)/%)
 hardlinks:	$(PHARDLINKS)
 
+_INSMODEINS=	$(_UNIQ)$(INSMODEI)
+__INSMODEINS=	$(_INSMODEINS:$(_UNIQ)=$(INSMODEX))
+INSMODEINS=	$(__INSMODEINS:$(_UNIQ)%=%)
+
 dummy $(PHARDLINKS):	$(INS_BASE)/$(INSDIR)/$(TARGET)
-	@echo "	==> INSTALLING link \"$@\""; $(LN) $(INS_BASE)/$(INSDIR)/$(TARGET) $@
+	@echo "	==> INSTALLING link \"$@\""; $(RM) $(RM_FORCE) $@; $(LN) $(INS_BASE)/$(INSDIR)/$(TARGET) $@
 
 xinstall:
 	@if [ ".$(XMK_FILE)" != . ] ; then				\

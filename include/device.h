@@ -1,6 +1,8 @@
-/* @(#)device.h	1.1 96/06/25 Copyright 1995 J. Schilling */
+/* @(#)device.h	1.8 01/02/17 Copyright 1995 J. Schilling */
 /*
  *	Generic header for users of major(), minor() and makedev()
+ *
+ *	NOTE: You need to include <sys/types.h> before <device.h>
  *
  *	Copyright (c) 1995 J. Schilling
  */
@@ -23,6 +25,10 @@
 #ifndef	_DEVICE_H
 #define	_DEVICE_H
 
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+
 /*
  * On generic SVR4, major is a function (defined in sys/mkdev.h).
  * On Solaris it is defined ...
@@ -33,7 +39,10 @@
  * an old definition for major()/minor() defining 8 minorbits.
  * Use <sys/mkdev.h> instead.
  */
+#ifndef	_INCL_SYS_TYPES_H
 #include <sys/types.h>
+#define	_INCL_SYS_TYPES_H
+#endif
 /*
  * Some systems define major in <sys/types.h>.
  * We are ready...
@@ -65,6 +74,10 @@
 #	endif
 #endif
 
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
 /*
  * For all other systems define major()/minor() here.
  * XXX Check if this definition will be usefull for ms dos too.
@@ -75,6 +88,16 @@
 #	define makedev(majo, mino)	(((majo) << 8) | (mino))
 #endif
 
+/*
+ * Don't pollute namespace...
+ */
+#undef _FOUND_MAJOR_
+
+#ifdef	__XDEV__
+/*
+ * The following defines are currently only needed for 'star'.
+ * We make it conditional code to avoid to pollute the namespace.
+ */
 #define	XDEV_T	unsigned long
 
 extern	int	minorbits;
@@ -91,6 +114,7 @@ extern	XDEV_T	_dev_mask[];
 #define	dev_make(majo, mino)		((((XDEV_T)(majo)) << minorbits) | \
 							((XDEV_T)(mino)))
 #define	_dev_make(mbits,majo,mino)	((((XDEV_T)(majo)) << (mbits) | \
+							((XDEV_T)(mino)))
 
 extern	void	dev_init	__PR((BOOL debug));
 #ifndef	dev_major
@@ -102,9 +126,10 @@ extern	XDEV_T	dev_make	__PR((XDEV_T majo, XDEV_T mino));
 extern	XDEV_T	_dev_make	__PR((int mbits, XDEV_T majo, XDEV_T mino));
 #endif
 
-/*
- * Don't pollute namespace...
- */
-#undef _FOUND_MAJOR_
+#endif	/* __XDEV__ */
+
+#ifdef	__cplusplus
+}
+#endif
 
 #endif	/* _DEVICE_H */

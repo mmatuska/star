@@ -1,4 +1,4 @@
-/* @(#)openfd.c	1.5 97/05/21 Copyright 1986, 1995 J. Schilling */
+/* @(#)openfd.c	1.8 00/12/03 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995 J. Schilling
  */
@@ -18,14 +18,14 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <stdio.h>
 #include "io.h"
 
-#ifdef	_openfd
+#if	defined(_openfd) && !defined(USE_LARGEFILES)
 #	undef	_openfd
 #endif
 
-int _openfd(name, omode)
+EXPORT int
+_openfd(name, omode)
 	const char	*name;
 	int		omode;
 {

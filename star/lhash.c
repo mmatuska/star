@@ -1,7 +1,7 @@
-/* @(#)lhash.c	1.6 96/06/26 Copyright 1988 J. Schilling */
+/* @(#)lhash.c	1.8 00/05/07 Copyright 1988 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)lhash.c	1.6 96/06/26 Copyright 1988 J. Schilling";
+	"@(#)lhash.c	1.8 00/05/07 Copyright 1988 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1988 J. Schilling
@@ -49,6 +49,7 @@ static	char sccsid[] =
 #include "star.h"
 #include <stdxlib.h>
 #include <strdefs.h>
+#include <schily.h>
 
 extern	BOOL	notpat;
 
@@ -82,7 +83,7 @@ hash_build(fp, size)
 		if (len == 0)
 			continue;
 		if (len >= PATH_MAX) {
-			errmsgno(BAD, "%s: Name too long (%d > %d).\n",
+			errmsgno(EX_BAD, "%s: Name too long (%d > %d).\n",
 							buf, len, PATH_MAX);
 			continue;
 		}

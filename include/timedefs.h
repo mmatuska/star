@@ -1,4 +1,4 @@
-/* @(#)timedefs.h	1.1 96/06/26 Copyright 1996 J. Schilling */
+/* @(#)timedefs.h	1.7 01/04/12 Copyright 1996 J. Schilling */
 /*
  *	Generic header for users of gettimeofday() ...
  *
@@ -27,18 +27,48 @@
 #include <mconfig.h>
 #endif
 
-#include <time.h>
-
+#ifdef	TIME_WITH_SYS_TIME
+#	include <sys/time.h>
+#	include <time.h>
+#else
 #ifdef	HAVE_SYS_TIME_H
-#include <sys/time.h>
+#	include <sys/time.h>
+#else
+#	include <time.h>
+#endif
+#endif
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
+#ifdef	__CYGWIN32__
+/*
+ * Cygnus defines struct timeval in sys/time.h but not timerclear
+ * timerclear is defined in windows32/Sockets.h ???
+ */
+#ifndef	timerclear
+#define	timerclear(tvp)		(tvp)->tv_sec = (tvp)->tv_usec = 0
+#endif
+#endif
+
+#ifdef	__EMX__
+/*
+ * EMX for OS/2 defines struct timeval in sys/time.h but not timerclear
+ */
+#ifndef	timerclear
+#define	timerclear(tvp)		(tvp)->tv_sec = (tvp)->tv_usec = 0
+#endif
 #endif
 
 #ifndef	timerclear
 
+#ifndef	VMS
 struct timeval {
 	long	tv_sec;
 	long	tv_usec;
 };
+#endif
 
 struct timezone {
 	int	tz_minuteswest;
@@ -47,6 +77,10 @@ struct timezone {
 
 #define	timerclear(tvp)		(tvp)->tv_sec = (tvp)->tv_usec = 0
 
+#endif
+
+#ifdef	__cplusplus
+}
 #endif
 
 #endif	/* _TIMEDEFS_H */

@@ -1,7 +1,7 @@
-/* @(#)header.c	1.24 98/06/23 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.43 01/04/07 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.24 98/06/23 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.43 01/04/07 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -30,12 +30,14 @@ static	char sccsid[] =
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include "dir.h"
+#include <sys/types.h>
+#include <dirdefs.h>
 #include <standard.h>
 #include <stdxlib.h>
 #include <strdefs.h>
-#include <timedefs.h>
+#define	__XDEV__	/* Needed to activate _dev_major()/_dev_minor() */
 #include <device.h>
+#include <schily.h>
 #include "starsubs.h"
 
 	/* ustar */
@@ -53,13 +55,15 @@ LOCAL	char	*hdrtxt[] = {
 	/* 4 */	"gnu tar",
 	/* 5 */	"ustar",
 	/* 6 */	"xstar",
-	/* 7 */	"bar",
-	/* 8 */	"cpio binary",
-	/* 9 */	"cpio -c",
-	/*10 */	"cpio",
-	/*11 */	"cpio crc",
-	/*12 */	"cpio ascii",
-	/*13 */	"cpio ascii crc",
+	/* 7 */	"xustar",
+	/* 8 */	"res8",		/* Reserved	*/
+	/* 9 */	"bar",
+	/*10 */	"cpio binary",
+	/*11 */	"cpio -c",
+	/*12 */	"cpio",
+	/*13 */	"cpio crc",
+	/*14 */	"cpio ascii",
+	/*15 */	"cpio ascii crc",
 };
 
 extern	FILE	*tty;
@@ -74,7 +78,9 @@ extern	BOOL	xflag;
 extern	BOOL	nflag;
 extern	BOOL	ignoreerr;
 extern	BOOL	signedcksum;
+extern	BOOL	nowarn;
 extern	BOOL	nullout;
+extern	BOOL	modebits;
 
 extern	Ulong	tsize;
 
@@ -84,17 +90,18 @@ extern	int	bigsize;
 LOCAL	Ulong	checksum	__PR((TCB * ptb));
 LOCAL	Ulong	bar_checksum	__PR((TCB * ptb));
 LOCAL	BOOL	isstmagic	__PR((char* s));
+LOCAL	BOOL	isxmagic	__PR((TCB *ptb));
 LOCAL	BOOL	ismagic		__PR((char* s));
 LOCAL	BOOL	isgnumagic	__PR((char* s));
 LOCAL	BOOL	strxneql	__PR((char* s1, char* s2, int l));
 LOCAL	BOOL	ustmagcheck	__PR((TCB * ptb));
 LOCAL	void	print_hdrtype	__PR((int type));
-LOCAL	int	get_hdrtype	__PR((TCB * ptb, BOOL  isrecurse));
+LOCAL	int	get_hdrtype	__PR((TCB * ptb, BOOL isrecurse));
 EXPORT	int	get_tcb		__PR((TCB * ptb));
 EXPORT	void	put_tcb		__PR((TCB * ptb, FINFO * info));
 EXPORT	void	write_tcb	__PR((TCB * ptb, FINFO * info));
 EXPORT	void	put_volhdr	__PR((char* name));
-EXPORT	void	get_volhdr	__PR((FINFO * info));
+EXPORT	BOOL	get_volhdr	__PR((FINFO * info, char* vhname));
 EXPORT	void	info_to_tcb	__PR((FINFO * info, TCB * ptb));
 LOCAL	void	info_to_star	__PR((FINFO * info, TCB * ptb));
 LOCAL	void	info_to_ustar	__PR((FINFO * info, TCB * ptb));
@@ -113,7 +120,9 @@ LOCAL	BOOL	checkeof	__PR((TCB * ptb));
 LOCAL	BOOL	eofblock	__PR((TCB * ptb));
 EXPORT	void	astoo_cpio	__PR((char* s, Ulong * l, int cnt));
 EXPORT	void	astoo		__PR((char* s, Ulong * l));
-EXPORT	void	otoa		__PR((char* s, Ulong  l, int fieldw));
+EXPORT	void	otoa		__PR((char* s, Ulong l, int fieldw));
+EXPORT	void	astob		__PR((char* s, Ulong * l, int fieldw));
+EXPORT	void	btoa		__PR((char* s, Ulong l, int fieldw));
 
 /*
  * XXX Hier sollte eine tar/bar universelle Checksummenfunktion sein!
@@ -209,6 +218,35 @@ isstmagic(s)
 }
 
 LOCAL BOOL
+isxmagic(ptb)
+	TCB	*ptb;
+{
+	/*
+	 * prefix[130] is is granted to be '\0' with 'xstar'.
+	 */
+	if (ptb->xstar_dbuf.t_prefix[130] != '\0')
+		return (FALSE);
+	/*
+	 * If atime[0] or ctime[0] is not an octal number it cannot be 'xstar'.
+	 */
+	if (ptb->xstar_dbuf.t_atime[0] < '0' ||
+	    ptb->xstar_dbuf.t_atime[0] > '7')
+		return (FALSE);
+	if (ptb->xstar_dbuf.t_ctime[0] < '0' ||
+	    ptb->xstar_dbuf.t_ctime[0] > '7')
+		return (FALSE);
+
+	/*
+	 * We may need to remove this in future.
+	 */
+	if (ptb->xstar_dbuf.t_atime[11] != ' ' ||
+	    ptb->xstar_dbuf.t_ctime[11] != ' ')
+		return (FALSE);
+
+	return (TRUE);
+}
+
+LOCAL BOOL
 ismagic(s)
 	char	*s;
 {
@@ -271,7 +309,7 @@ get_hdrtype(ptb, isrecurse)
 	if (ocheck != check)
 		goto nottar;
 
-	if (isstmagic(ptb->dbuf.t_magic)) {
+	if (isstmagic(ptb->dbuf.t_magic)) {	/* Check for 'tar\0' at end */
 		if (ustmagcheck(ptb))
 			ret = H_XSTAR;
 		else
@@ -279,12 +317,15 @@ get_hdrtype(ptb, isrecurse)
 		if (debug) print_hdrtype(ret);
 		return (ret);
 	}
-	if (ustmagcheck(ptb)) {
-		ret = H_USTAR;
+	if (ustmagcheck(ptb)) {			/* 'ustar\000' POSIX magic */
+		if (isxmagic(ptb))
+			ret = H_XUSTAR;
+		else
+			ret = H_USTAR;
 		if (debug) print_hdrtype(ret);
 		return (ret);
 	}
-	if (isgnumagic(&ptb->dbuf.t_vers)) {
+	if (isgnumagic(&ptb->dbuf.t_vers)) {	/* 'ustar  ' GNU magic */
 		ret = H_GNUTAR;
 		if (debug) print_hdrtype(ret);
 		return (ret);
@@ -386,7 +427,7 @@ get_tcb(ptb)
 		 * wenn nicht t_magic gesetzt ist.
 		 */
 		if (readblock((char *)ptb) == EOF) {
-			errmsgno(BAD, "Hard EOF on input, first EOF block is missing.\n");
+			errmsgno(EX_BAD, "Hard EOF on input, first EOF block is missing.\n");
 			return (EOF);
 		}
 		/*
@@ -414,19 +455,37 @@ get_tcb(ptb)
 			 */
 			buf_resume();
 			if (H_TYPE(hdrtype) == H_BAR) {
-				comerrno(BAD, "Can't handle bar archives (yet).\n");
+				comerrno(EX_BAD, "Can't handle bar archives (yet).\n");
 			}
 			if (H_TYPE(hdrtype) >= H_CPIO) {
 /* XXX JS Test */if (H_TYPE(hdrtype) == H_CPIO_CHR) {
 /* XXX JS Test */FINFO info;
 /* XXX JS Test */tcb_to_info(ptb, &info);
 /* XXX JS Test */}
-				comerrno(BAD, "Can't handle cpio archives (yet).\n");
+				comerrno(EX_BAD, "Can't handle cpio archives (yet).\n");
+			}
+			if (H_TYPE(hdrtype) == H_UNDEF) {
+				char	*p = (char *)ptb;
+
+				if (p[0] == '\037') {
+					if ((p[1] == '\037') ||	/* Packed	     */
+					    (p[1] == '\213') ||	/* Gzip compressed   */
+					    (p[1] == '\235') ||	/* LZW compressed    */
+					    (p[1] == '\236') ||	/* Freezed 	     */
+					    (p[1] == '\240'))	/* SCO LZH compressed*/
+					comerrno(EX_BAD, "Archive is compressed, try to use the -z option.\n");
+				}
+				if (p[0] == 'B' && p[1] == 'Z' && p[2] == 'h')
+					comerrno(EX_BAD, "Archive is bzip2 compressed, try to use the -bz option.\n");
+				if (!ignoreerr) {
+					comerrno(EX_BAD,
+					"Unknown archive type (neither tar, nor bar/cpio).\n");
+				}
 			}
 			if (chdrtype != H_UNDEF && chdrtype != hdrtype) {
-				errmsgno(BAD, "Found: ");
+				errmsgno(EX_BAD, "Found: ");
 				print_hdrtype(hdrtype);
-				errmsgno(BAD, "Warning: extracting as ");
+				errmsgno(EX_BAD, "Warning: extracting as ");
 				print_hdrtype(chdrtype);
 				hdrtype = chdrtype;
 			}
@@ -449,6 +508,9 @@ get_tcb(ptb)
 
 			switch (H_TYPE(hdrtype)) {
 
+			case H_XUSTAR:
+				if (ismagic(tmagic) && isxmagic(ptb))
+					return (0);
 			case H_XSTAR:
 				if (ismagic(tmagic) &&
 				    isstmagic(ptb->xstar_dbuf.t_xmagic))
@@ -473,7 +535,7 @@ get_tcb(ptb)
 			case H_OTAR:
 				return (0);
 			}
-			errmsgno(BAD, "Wrong magic at: %d: '%.8s'.\n",
+			errmsgno(EX_BAD, "Wrong magic at: %d: '%.8s'.\n",
 							tblocks(), tmagic);
 			/*
 			 * Allow buggy gnu Volheaders & Multivolheaders to work
@@ -482,16 +544,16 @@ get_tcb(ptb)
 				return (0);
 
 		} else if (eof) {
-			errmsgno(BAD, "EOF Block at: %d ignored.\n",
+			errmsgno(EX_BAD, "EOF Block at: %d ignored.\n",
 							tblocks());
 		} else {
-			errmsgno(BAD, "Checksum error at: %d: 0%o should be 0%o.\n",
+			errmsgno(EX_BAD, "Checksum error at: %d: 0%lo should be 0%lo.\n",
 							tblocks(),
 							ocheck, check);
 		}
 	} while (ignoreerr);
 	prstats();
-	exit(BAD);
+	exit(EX_BAD);
 	/* NOTREACHED */
 	return (EOF);		/* Keep lint happy */
 }
@@ -516,7 +578,7 @@ put_tcb(ptb, info)
 		x2++;
 
 	if (x1 != x2) {
-error("type: %d name: %s x1 %d x2 %d namelen: %d prefix: %s lnamelen: %d\n",
+error("type: %ld name: %s x1 %d x2 %d namelen: %ld prefix: %s lnamelen: %ld\n",
 info->f_filetype, info->f_name, x1, x2,
 info->f_namelen, ptb->dbuf.t_prefix, info->f_lnamelen);
 
@@ -558,8 +620,12 @@ write_tcb(ptb, info)
 			nexttape();
 		}
 	}
-	if (!nullout)				/* 17 Bit !!! */
-		otoa(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 6);
+	if (!nullout) {				/* 17 (> 16) Bit !!! */
+		if (props.pr_fillc == '0')
+			otoa(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 7);
+		else
+			otoa(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 6);
+	}
 	if ((info->f_flags & F_TCB_BUF) != 0)	/* TCB is on buffer */
 		put_block();
 	else
@@ -597,11 +663,18 @@ put_volhdr(name)
 	vprint(&finfo);
 }
 
-EXPORT void
-get_volhdr(info)
+EXPORT BOOL
+get_volhdr(info, vhname)
 	FINFO	*info;
+	char	*vhname;
 {
 	error("Volhdr: %s\n", info->f_name);
+
+	if (vhname) {
+		return (streql(info->f_name, vhname));
+	} else { 
+		return (TRUE);
+	}
 }
 
 EXPORT void
@@ -612,16 +685,30 @@ info_to_tcb(info, ptb)
 	if (nullout)
 		return;
 
-	otoa(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 6);
-	otoa(ptb->dbuf.t_uid, info->f_uid & 0xFFFF, 6);
-	otoa(ptb->dbuf.t_gid, info->f_gid & 0xFFFF, 6);
+	if (props.pr_fillc == '0') {
+		if (modebits)
+			otoa(ptb->dbuf.t_mode, (info->f_mode|info->f_type) & 0xFFFF, 7);
+		else
+			otoa(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 7);
+		otoa(ptb->dbuf.t_uid, info->f_uid & 0xFFFF, 7);
+		otoa(ptb->dbuf.t_gid, info->f_gid & 0xFFFF, 7);
+	} else {
+		if (modebits)
+			otoa(ptb->dbuf.t_mode, (info->f_mode|info->f_type) & 0xFFFF, 6);
+		else
+			otoa(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 6);
+		otoa(ptb->dbuf.t_uid, info->f_uid & 0xFFFF, 6);
+		otoa(ptb->dbuf.t_gid, info->f_gid & 0xFFFF, 6);
+	}
 	otoa(ptb->dbuf.t_size, info->f_rsize, 11);
-	otoa(ptb->dbuf.t_mtime, info->f_mtime, 11);
+	otoa(ptb->dbuf.t_mtime, (Ulong)info->f_mtime, 11);
 	ptb->dbuf.t_linkflag = XTTOUS(info->f_xftype);
 
 	if (H_TYPE(hdrtype) == H_USTAR) {
 		info_to_ustar(info, ptb);
 	} else if (H_TYPE(hdrtype) == H_XSTAR) {
+		info_to_xstar(info, ptb);
+	} else if (H_TYPE(hdrtype) == H_XUSTAR) {
 		info_to_xstar(info, ptb);
 	} else if (H_TYPE(hdrtype) == H_GNUTAR) {
 		info_to_gnutar(info, ptb);
@@ -636,26 +723,32 @@ info_to_star(info, ptb)
 	register TCB	*ptb;
 {
 	ptb->dbuf.t_vers = STVERSION;
-	otoa(ptb->dbuf.t_filetype, info->f_filetype & 0xFFFF, 6);
+	otoa(ptb->dbuf.t_filetype, info->f_filetype & 0xFFFF, 6);	/* XXX -> 7 ??? */
 	otoa(ptb->dbuf.t_type, info->f_type & 0xFFFF, 11);
 	otoa(ptb->dbuf.t_rdev, info->f_rdev, 11);
+#ifdef	DEV_MINOR_NONCONTIG
+	ptb->dbuf.t_devminorbits = '@';
+#else
 	ptb->dbuf.t_devminorbits = '@' + minorbits;
+#endif
 
-	otoa(ptb->dbuf.t_atime, info->f_atime, 11);
-	otoa(ptb->dbuf.t_ctime, info->f_ctime, 11);
+	otoa(ptb->dbuf.t_atime, (Ulong)info->f_atime, 11);
+	otoa(ptb->dbuf.t_ctime, (Ulong)info->f_ctime, 11);
 /*	strcpy(ptb->dbuf.t_magic, stmagic);*/
 	ptb->dbuf.t_magic[0] = 't';
 	ptb->dbuf.t_magic[1] = 'a';
 	ptb->dbuf.t_magic[2] = 'r';
-	nameuid(ptb->dbuf.t_uname, STUNMLEN, info->f_uid);
-	namegid(ptb->dbuf.t_gname, STGNMLEN, info->f_gid);
-	if (*ptb->dbuf.t_uname) {
-		info->f_uname = ptb->dbuf.t_uname;
-		info->f_umaxlen = STUNMLEN;
-	}
-	if (*ptb->dbuf.t_gname) {
-		info->f_gname = ptb->dbuf.t_gname;
-		info->f_gmaxlen = STGNMLEN;
+	if (!numeric) {
+		nameuid(ptb->dbuf.t_uname, STUNMLEN, info->f_uid);
+		namegid(ptb->dbuf.t_gname, STGNMLEN, info->f_gid);
+		if (*ptb->dbuf.t_uname) {
+			info->f_uname = ptb->dbuf.t_uname;
+			info->f_umaxlen = STUNMLEN;
+		}
+		if (*ptb->dbuf.t_gname) {
+			info->f_gname = ptb->dbuf.t_gname;
+			info->f_gmaxlen = STGNMLEN;
+		}
 	}
 
 	if (is_sparse(info))
@@ -668,7 +761,7 @@ info_to_ustar(info, ptb)
 	register TCB	*ptb;
 {
 /*XXX solaris hat illegalerweise mehr als 12 Bit in t_mode !!!
- *	otoa(ptb->dbuf.t_mode, info->f_mode|info->f_type & 0xFFFF, 6);
+ *	otoa(ptb->dbuf.t_mode, info->f_mode|info->f_type & 0xFFFF, 6);	XXX -> 7 ???
 */
 /*	strcpy(ptb->ustar_dbuf.t_magic, magic);*/
 	ptb->ustar_dbuf.t_magic[0] = 'u';
@@ -683,18 +776,53 @@ info_to_ustar(info, ptb)
 	ptb->ustar_dbuf.t_version[0] = '0';
 	ptb->ustar_dbuf.t_version[1] = '0';
 
-	nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
-	namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
-	if (*ptb->ustar_dbuf.t_uname) {
-		info->f_uname = ptb->ustar_dbuf.t_uname;
-		info->f_umaxlen = TUNMLEN;
+	if (!numeric) {
+		nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
+		namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
+		if (*ptb->ustar_dbuf.t_uname) {
+			info->f_uname = ptb->ustar_dbuf.t_uname;
+			info->f_umaxlen = TUNMLEN;
+		}
+		if (*ptb->ustar_dbuf.t_gname) {
+			info->f_gname = ptb->ustar_dbuf.t_gname;
+			info->f_gmaxlen = TGNMLEN;
+		}
 	}
-	if (*ptb->ustar_dbuf.t_gname) {
-		info->f_gname = ptb->ustar_dbuf.t_gname;
-		info->f_gmaxlen = TGNMLEN;
+	otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 7);
+#if	DEV_MINOR_BITS > 21
+	if (info->f_rdevmin > 07777777) {
+		extern	BOOL	hpdev;
+
+		if (!is_special(info)) {
+			/*
+			 * Until we know how to deal with this, we reduce
+			 * the number of files that get non POSIX headers.
+			 */
+			info->f_rdevmin = 0;
+			goto doposix;
+		}
+		if ((info->f_rdevmin <= 077777777) && hpdev) {
+			char	c;
+
+			/*
+			 * Implement the method from HP-UX that allows 24 bit
+			 * for the device minor number. Note that this method
+			 * violates the POSIX specs.
+			 */
+			c = ptb->ustar_dbuf.t_prefix[0];
+			otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 8);
+			ptb->ustar_dbuf.t_prefix[0] = c;
+		} else {
+			btoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 7);
+		}
+	} else
+#endif
+		{
+#if	DEV_MINOR_BITS > 21
+doposix:
+#endif
+		otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 7);
 	}
-	otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 6);
-	otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 6);
 }
 
 LOCAL void
@@ -703,13 +831,20 @@ info_to_xstar(info, ptb)
 	register TCB	*ptb;
 {
 	info_to_ustar(info, ptb);
-	otoa(ptb->xstar_dbuf.t_atime, info->f_atime, 11);
-	otoa(ptb->xstar_dbuf.t_ctime, info->f_ctime, 11);
-/*	strcpy(ptb->xstar_dbuf.t_xmagic, stmagic);*/
-	ptb->xstar_dbuf.t_xmagic[0] = 't';
-	ptb->xstar_dbuf.t_xmagic[1] = 'a';
-	ptb->xstar_dbuf.t_xmagic[2] = 'r';
+	otoa(ptb->xstar_dbuf.t_atime, (Ulong)info->f_atime, 11);
+	otoa(ptb->xstar_dbuf.t_ctime, (Ulong)info->f_ctime, 11);
 
+	/*
+	 * Help recognition in isxmagic(), make sure that prefix[130] is null.
+	 */
+	ptb->xstar_dbuf.t_prefix[130] = '\0';
+
+	if (H_TYPE(hdrtype) == H_XSTAR) {
+/*		strcpy(ptb->xstar_dbuf.t_xmagic, stmagic);*/
+		ptb->xstar_dbuf.t_xmagic[0] = 't';
+		ptb->xstar_dbuf.t_xmagic[1] = 'a';
+		ptb->xstar_dbuf.t_xmagic[2] = 'r';
+	}
 	if (is_sparse(info))
 		otoa(ptb->xstar_in_dbuf.t_realsize, info->f_size, 11);
 }
@@ -721,26 +856,28 @@ info_to_gnutar(info, ptb)
 {
 	strcpy(ptb->gnu_dbuf.t_magic, gmagic);
 
-	nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
-	namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
-	if (*ptb->ustar_dbuf.t_uname) {
-		info->f_uname = ptb->ustar_dbuf.t_uname;
-		info->f_umaxlen = TUNMLEN;
-	}
-	if (*ptb->ustar_dbuf.t_gname) {
-		info->f_gname = ptb->ustar_dbuf.t_gname;
-		info->f_gmaxlen = TGNMLEN;
+	if (!numeric) {
+		nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
+		namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
+		if (*ptb->ustar_dbuf.t_uname) {
+			info->f_uname = ptb->ustar_dbuf.t_uname;
+			info->f_umaxlen = TUNMLEN;
+		}
+		if (*ptb->ustar_dbuf.t_gname) {
+			info->f_gname = ptb->ustar_dbuf.t_gname;
+			info->f_gmaxlen = TGNMLEN;
+		}
 	}
 	if (info->f_xftype == XT_CHR || info->f_xftype == XT_BLK) {
-		otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 6);
-		otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 6);
+		otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 6);	/* XXX -> 7 ??? */
+		otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 6);	/* XXX -> 7 ??? */
 	}
 
 	/*
 	 * XXX GNU tar only fill this if doing a gnudump.
 	 */
-	otoa(ptb->gnu_dbuf.t_atime, info->f_atime, 11);
-	otoa(ptb->gnu_dbuf.t_ctime, info->f_ctime, 11);
+	otoa(ptb->gnu_dbuf.t_atime, (Ulong)info->f_atime, 11);
+	otoa(ptb->gnu_dbuf.t_ctime, (Ulong)info->f_ctime, 11);
 
 	if (is_sparse(info))
 		otoa(ptb->gnu_in_dbuf.t_realsize, info->f_size, 11);
@@ -752,6 +889,11 @@ tcb_to_info(ptb, info)
 	register FINFO	*info;
 {
 	int	ret = 0;
+	char	xname;
+	char	xlink;
+	Ulong	ul;
+static	BOOL	posixwarn = FALSE;
+static	BOOL	namewarn = FALSE;
 
 	/*
 	 * F_HAS_NAME is only used from list.c when the -listnew option is
@@ -782,15 +924,23 @@ tcb_to_info(ptb, info)
 			ret = tcb_to_longname(ptb, info);
 	}
 
-	/*
-	 * Hack for list module (option -newest) ...
-	 * Save first char of mode string in last char of uid.
-	 */
-	if (ptb->dbuf.t_name[NAMSIZ] == '\0')
-		ptb->dbuf.t_name[NAMSIZ] = ptb->dbuf.t_uid[TUIDLEN-1];
-	if (ptb->dbuf.t_linkname[NAMSIZ] == '\0')
-		ptb->dbuf.t_linkname[NAMSIZ] = ptb->dbuf.t_gid[TGIDLEN-1];
+	if (ptb->dbuf.t_name[NAMSIZ] == '\0') {
+		if (!nowarn && !namewarn) {
+			errmsgno(EX_BAD,
+			"Warning: Archive violates POSIX 1003.1 (100 char filename is null terminated).\n");
+			namewarn = TRUE;
+		}
+		ptb->dbuf.t_name[NAMSIZ] = ' ';
+	}
 	astoo(ptb->dbuf.t_mode, &info->f_mode);
+	if (info->f_mode & ~07777) {
+		if (!nowarn && !modebits && H_TYPE(hdrtype) == H_USTAR && !posixwarn) {
+			errmsgno(EX_BAD,
+			"Warning: Archive violates POSIX 1003.1 (too many bits in mode field).\n");
+			posixwarn = TRUE;
+		}
+		info->f_mode &= 07777;
+	}
 	astoo(ptb->dbuf.t_uid, &info->f_uid);
 	astoo(ptb->dbuf.t_gid, &info->f_gid);
 	astoo(ptb->dbuf.t_size, &info->f_size);
@@ -803,7 +953,11 @@ tcb_to_info(ptb, info)
 		 */
 		info->f_rsize = info->f_size;
 	}
-	astoo(ptb->dbuf.t_mtime, &info->f_mtime);
+	astoo(ptb->dbuf.t_mtime, &ul);
+	info->f_mtime = (time_t)ul;
+
+	info->f_ansec = info->f_mnsec = info->f_cnsec = 0L;
+
 
 	switch (H_TYPE(hdrtype)) {
 
@@ -816,6 +970,7 @@ tcb_to_info(ptb, info)
 		ustar_to_info(ptb, info);
 		break;
 	case H_XSTAR:
+	case H_XUSTAR:
 		xstar_to_info(ptb, info);
 		break;
 	case H_GNUTAR:
@@ -825,17 +980,24 @@ tcb_to_info(ptb, info)
 		star_to_info(ptb, info);
 		break;
 	}
-	ptb->dbuf.t_uid[TUIDLEN-1] = ptb->dbuf.t_name[NAMSIZ];
-	ptb->dbuf.t_name[NAMSIZ] = '\0';	/* allow 100 chars in name */
-	ptb->dbuf.t_gid[TGIDLEN-1] = ptb->dbuf.t_linkname[NAMSIZ];
-	ptb->dbuf.t_linkname[NAMSIZ] = '\0';/* allow 100 chars in linkname */
 
-	info->f_spare1 = info->f_spare2 = info->f_spare3 = 0L;
+	/*
+	 * Hack for list module (option -newest) ...
+	 * Save and restore t_name[NAMSIZ] & t_linkname[NAMSIZ]
+	 */
+	xname = ptb->dbuf.t_name[NAMSIZ];
+	ptb->dbuf.t_name[NAMSIZ] = '\0';	/* allow 100 chars in name */
+	xlink = ptb->dbuf.t_linkname[NAMSIZ];
+	ptb->dbuf.t_linkname[NAMSIZ] = '\0';/* allow 100 chars in linkname */
 
 	/*
 	 * Handle long name in posix split form now.
 	 */
 	tcb_to_name(ptb, info);
+
+	ptb->dbuf.t_name[NAMSIZ] = xname;	/* restore remembered value */
+	ptb->dbuf.t_linkname[NAMSIZ] = xlink;	/* restore remembered value */
+
 	return (ret);
 }
 
@@ -887,14 +1049,39 @@ star_to_info(ptb, info)
 
 	astoo(ptb->dbuf.t_rdev, &info->f_rdev);
 	mbits = ptb->dbuf.t_devminorbits - '@';
-	if (mbits <= 0)
-		mbits = 8;
-	info->f_rdevmaj	= _dev_major(mbits, info->f_rdev);
-	info->f_rdevmin	= _dev_minor(mbits, info->f_rdev);
-	info->f_rdev = dev_make(info->f_rdevmaj, info->f_rdevmin);
+	if (mbits == 0) {
+		static	BOOL	dwarned = FALSE;
+		if (!dwarned) {
+			errmsgno(EX_BAD,
+#ifdef	DEV_MINOR_NONCONTIG
+			"Warning: Minor device numbers are non contiguous, devices may not be extracted correctly.\n");
+#else
+			"Warning: The archiving system used non contiguous minor numbers, cannot extract devices correctly.\n");
+#endif
+			dwarned = TRUE;
+		}
+		/*
+		 * Let us hope that both, the archiving and the extracting system
+		 * use the same major()/minor() mapping.
+		 */
+		info->f_rdevmaj	= major(info->f_rdev);
+		info->f_rdevmin	= minor(info->f_rdev);
+	} else {
+		/*
+		 * Convert from remote major()/minor() mapping to
+		 * local major()/minor() mapping.
+		 */
+		if (mbits < 0)		/* Old star format */
+			mbits = 8;
+		info->f_rdevmaj	= _dev_major(mbits, info->f_rdev);
+		info->f_rdevmin	= _dev_minor(mbits, info->f_rdev);
+		info->f_rdev = makedev(info->f_rdevmaj, info->f_rdevmin);
+	}
 
-	astoo(ptb->dbuf.t_atime, &info->f_atime);
-	astoo(ptb->dbuf.t_ctime, &info->f_ctime);
+	astoo(ptb->dbuf.t_atime, &id);
+	info->f_atime = (time_t)id;
+	astoo(ptb->dbuf.t_ctime, &id);
+	info->f_ctime = (time_t)id;
 
 	if (!numeric && uidname(ptb->dbuf.t_uname, STUNMLEN, &id))
 		info->f_uid = id;
@@ -921,6 +1108,7 @@ ustar_to_info(ptb, info)
 	register FINFO	*info;
 {
 	Ulong	id;
+	char	c;
 
 	info->f_xftype = USTOXT(ptb->ustar_dbuf.t_typeflag);
 	info->f_filetype = XTTOST(info->f_xftype);
@@ -940,8 +1128,24 @@ ustar_to_info(ptb, info)
 	}
 
 	astoo(ptb->ustar_dbuf.t_devmajor, &info->f_rdevmaj);
-	astoo(ptb->ustar_dbuf.t_devminor, &info->f_rdevmin);
-	info->f_rdev = dev_make(info->f_rdevmaj, info->f_rdevmin);
+	if (ptb->ustar_dbuf.t_devminor[0] & 0x80) {
+		astob(ptb->ustar_dbuf.t_devminor, &info->f_rdevmin, 7);
+	} else {
+		/*
+		 * The 'tar' that comes with HP-UX writes illegal tar archives.
+		 * It includes 8 characters in the minor field and allows
+		 * to archive 24 bits for the minor device which are used by HP-UX.
+		 * As we like to be able to read these archives, we need to convert
+		 * the number carefully by temporarily writing a NULL to the next
+		 * character and restoring the right content afterwards.
+		 */
+		c = ptb->ustar_dbuf.t_prefix[0];
+		ptb->ustar_dbuf.t_prefix[0] = '\0';
+		astoo(ptb->ustar_dbuf.t_devminor, &info->f_rdevmin);
+		ptb->ustar_dbuf.t_prefix[0] = c;
+	}
+
+	info->f_rdev = makedev(info->f_rdevmaj, info->f_rdevmin);
 
 	/*
 	 * ANSI Tar hat keine atime & ctime im Header!
@@ -954,9 +1158,14 @@ xstar_to_info(ptb, info)
 	register TCB	*ptb;
 	register FINFO	*info;
 {
+	Ulong	ul;
+
 	ustar_to_info(ptb, info);
-	astoo(ptb->xstar_dbuf.t_atime, &info->f_atime);
-	astoo(ptb->xstar_dbuf.t_ctime, &info->f_ctime);
+
+	astoo(ptb->xstar_dbuf.t_atime, &ul);
+	info->f_atime = (time_t)ul;
+	astoo(ptb->xstar_dbuf.t_ctime, &ul);
+	info->f_ctime = (time_t)ul;
 
 	if (is_sparse(info))
 		astoo(ptb->xstar_in_dbuf.t_realsize, &info->f_size);
@@ -969,12 +1178,19 @@ gnutar_to_info(ptb, info)
 	register TCB	*ptb;
 	register FINFO	*info;
 {
+	Ulong	ul;
+
 	ustar_to_info(ptb, info);
 
-	astoo(ptb->gnu_dbuf.t_atime, &info->f_atime);
+	astoo(ptb->gnu_dbuf.t_atime, &ul);
+	info->f_atime = (time_t)ul;
+
 	if (info->f_atime == 0 && ptb->gnu_dbuf.t_atime[0] == '\0')
 		info->f_atime = info->f_mtime;
-	astoo(ptb->gnu_dbuf.t_ctime, &info->f_ctime);
+
+	astoo(ptb->gnu_dbuf.t_ctime, &ul);
+	info->f_ctime = (time_t)ul;
+
 	if (info->f_ctime == 0 && ptb->gnu_dbuf.t_ctime[0] == '\0')
 		info->f_ctime = info->f_mtime;
 
@@ -992,11 +1208,13 @@ cpiotcb_to_info(ptb, info)
 	register TCB	*ptb;
 	register FINFO	*info;
 {
+	Ulong	ul;
+
 	astoo_cpio(&((char *)ptb)[6], &info->f_dev, 6);
 	astoo_cpio(&((char *)ptb)[12], &info->f_ino, 6);
-error("ino: %d\n", info->f_ino);
+error("ino: %ld\n", info->f_ino);
 	astoo_cpio(&((char *)ptb)[18], &info->f_mode, 6);
-error("mode: %o\n", info->f_mode);
+error("mode: %lo\n", info->f_mode);
 	info->f_type = info->f_mode & S_IFMT;
 	info->f_mode = info->f_mode & 07777;
 	info->f_xftype = IFTOXT(info->f_type);
@@ -1005,7 +1223,10 @@ error("mode: %o\n", info->f_mode);
 	astoo_cpio(&((char *)ptb)[30], &info->f_gid, 6);
 	astoo_cpio(&((char *)ptb)[36], &info->f_nlink, 6);
 	astoo_cpio(&((char *)ptb)[42], &info->f_rdev, 6);
-	astoo_cpio(&((char *)ptb)[48], &info->f_mtime, 11);
+
+	astoo_cpio(&((char *)ptb)[48], &ul, 11);
+	info->f_atime = (time_t)ul;
+
 	astoo_cpio(&((char *)ptb)[59], &info->f_namelen, 6);
 
 	astoo_cpio(&((char *)ptb)[65], &info->f_size, 11);
@@ -1062,7 +1283,7 @@ ia_change(ptb, info)
 			if ((len = fgetline(tty, buf, sizeof buf)) == 0)
 				continue;
 			if (len > sizeof(buf) - 1)
-				errmsgno(BAD, "Name too long.\n");
+				errmsgno(EX_BAD, "Name too long.\n");
 			else
 				break;
 		}
@@ -1081,16 +1302,20 @@ checkeof(ptb)
 	if (!eofblock(ptb))
 		return (FALSE);
 	if (debug)
-		errmsgno(BAD, "First  EOF Block OK\n");
+		errmsgno(EX_BAD, "First  EOF Block OK\n");
+	markeof();
 
 	if (readblock((char *)ptb) == EOF) {
-		errmsgno(BAD, "Incorrect EOF, second EOF block is missing.\n");
+		errmsgno(EX_BAD, "Incorrect EOF, second EOF block is missing.\n");
 		return (TRUE);
 	}
-	if (!eofblock(ptb))
+	if (!eofblock(ptb)) {
+		if (!nowarn)
+			errmsgno(EX_BAD, "WARNING: Partial (single block) EOF detected.\n");
 		return (FALSE);
+	}
 	if (debug)
-		errmsgno(BAD, "Second EOF Block OK\n");
+		errmsgno(EX_BAD, "Second EOF Block OK\n");
 	return (TRUE);
 }
 
@@ -1174,11 +1399,67 @@ otoa(s, l, fieldw)
 	 * das bei 8 Bytes Feldern notwendige Nullbyte wegzulassen.
 	 */
 /*XXX	*p = '\0';*/
+	/*
+	 * Das Zeichen nach einer Zahl.
+	 * XXX Soll hier besser ein NULL Byte bei POSIX Tar hin?
+	 * XXX Wuerde das Probleme mit einer automatischen Erkennung geben?
+	 */
 	*--p = ' ';
+/*???	*--p = '\0';*/
+
 	do {
 		*--p = (l%8) + '0';	/* Compiler optimiert */
 		fieldw--;
 	} while ((l /= 8) > 0);
-	while (--fieldw >= 0)
-		*--p = fill;
+
+	switch (fieldw) {
+	case 11:	*--p = fill;
+	case 10:	*--p = fill;
+	case 9:		*--p = fill;
+	case 8:		*--p = fill;
+	case 7:		*--p = fill;
+	case 6:		*--p = fill;
+	case 5:		*--p = fill;
+	case 4:		*--p = fill;
+	case 3:		*--p = fill;
+	case 2:		*--p = fill;
+	case 1:		*--p = fill;
+	}
+}
+
+EXPORT void /*char **/
+astob(s, l, fieldw)
+	register char	*s;
+		 Ulong	*l;
+	register int	fieldw;
+{
+	register Ulong	ret = 0L;
+	register Uchar	c;
+	
+	c = *s++ & 0x7F;
+	ret = c * 256;
+
+	while (--fieldw >= 0) {
+		c = *s++;
+		ret *= 256;
+		ret += c;
+	}
+	*l = ret;
+	/*return(s);*/
+}
+
+EXPORT void
+btoa(s, l, fieldw)
+		 char	*s;
+	register Ulong	l;
+	register int	fieldw;
+{
+	register char	*p	= &s[fieldw+1];
+
+	do {
+		*--p = l%256;	/* Compiler optimiert */
+		fieldw--;
+	} while ((l /= 256) > 0);
+
+	s[0] |= 0x80;
 }

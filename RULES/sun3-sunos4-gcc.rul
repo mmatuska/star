@@ -1,4 +1,4 @@
-#ident "@(#)sun3-sunos4-gcc.rul	1.2 97/04/27 "
+#ident "@(#)sun3-sunos4-gcc.rul	1.4 99/08/29 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -28,17 +28,9 @@ CFLAGS=		$(COPTS) $(CWARNOPTS) $(COPTOPT) $(COPTX)
 
 CPPOPTS=	-I. -I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(OSDEFS)
 COPTS=
-CWOPTS=		-Wall \
-#		-Wshadow -Wstrict-prototypes
-#		-Wshadow
-#		-Wtraditional -Wmissing-prototypes
-#CWOPTS=		-Wall \
-#		-Wshadow -Wstrict-prototypes
-#		-Wtraditional -Wmissing-prototypes
-#
-#CWOPTS=		-Wall -Wtraditional \
-#		-Wshadow -Wmissing-prototypes -Wstrict-prototypes
-COPTOPT=	-O
+CWOPTS=		-Wall -Wtraditional \
+		-Wshadow -Wmissing-prototypes -Wstrict-prototypes
+COPTOPT=	-O2
 KDEFINES=	-DKERNEL -D_KERNEL
 COPTDYN=	-fpic
 COPTGPROF=	-pg
@@ -54,7 +46,7 @@ LIB_KVM=	-lkvm
 LIBS_PATH=	-L$(OLIBSDIR)
 
 LDFLAGS=	$(LDOPTS) $(LDOPTX)
-LDLIBS=		$(LIBS) $(LIBX) /usr/local/lib/gcc-gnulib
+LDLIBS=		$(LIBS) $(LIBX)
 
 #LDOPTS=		$(LIBS_PATH) $(LDPATH) $(RUNPATH)
 LDOPTS=		$(LIBS_PATH) $(LDPATH)
@@ -64,11 +56,11 @@ LNDYNLIB=	@
 FLOAT_OPTIONS=	
 
 CC=		@echo "	==> COMPILING \"$@\""; gcc
-LDCC=		@echo "	==> LINKING \"$@\""; cc
+LDCC=		@echo "	==> LINKING \"$@\""; gcc
 DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; ld
 RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; ranlib
 ARFLAGS=	cr
 
 RMDEP=		:
-MKDEP=		@echo "	==> MAKE DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
 MKDEP_OUT=

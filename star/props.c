@@ -1,7 +1,7 @@
-/* @(#)props.c	1.11 97/06/01 Copyright 1994 J. Schilling */
+/* @(#)props.c	1.14 00/05/07 Copyright 1994 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)props.c	1.11 97/06/01 Copyright 1994 J. Schilling";
+	"@(#)props.c	1.14 00/05/07 Copyright 1994 J. Schilling";
 #endif
 /*
  *	Set up properties for different archive types
@@ -30,9 +30,10 @@ static	char sccsid[] =
 #include "props.h"
 #include "diff.h"
 #include <standard.h>
+#include <schily.h>
 #include "starsubs.h"
 
-extern	int	debug;
+extern	BOOL	debug;
 
 struct properties props;
 
@@ -60,6 +61,7 @@ setprops(htype)
 		break;
 
 	case H_XSTAR:
+	case H_XUSTAR:
 		props.pr_flags =
 			PR_POSIX_OCTAL|PR_LOCAL_STAR|PR_SPARSE|PR_VOLHDR;
 		props.pr_fillc = '0';

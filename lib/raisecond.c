@@ -1,4 +1,4 @@
-/* @(#)raisecond.c	1.9 98/05/31 Copyright 1985 J. Schilling */
+/* @(#)raisecond.c	1.12 00/05/07 Copyright 1985 J. Schilling */
 /*
  *	raise a condition (software signal)
  */
@@ -29,16 +29,11 @@
 #include <stdio.h>
 #include <standard.h>
 #include <sigblk.h>
-#ifdef	HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#ifdef	HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef	HAVE_STRING_H
-#include <string.h>
-#endif
+#include <unixstd.h>
+#include <stdxlib.h>
+#include <strdefs.h>
 #include <avoffset.h>
+#include <schily.h>
 
 #if	!defined(AV_OFFSET) || !defined(FP_INDIR)
 #	ifdef	HAVE_SCANSTACK
@@ -71,7 +66,7 @@ LOCAL	void raiseabort  __PR((const char *));
 
 #ifdef	HAVE_SCANSTACK
 
-#include "frame.h"
+#include <stkframe.h>
 
 LOCAL	BOOL framehandle __PR((SIGBLK *, const char *, const char *, long));
 

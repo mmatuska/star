@@ -1,4 +1,4 @@
-/* @(#)fcons.c	2.6 97/06/12 Copyright 1986, 1995 J. Schilling */
+/* @(#)fcons.c	2.12 00/12/04 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995  J. Schilling
  */
@@ -18,10 +18,14 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <stdio.h>
 #include "io.h"
 
-local	char	*fmtab[] = {
+/*
+ * XXX We need to switch to fseeko()/ftello() sometime in the future.
+ * XXX See io.h hack.
+ */
+
+LOCAL	char	*fmtab[] = {
 			"",	/* 0	FI_NONE				*/
 			"r",	/* 1	FI_READ				*/
 			"w",	/* 2	FI_WRITE		**1)	*/
@@ -40,7 +44,8 @@ local	char	*fmtab[] = {
  */
 
 
-FILE *_fcons(fd, f, flag)
+EXPORT FILE *
+_fcons(fd, f, flag)
 	register FILE	*fd;
 		 int	f;
 		 int	flag;
@@ -52,7 +57,7 @@ FILE *_fcons(fd, f, flag)
 
 	if (fd != (FILE *)NULL) {
 		if (flag & FI_APPEND) {
-			(void) fseek(fd, 0L, 2);
+			(void) fseek(fd, (off_t)0, SEEK_END);
 		}
 		if (flag & FI_UNBUF) {
 			setbuf(fd, NULL);
@@ -62,7 +67,7 @@ FILE *_fcons(fd, f, flag)
 		return (fd);
 	}
 	if (flag & FI_CLOSE)
-		close (f);
+		close(f);
 
 	return ((FILE *) NULL);
 }

@@ -56,8 +56,6 @@ Its main advantages over other tar implementations are:
 				  See README.otherbugs for a complete description
 				  of bugs found in other tar implementations.
 
-This is the first source release of star that I put on the net.
-
 Have a look at the manual page, it is included in the distribution.
 
 Author:

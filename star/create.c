@@ -1,7 +1,7 @@
-/* @(#)create.c	1.28 97/06/14 Copyright 1985, 1995 J. Schilling */
+/* @(#)create.c	1.40 01/04/07 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)create.c	1.28 97/06/14 Copyright 1985, 1995 J. Schilling";
+	"@(#)create.c	1.40 01/04/07 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
@@ -27,12 +27,13 @@ static	char sccsid[] =
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include "dir.h"
 #include <errno.h>	/* XXX seterrno() is better JS */
 #include <standard.h>
 #include <stdxlib.h>
 #include <unixstd.h>
+#include <dirdefs.h>
 #include <strdefs.h>
+#include <schily.h>
 #include "starsubs.h"
 
 typedef	struct	links {
@@ -59,12 +60,13 @@ extern	long	tape_ino;
 extern	int	bufsize;
 extern	char	*bigptr;
 
-extern	int	npat;
+extern	BOOL	havepat;
 extern	Ulong	curfs;
 extern	Ulong	maxsize;
 extern	Ulong	Newer;
 extern	Ulong	tsize;
 extern	BOOL	debug;
+extern	BOOL	uflag;
 extern	BOOL	nodir;
 extern	BOOL	acctime;
 extern	BOOL	dirmode;
@@ -72,6 +74,7 @@ extern	BOOL	nodesc;
 extern	BOOL	nomount;
 extern	BOOL	interactive;
 extern	BOOL	nospec;
+extern	int	Fflag;
 extern	BOOL	abs_path;
 extern	BOOL	nowarn;
 extern	BOOL	sparse;
@@ -82,6 +85,8 @@ extern	int	intr;
 
 EXPORT	void	checklinks	__PR((void));
 LOCAL	BOOL	take_file	__PR((char* name, FINFO * info));
+EXPORT	int	_fileopen	__PR((char *name, char *mode));
+EXPORT	int	_fileread	__PR((int *fp, void *buf, int len));
 EXPORT	void	create		__PR((char* name));
 LOCAL	void	createi		__PR((char* name, int namlen, FINFO * info));
 EXPORT	void	createlist	__PR((void));
@@ -89,12 +94,14 @@ EXPORT	BOOL	read_symlink	__PR((char* name, FINFO * info, TCB * ptb));
 LOCAL	BOOL	read_link	__PR((char* name, int namlen, FINFO * info,
 								TCB * ptb));
 LOCAL	int	nullread	__PR((void *vp, char *cp, int amt));
-EXPORT	void	put_file	__PR((FILE * f, FINFO * info));
+EXPORT	void	put_file	__PR((int *fp, FINFO * info));
 EXPORT	void	cr_file		__PR((FINFO * info,
 					int (*)(void *, char *, int),
 					void *arg, int amt, char* text));
 LOCAL	void	put_dir		__PR((char* dname, int namlen, FINFO * info,
 								TCB * ptb));
+LOCAL	BOOL	checkdirexclude	__PR((char *name, int namlen, FINFO *info));
+EXPORT	BOOL	checkexclude	__PR((char *name, int namlen, FINFO *info));
 
 EXPORT void
 checklinks()
@@ -116,15 +123,17 @@ checklinks()
 		for(lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
 			curlen++;
 			nlinks++;
-			if (lp->l_nlink != 0)
-				errmsgno(BAD, "Missing links to '%s'.\n",
+			if (lp->l_nlink != 0) {
+				xstats.s_misslinks++;
+				errmsgno(EX_BAD, "Missing links to '%s'.\n",
 								lp->l_name);
+			}
 		}
 		if (maxlen < curlen)
 			maxlen = curlen;
 	}
 	if (debug) {
-		errmsgno(BAD, "hardlinks: %d hashents: %d/%d maxlen: %d\n",
+		errmsgno(EX_BAD, "hardlinks: %d hashents: %d/%d maxlen: %d\n",
 						nlinks, used, L_HSIZE, maxlen);
 	}
 }
@@ -134,25 +143,63 @@ take_file(name, info)
 	register char	*name;
 	register FINFO	*info;
 {
-	if (npat > 0 && !match(name)) {
+	if (havepat && !match(name)) {
 		return (FALSE);
 			/* Bei Directories ist f_size == 0 */
 	} else if (maxsize && info->f_size/1024 > maxsize) {
 		return (FALSE);
 	} else if (Newer && (Ctime ? info->f_ctime:info->f_mtime) <= Newer) {
+		/*
+		 * XXX nsec beachten wenn im Archiv!
+		 */
+		return (FALSE);
+	} else if (uflag && !update_newer(info)) {
 		return (FALSE);
 	} else if (tsize > 0 && tsize < (tarblocks(info->f_size)+1+2)) {
-		errmsgno(BAD, "'%s' does not fit on tape. Not dumped.\n",
+		xstats.s_toobig++;
+		errmsgno(EX_BAD, "'%s' does not fit on tape. Not dumped.\n",
 								name) ;
 		return (FALSE);
 	} else if (is_special(info) && nospec) {
-		errmsgno(BAD, "'%s' is not a file. Not dumped.\n", name) ;
+		xstats.s_isspecial++;
+		errmsgno(EX_BAD, "'%s' is not a file. Not dumped.\n", name) ;
 		return (FALSE);
 	} else if (is_tape(info)) {
-		errmsgno(BAD, "'%s' is the archive. Not dumped.\n", name) ;
+		errmsgno(EX_BAD, "'%s' is the archive. Not dumped.\n", name) ;
 		return (FALSE);
 	}
 	return (TRUE);
+}
+
+int
+_fileopen(name, smode)
+	char	*name;
+	char	*smode;
+{
+	int	ret;
+	int	omode = 0;
+	int	flag = 0;
+
+	if (!_cvmod (smode, &omode, &flag))
+		return (-1);
+
+	if ((ret = _openfd(name, omode)) < 0)
+		return (-1);
+
+	return (ret);
+}
+
+int _fileread(fp, buf, len)
+	register int	*fp;
+	void	*buf;
+	int	len;
+{
+	register int	fd = *fp;
+	register int	ret;
+
+	while((ret = read(fd, buf, len)) < 0 && errno == EINTR)
+		;
+	return(ret);
 }
 
 EXPORT void
@@ -166,10 +213,12 @@ create(name)
 		for (name++; name[0] == '/'; name++);
 	if (name[0] == '\0')
 		name = ".";
-	if (!getinfo(name, info))
+	if (!getinfo(name, info)) {
+		xstats.s_staterrs++;
 		errmsg("Cannot stat '%s'.\n", name);
-	else
+	} else {
 		createi(name, strlen(name), info);
+	}
 }
 
 LOCAL void
@@ -181,12 +230,15 @@ createi(name, namlen, info)
 		char	lname[PATH_MAX+1];
 		TCB	tb;
 	register TCB	*ptb		= &tb;
-		FILE	*f		= (FILE *)0;
+		int	fd		= -1;
 		BOOL	was_link	= FALSE;
 		BOOL	do_sparse	= FALSE;
 
 	info->f_name = name;	/* XXX Das ist auch in getinfo !!!?!!! */
 	info->f_namelen = namlen;
+	if (Fflag > 0 && !checkexclude(name, namlen, info))
+		return;
+
 #ifdef	nonono_NICHT_BEI_CREATE	/* XXX */
 	if (!abs_path &&	/* XXX VVV siehe skip_slash() */
 		(info->f_name[0] == '/' /*|| info->f_lname[0] == '/'*/))
@@ -202,12 +254,17 @@ createi(name, namlen, info)
 	info->f_lname = lname;	/*XXX nur Übergangsweise!!!!!*/
 	info->f_lnamelen = 0;
 
-	if (info->f_namelen <= props.pr_maxsname) {
+	if (!(dirmode && is_dir(info)) &&
+				(info->f_namelen <= props.pr_maxsname)) {
 		/*
 		 * Allocate TCB from the buffer to avoid copying TCB
 		 * in the most frequent case.
-		 * Only very long names will cause that we have to
-		 * write out data before we can write the TCB.
+		 * If we are writing directories after the files they
+		 * contain, we cannot allocate the space for tcb
+		 * from the buffer.
+		 * With very long names we will have to write out 
+		 * other data before we can write the TCB, so we cannot
+		 * alloc tcb from buffer too.
 		 */
 		ptb = (TCB *)get_block();
 		info->f_flags |= F_TCB_BUF;
@@ -227,15 +284,8 @@ createi(name, namlen, info)
 	else if (is_symlink(info) && !read_symlink(name, info, ptb))
 		;
 	else if (is_file(info) && info->f_size != 0 && !nullout &&
-#ifdef	OLD_OPEN
-				(f = fileopen(name,"ru")) == (FILE *)NULL) {
-#else
-				/*
-				 * Avoid calling setbuf to speed up open.
-				 * We don't need it when using ffileread()
-				 */
-				(f = fileopen(name,"r")) == (FILE *)NULL) {
-#endif
+				(fd = _fileopen(name,"rb")) < 0) {
+		xstats.s_openerrs++;
 		errmsg("Cannot open '%s'.\n", name);
 	} else {
 		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
@@ -248,7 +298,8 @@ createi(name, namlen, info)
 						props.pr_flags & PR_SPARSE;
 
 		if (do_sparse && nullout &&
-				(f = fileopen(name,"r")) == (FILE *)NULL) {
+				(fd = _fileopen(name,"rb")) < 0) {
+			xstats.s_openerrs++;
 			errmsg("Cannot open '%s'.\n", name);
 			return;
 		}
@@ -264,9 +315,10 @@ createi(name, namlen, info)
 			 */
 			if (do_sparse) {
 				error("%s is sparse\n", info->f_name);
-				put_sparse(f, info);
-			} else
-				put_file(f, info);
+				put_sparse(&fd, info);
+			} else {
+				put_file(&fd, info);
+			}
 		}
 		/*
 		 * Reset access time of file.
@@ -277,10 +329,10 @@ createi(name, namlen, info)
 		 * If f == NULL, the file has not been accessed for read
 		 * and access time need not be reset.
 		 */
-		if (acctime && f != NULL)
-			rs_acctime(f, info);
-		if (f)
-			fclose(f);
+		if (acctime && fd >= 0)
+			rs_acctime(fd, info);
+		if (fd >= 0)
+			close(fd);
 	}
 }
 
@@ -295,10 +347,13 @@ createlist()
 		comerr("Cannot alloc name buffer.\n");
 
 	for (nlen = 1; nlen > 0;) {
-		if ((nlen = fgetline(listf, name, nsize)) <= 0)
+		if ((nlen = fgetline(listf, name, nsize)) < 0)
 			break;
+		if (nlen == 0)
+			continue;
 		if (nlen >= PATH_MAX) {
-			errmsgno(BAD, "%s: Name too long (%d > %d).\n",
+			xstats.s_toolong++;
+			errmsgno(EX_BAD, "%s: Name too long (%d > %d).\n",
 							name, nlen, PATH_MAX);
 			continue;
 		}
@@ -319,12 +374,14 @@ read_symlink(name, info, ptb)
 
 	info->f_lname[0] = '\0';
 	if ((len = readlink(name, info->f_lname, PATH_MAX)) < 0) {
+		xstats.s_rwerrs++;
 		errmsg("Cannot read link '%s'.\n", name);
 		return (FALSE);
 	}
 	info->f_lnamelen = len;
 	if (len > props.pr_maxlnamelen) {
-		errmsgno(BAD, "%s: Symbolic link too long.\n", name);
+		xstats.s_toolong++;
+		errmsgno(EX_BAD, "%s: Symbolic link too long.\n", name);
 		return (FALSE);
 	}
 	if (len > props.pr_maxslname)
@@ -358,7 +415,8 @@ read_link(name, namlen, info, ptb)
 	for (; lp != (LINKS *)NULL; lp = lp->l_next) {
 		if (lp->l_ino == info->f_ino && lp->l_dev == info->f_dev) {
 			if (lp->l_namlen > props.pr_maxlnamelen) {
-				errmsgno(BAD, "%s: Link name too long.\n",
+				xstats.s_toolong++;
+				errmsgno(EX_BAD, "%s: Link name too long.\n",
 								lp->l_name);
 				return (TRUE);
 			}
@@ -366,8 +424,8 @@ read_link(name, namlen, info, ptb)
 				info->f_flags |= F_LONGLINK;
 			if (--lp->l_nlink < 0) {
 				if (!nowarn)
-					errmsgno(BAD,
-					"%s: Linkcount below zero (%d)\n",
+					errmsgno(EX_BAD,
+					"%s: Linkcount below zero (%ld)\n",
 						lp->l_name, lp->l_nlink);
 			}
 			/*
@@ -413,16 +471,16 @@ nullread(vp, cp, amt)
 }
 
 EXPORT void
-put_file(f, info)
-	register FILE	*f;
+put_file(fp, info)
+	register int	*fp;
 	register FINFO	*info;
 {
 	if (nullout) {
 		cr_file(info, (int(*)__PR((void *, char *, int)))nullread,
-							f, 0, "reading");
+							fp, 0, "reading");
 	} else {
-		cr_file(info, (int(*)__PR((void *, char *, int)))ffileread,
-							f, 0, "reading");
+		cr_file(info, (int(*)__PR((void *, char *, int)))_fileread,
+							fp, 0, "reading");
 	}
 }
 
@@ -460,10 +518,13 @@ cr_file(info, func, arg, amt, text)
 		}
 		buf_wake(n*TBLOCK);
 	} while ((blocks -= n) >= 0 && i == amount && size >= 0);
-	if (i < 0)
+	if (i < 0) {
+		xstats.s_rwerrs++;
 		errmsg("Error %s '%s'.\n", text, info->f_name);
-	else if ((blocks != 0 || size != 0) && func != nullread)
-		errmsgno(BAD, "'%s': file changed size.\n", info->f_name);
+	} else if ((blocks != 0 || size != 0) && func != nullread) {
+		xstats.s_sizeerrs++;
+		errmsgno(EX_BAD, "'%s': file changed size.\n", info->f_name);
+	}
 	while(--blocks >= 0)
 		writeempty();
 }
@@ -482,7 +543,7 @@ put_dir(dname, namlen, info, ptb)
 		FINFO	nfinfo;
 	register FINFO	*ninfo	= &nfinfo;
 		DIR	*d;
-	struct	direct	*dir;
+	struct	dirent	*dir;
 		long	offset	= 0L;
 		char	fname[PATH_MAX+1];	/* XXX */
 	register char	*name;
@@ -500,6 +561,7 @@ put_dir(dname, namlen, info, ptb)
 	}
 
 	if (!(d = opendir(dname))) {
+		xstats.s_openerrs++;
 		errmsg("Cannot open '%s'.\n", dname);
 	} else {
 		depth--;
@@ -533,7 +595,8 @@ put_dir(dname, namlen, info, ptb)
 				xlen = namlen + strlen(dir->d_name);
 				if (xlen > PATH_MAX) {
 					*xdname = '\0';
-					errmsgno(BAD,
+					xstats.s_toolong++;
+					errmsgno(EX_BAD,
 						"%s%s: Name too long (%d > %d).\n",
 							fname, dir->d_name,
 							xlen, PATH_MAX);
@@ -552,9 +615,11 @@ put_dir(dname, namlen, info, ptb)
 					xlen = 1;
 				}
 				if (!getinfo(name, ninfo)) {
+					xstats.s_staterrs++;
 					errmsg("Cannot stat '%s'.\n", name);
 					continue;
 				}
+#ifdef	HAVE_SEEKDIR
 				if (is_dir(ninfo) && depth <= 0) {
 					errno = 0;
 					offset = telldir(d);
@@ -566,9 +631,12 @@ put_dir(dname, namlen, info, ptb)
 					 */
 					closedir(d);
 				}
+#endif
 				createi(name, xlen, ninfo);
+#ifdef	HAVE_SEEKDIR
 				if (is_dir(ninfo) && depth <= 0) {
 					if (!(d = opendir(dname))) {
+						xstats.s_openerrs++;
 						errmsg("Cannot open '%s'.\n",
 								dname);
 						break;
@@ -579,6 +647,7 @@ put_dir(dname, namlen, info, ptb)
 							errmsg("WARNING: seekdir does not work.\n");
 					}
 				}
+#endif
 			}
 		}
 		closedir(d);
@@ -586,4 +655,89 @@ put_dir(dname, namlen, info, ptb)
 		if (!nodir && dirmode && putdir)
 			put_tcb(ptb, info);
 	}
+}
+
+LOCAL BOOL
+checkdirexclude(name, namlen, info)
+	char	*name;
+	int	namlen;
+	FINFO	*info;
+{
+	FINFO	finfo;
+	char	pname[PATH_MAX+1];
+	int	OFflag = Fflag;
+	int	len;
+	char	*p;
+
+	Fflag = 0;
+	len = namlen;
+	strcpy(pname, name);
+	p = &pname[len];
+	if (p[-1] != '/') {
+		*p++ = '/';
+		len++;
+	}
+	strcpy(p, ".mirror");
+	len += 7;
+	if (!getinfo(pname, &finfo)) {
+		strcpy(p, ".exclude");
+		len += 1;
+		if (!getinfo(pname, &finfo))
+			goto notfound;
+	}
+	if (is_file(&finfo)) {
+		if (OFflag == 3) {
+			nodesc++;
+			if (!dirmode)
+				createi(name, namlen, info);
+			create(pname);	/* Needed to strip off "./" */
+			if (dirmode)
+				createi(name, namlen, info);
+			nodesc--;
+		}
+		Fflag = OFflag;
+		return (FALSE);	
+	}
+notfound:
+	Fflag = OFflag;
+	return (TRUE);
+}
+
+EXPORT BOOL
+checkexclude(name, namlen, info)
+	char	*name;
+	int	namlen;
+	FINFO	*info;
+{
+		int	len;
+	const	char	*fn;
+
+	fn = filename(name);
+
+	if (is_dir(info)) {
+		if (Fflag < 3 || Fflag > 4) {
+			if (streql(fn, "SCCS") ||	/* SCCS directory */
+			    streql(fn, "RCS"))		/* RCS directory  */
+				return (FALSE);
+		}
+		if (Fflag > 1 && streql(fn, "OBJ"))	/* OBJ directory  */
+			return (FALSE);
+		if (Fflag > 2 && !checkdirexclude(name, namlen, info))
+			return (FALSE);
+		return (TRUE);
+	}
+	if ((len = strlen(fn)) < 3)			/* Cannot match later*/
+		return (TRUE);
+
+	if (Fflag > 1 && fn[len-2] == '.' && fn[len-1] == 'o')	/* obj files */
+		return (FALSE);
+
+	if (is_file(info)) {
+		if (streql(fn, "core") ||
+		    streql(fn, "errs") ||
+		    (Fflag > 1 && streql(fn, "a.out")))
+			return (FALSE);
+	}
+
+	return (TRUE);
 }

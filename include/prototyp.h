@@ -1,4 +1,4 @@
-/* @(#)prototyp.h	1.6 96/12/30 Copyright 1995 J. Schilling */
+/* @(#)prototyp.h	1.8 00/11/08 Copyright 1995 J. Schilling */
 /*
  *	Definitions for dealing with ANSI / KR C-Compilers
  *
@@ -38,17 +38,36 @@
 #	endif
 #endif	/* PROTOTYPES */
 
+#if	!defined(PROTOTYPES) && defined(__cplusplus)
+	/*
+	 * C++ always supports prototypes.
+	 * Define PROTOTYPES so we are not forced to make
+	 * a separtate autoconf run for C++
+	 */
+#	define	PROTOTYPES
+#endif
+
 /*
  * If we have prototypes, we should have stdlib.h string.h stdarg.h
  */
 #ifdef	PROTOTYPES
 #if	!(defined(SABER) && defined(sun))
-#	define	HAVE_STDARG_H
+#	ifndef	HAVE_STDARG_H
+#		define	HAVE_STDARG_H
+#	endif
 #endif
-#	define	HAVE_STDLIB_H
-#	define	HAVE_STRING_H
-#	define	HAVE_STDC_HEADERS
-#	define	STDC_HEADERS	/* GNU name */
+#	ifndef	HAVE_STDLIB_H
+#		define	HAVE_STDLIB_H
+#	endif
+#	ifndef	HAVE_STRING_H
+#		define	HAVE_STRING_H
+#	endif
+#	ifndef	HAVE_STDC_HEADERS
+#		define	HAVE_STDC_HEADERS
+#	endif
+#	ifndef	STDC_HEADERS
+#		define	STDC_HEADERS	/* GNU name */
+#	endif
 #endif
 
 #ifdef	NO_PROTOTYPES		/* Force not to use prototypes */

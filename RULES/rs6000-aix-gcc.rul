@@ -1,4 +1,4 @@
-#ident "@(#)rs6000-aix-gcc.rul	1.1 97/11/29 "
+#ident "@(#)rs6000-aix-gcc.rul	1.3 01/04/12 "
 ###########################################################################
 # Written 1997 by J. Schilling
 ###########################################################################
@@ -41,7 +41,7 @@ SHL_SUFFIX=	.so.1.0
 
 LIB_SOCKET=
 LIB_MATH=	-lm
-LIB_KVM=	-lkvm
+#LIB_KVM=	-lkvm
 
 LIBS_PATH=	-L$(OLIBSDIR)
 
@@ -62,5 +62,5 @@ RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; ranlib
 ARFLAGS=	cr
 
 RMDEP=		:
-MKDEP=		@echo "	==> MAKE DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
 MKDEP_OUT=

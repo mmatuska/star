@@ -1,7 +1,7 @@
-/* @(#)diff.c	1.24 97/06/15 Copyright 1993 J. Schilling */
+/* @(#)diff.c	1.33 01/04/07 Copyright 1993 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)diff.c	1.24 97/06/15 Copyright 1993 J. Schilling";
+	"@(#)diff.c	1.33 01/04/07 Copyright 1993 J. Schilling";
 #endif
 /*
  *	List differences between a (tape) archive and
@@ -27,14 +27,14 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
-#include <time.h>
 #include <standard.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
 #include "diff.h"
-#include "dir.h"	/*XXX Wegen S_IFLNK */
 #include <stdxlib.h>
+#include <schily.h>
+#include <dirdefs.h>	/*XXX Wegen S_IFLNK */
 #include "starsubs.h"
 
 typedef	struct {
@@ -51,7 +51,7 @@ extern	int	bigcnt;
 extern	int	bigsize;
 extern	char	*bigptr;
 
-extern	int	npat;
+extern	BOOL	havepat;
 extern	long	hdrtype;
 extern	BOOL	debug;
 extern	BOOL	no_stats;
@@ -99,7 +99,7 @@ diff()
 				diff_tcb(&finfo);
 			else
 				void_file(&finfo);
-		} else if (npat == 0 || match(finfo.f_name)) {
+		} else if (!havepat || match(finfo.f_name)) {
 			diff_tcb(&finfo);
 		} else {
 			void_file(&finfo);
@@ -131,6 +131,7 @@ diff_tcb(info)
 		skip_slash(info);
 
 	if (!getinfo(info->f_name, &finfo)) {
+		xstats.s_staterrs++;
 		errmsg("Cannot stat '%s'.\n", info->f_name);
 		void_file(info);
 		return;
@@ -171,9 +172,10 @@ diff_tcb(info)
 	 *       Soll man die teilweise bei fehlerhaften USTAR
 	 *       Implementierungen vorhandenen Filetype Bits verwenden?
 	 */
-	if ((diffopts & D_TYPE) && (info->f_filetype != finfo.f_filetype ||
-			(is_special(info) && info->f_type != finfo.f_type)) &&
-			 (!is_link(info) || H_TYPE(hdrtype) == H_STAR)) {
+	if ((diffopts & D_TYPE) &&
+			(info->f_filetype != finfo.f_filetype ||
+			 (is_special(info) && info->f_type != finfo.f_type))
+			 && (!is_link(info) || H_TYPE(hdrtype) == H_STAR)) {
 
 		if (debug)
 			fprintf(f, "%s: different filetype  %lo != %lo\n",
@@ -181,6 +183,9 @@ diff_tcb(info)
 		diffs |= D_TYPE;
 	}
 
+	/*
+	 * XXX nsec beachten wenn im Archiv!
+	 */
 	if ((diffopts & D_ATIME) && info->f_atime != finfo.f_atime) {
 		diffs |= D_ATIME;
 	}
@@ -193,6 +198,7 @@ diff_tcb(info)
 
 	if ((diffopts & D_HLINK) && is_link(info)) {
 		if (!getinfo(info->f_lname, &linfo)) {
+			xstats.s_staterrs++;
 			errmsg("Cannot stat '%s'.\n", info->f_lname);
 			linfo.f_ino = 0;
 		}
@@ -216,7 +222,18 @@ diff_tcb(info)
 	}
 #endif
 
-	if ((diffopts & D_SIZE) && is_file(info) && is_file(&finfo)
+	if ((diffopts & D_SPARS) &&
+			is_sparse(info) != ((finfo.f_flags & F_SPARSE) != 0)) {
+		if (debug || verbose) {
+			fprintf(f, "%s: %s not sparse\n",
+				info->f_name,
+				is_sparse(info) ? "target":"source");
+		}
+		diffs |= D_SPARS;
+	}
+
+	if ((diffopts & D_SIZE) && !is_link(info)
+					&& is_file(info) && is_file(&finfo)
 					&& info->f_size != finfo.f_size) {
 		diffs |= D_SIZE;
 	}
@@ -299,7 +316,8 @@ cmp_file(info)
 		}
 	}
 
-	if ((f = fileopen(info->f_name, "ru")) == (FILE *)NULL) {
+	if ((f = fileopen(info->f_name, "rub")) == (FILE *)NULL) {
+		xstats.s_openerrs++;
 		errmsg("Cannot open '%s'.\n", info->f_name);
 		void_file(info);
 		return (FALSE);
@@ -312,7 +330,8 @@ cmp_file(info)
 	cmp.cmp_file = f;
 	cmp.cmp_buf = diffbuf;
 	cmp.cmp_diffs = 0;
-	xt_file(info, vp_cmp_func, &cmp, bigsize, "reading");
+	if (xt_file(info, vp_cmp_func, &cmp, bigsize, "reading") < 0)
+		die(EX_BAD);
 	fclose(f);
 	return (cmp.cmp_diffs == 0);
 }
@@ -351,6 +370,8 @@ prdiffopts(f, label, flags)
 		prdopt(f, "hardlink", printed++);
 	if (flags & D_SLINK)
 		prdopt(f, "symlink", printed++);
+	if (flags & D_SPARS)
+		prdopt(f, "sparse", printed++);
 	if (flags & D_ATIME)
 		prdopt(f, "atime", printed++);
 	if (flags & D_MTIME)

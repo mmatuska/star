@@ -2,8 +2,6 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 	tar implementation for the presence of similar bugs/missing features.
 
 
--	Check close() return code to be able to deal with NFS write errors.
-
 -	Better telldir() error handling (break; in directory read loop???)
 
 -	Deal with problems with maxopenfiles (> 255 & uchar in stdio)
@@ -11,18 +9,11 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 -	Need a way to handle backups that include /export/home & /home: Missing links
 	message because loopback filesystem gives more hardlinks than really present.
 
--	Add something like the -F & -FF flags from BSD tar.
-	Use pattern matcher shortcut.
-
--	Avoid repeated searching for non existent uname/gname.
-
 -	Handle unknown filetypes in a better way (they are not flagged - only 
 	handled as regular files - according to Posix - at present time)
 
 -	Implement BUGS from HPUX that made it into IEC-9945-1 (Posix 1003.1):
 	(SYMTYPE, CHRTYPE, BLKTYPE & FIFOTYPE may have size != 0)
-
--	Change match code to allow more than 128 characters in pattern.
 
 -	Sockets (not supported in ANSI) should not be dumped.
 
@@ -49,10 +40,6 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 	cannot have a NULL Byte as terminator for the 
 	minor device number representation.
 
--	When creating ansi tar archives (-Hustar/-Hxstar),
-	shift all (8 byte) octal strings one position to the right.
-	This gives 3 bits more precision.
-
 -	Expand some of the fundamental types to 64 bits to be 
 	able to handle files > 2GB.
 
@@ -67,3 +54,23 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 
 -	add an option to reduce primary file name length to 99 chars
 	for all formats to enhance the portability of the archives.
+
+-	union member .dbuf is still star_header!!!
+
+-	star .. | star ... ^\ sometimes dies fom signal if using POSIX signals ??
+
+-	Add POSIX-2001 support for the major()/minor() handling in FreeBSD
+	0x0000FF00 Major and 0xFFFF00FF Minor
+	It currently uses the bigfile strategy with base 256 coding to allow
+	56 bits in 7 bytes.
+
+-	If -p flag is ommited, files are handled different from old tar. 
+	Star always does does a chmod on non directories.
+	Tar uses creat(file, st_mode & 0x07777)
+
+-	AIX uses tape.h ??? for mt ioctl's
+
+-	Size for hard links cannot be checked!!!
+
+-	update/append only for files/devices !!!
+

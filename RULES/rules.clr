@@ -1,4 +1,4 @@
-#ident @(#)rules.clr	1.4 97/02/18 
+#ident @(#)rules.clr	1.5 99/08/28 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -26,11 +26,13 @@ RMTARGET=	$(PTARGET:$(TARGET)%=%)
 ###########################################################################
 clean:
 			$(RM) $(RM_FORCE)	$(CLEAN_FILES) $(POFILES) \
+						$(PTARGETC)	\
 						$(CLEAN_FILEX) \
 						$(PYOFILES) $(PLOFILES)
 
 clobber:		clean
 			$(RM) $(RM_FORCE)	$(RMTARGET) $(PALLDEP_FILE) \
+						$(PTARGETC)	\
 						$(CLOBBER_FILEX)
 			$(RM) $(RM_FORCE)	$(ARCHDIR)/Dnull
 

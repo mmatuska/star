@@ -1,0 +1,5 @@
+# @(#)rules.cnf.in	1.2 01/03/04 Copyright 1998 J. Schilling
+
+EXEEXT= @EXEEXT@
+SCSILIB= @scsi_lib@
+LIB_CRYPT= @lib_crypt@

@@ -1,4 +1,4 @@
-/* @(#)file_raise.c	1.4 97/05/29 Copyright 1986 J. Schilling */
+/* @(#)file_raise.c	1.6 00/12/03 Copyright 1986 J. Schilling */
 /*
  *	Copyright (c) 1986 J. Schilling
  */
@@ -18,10 +18,10 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <stdio.h>
 #include "io.h"
 
-void file_raise(f,flg)
+EXPORT void
+file_raise(f,flg)
 	register FILE *f;
 	int flg;
 {
@@ -46,7 +46,3 @@ extern	int	_io_glflag;
 
 	set_my_flag(f, oflag);
 }
-/* end of file_raise */
-
-
-

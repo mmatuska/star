@@ -1,7 +1,7 @@
-/* @(#)longnames.c	1.16 97/05/30 Copyright 1993, 1995 J. Schilling */
+/* @(#)longnames.c	1.23 00/11/09 Copyright 1993, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)longnames.c	1.16 97/05/30 Copyright 1993, 1995 J. Schilling";
+	"@(#)longnames.c	1.23 00/11/09 Copyright 1993, 1995 J. Schilling";
 #endif
 /*
  *	Handle filenames that cannot fit into a single
@@ -31,6 +31,7 @@ static	char sccsid[] =
 #include "table.h"
 #include <standard.h>
 #include <strdefs.h>
+#include <schily.h>
 #include "starsubs.h"
 
 typedef struct {
@@ -58,7 +59,8 @@ enametoolong(name, len, maxlen)
 	int	len;
 	int	maxlen;
 {
-	errmsgno(BAD, "%s: Name too long (%d > %d chars)\n",
+	xstats.s_toolong++;
+	errmsgno(EX_BAD, "%s: Name too long (%d > %d chars)\n",
 							name, len, maxlen);
 }
 
@@ -95,9 +97,11 @@ error("low: %d:%s high: %d:'%c',%s\n",
 		if (*high == '/')
 			break;
 	if (high < low) {
-		if (props.pr_maxnamelen <= props.pr_maxsname)
-			errmsgno(BAD, "%s: Name too long (cannot split)\n",
+		if (props.pr_maxnamelen <= props.pr_maxsname) {
+			xstats.s_toolong++;
+			errmsgno(EX_BAD, "%s: Name too long (cannot split)\n",
 									name);
+		}
 		return (NULL);
 	}
 #ifdef	DEBUG
@@ -262,9 +266,11 @@ tcb_to_longname(ptb, info)
 	astoo(ptb->dbuf.t_size, &info->f_size);
 	info->f_rsize = info->f_size;
 	if (info->f_size > PATH_MAX) {
-		errmsgno(BAD, "Long name too long (%d) ignored.\n",
+		xstats.s_toolong++;
+		errmsgno(EX_BAD, "Long name too long (%ld) ignored.\n",
 							info->f_size);
 		void_file(info);
+		return (get_tcb(ptb));
 	}
 	if (ptb->dbuf.t_linkflag == LF_LONGNAME) {
 		info->f_namelen = info->f_size -1;
@@ -276,7 +282,8 @@ tcb_to_longname(ptb, info)
 		info->f_flags |= F_LONGLINK;
 		move.m_name = info->f_lname;
 	}
-	xt_file(info, vp_move_from_name, &move, 0, "moving long name");
+	if (xt_file(info, vp_move_from_name, &move, 0, "moving long name") < 0)
+		die(EX_BAD);
 
 	return (get_tcb(ptb));
 }

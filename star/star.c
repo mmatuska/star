@@ -1,10 +1,10 @@
-/* @(#)star.c	1.56 97/11/09 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.c	1.80 01/04/14 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star.c	1.56 97/11/09 Copyright 1985, 1995 J. Schilling";
+	"@(#)star.c	1.80 01/04/14 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 1995 J. Schilling
+ *	Copyright (c) 1985, 88-90, 92-96, 98, 99, 2000-2001 J. Schilling
  */
 /*
  * This program is free software; you can redistribute it and/or modify
@@ -24,6 +24,7 @@ static	char sccsid[] =
 
 #include <mconfig.h>
 #include <stdio.h>
+#include <sys/types.h>
 #include <signal.h>
 #include <stdxlib.h>
 #include <unixstd.h>
@@ -33,8 +34,12 @@ static	char sccsid[] =
 #include <waitdefs.h>
 #include <standard.h>
 #include <patmatch.h>
+#define	__XDEV__	/* Needed to activate _dev_init() */
 #include <device.h>
+#include <getargs.h>
+#include <schily.h>
 #include "starsubs.h"
+#include "fifo.h"
 
 EXPORT	int	main		__PR((int ac, char** av));
 LOCAL	void	getdir		__PR((int *acp, char *const **avp,
@@ -49,17 +54,27 @@ LOCAL	void	husage		__PR((int ret));
 LOCAL	void	gargs		__PR((int ac, char *const* av));
 LOCAL	long	number		__PR((char* arg, int* retp));
 LOCAL	int	getnum		__PR((char* arg, long* valp));
+EXPORT	const char *filename	__PR((const char *name));
+LOCAL	BOOL	nameprefix	__PR((const char *patp, const char *name));
+LOCAL	int	namefound	__PR((const char* name));
 EXPORT	BOOL	match		__PR((const char* name));
 LOCAL	int	addpattern	__PR((const char* pattern));
+LOCAL	int	addarg		__PR((const char* pattern));
 LOCAL	void	closepattern	__PR((void));
 LOCAL	void	printpattern	__PR((void));
 LOCAL	int	add_diffopt	__PR((char* optstr, long* flagp));
 LOCAL	int	gethdr		__PR((char* optstr, long* typep));
+#ifdef	USED
+LOCAL	int	addfile		__PR((char* optstr, long* dummy));
+#endif
 LOCAL	void	exsig		__PR((int sig));
 LOCAL	void	sighup		__PR((int sig));
 LOCAL	void	sigintr		__PR((int sig));
 LOCAL	void	sigquit		__PR((int sig));
 LOCAL	void	getstamp	__PR((void));
+EXPORT	void	*__malloc	__PR((unsigned int size));
+EXPORT	char	*__savestr	__PR((char *s));
+LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 
 #if	defined(SIGDEFER) || defined(SVR4)
 #define	signal	sigset
@@ -78,13 +93,19 @@ LOCAL	void	getstamp	__PR((void));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
+char	strvers[] = "1.3";
+
 struct star_stats	xstats;
 
 #define	NPAT	100
 
-	int		npat	= 0;
-	int		*aux[NPAT];
-	int		alt[NPAT];
+EXPORT	BOOL		havepat = FALSE;
+LOCAL	int		npat	= 0;
+LOCAL	int		narg	= 0;
+LOCAL	int		maxplen	= 0;
+LOCAL	int		*aux[NPAT];
+LOCAL	int		alt[NPAT];
+LOCAL	int		*state;
 const	unsigned char	*pat[NPAT];
 const		char	*dirs[NPAT];
 
@@ -131,6 +152,7 @@ BOOL	tflag	= FALSE;
 BOOL	nflag	= FALSE;
 BOOL	diff_flag = FALSE;
 BOOL	zflag	= FALSE;
+BOOL	bzflag	= FALSE;
 BOOL	multblk	= FALSE;
 BOOL	ignoreerr = FALSE;
 BOOL	nodir	= FALSE;
@@ -146,9 +168,11 @@ BOOL	interactive = FALSE;
 BOOL	signedcksum = FALSE;
 BOOL	partial	= FALSE;
 BOOL	nospec	= FALSE;
+int	Fflag	= 0;
 BOOL	uncond	= FALSE;
 BOOL	xdir	= FALSE;
 BOOL	keep_old= FALSE;
+BOOL	refresh_old= FALSE;
 BOOL	abs_path= FALSE;
 BOOL	notpat	= FALSE;
 BOOL	force_hole = FALSE;
@@ -164,15 +188,21 @@ BOOL	nullout = FALSE;
 Ulong	maxsize	= 0L;
 Ulong	Newer	= 0L;
 Ulong	tsize	= 0L;
+long	diffopts= 0L;
 BOOL	nowarn	= FALSE;
 BOOL	Ctime	= FALSE;
 
 BOOL	listnew	= FALSE;
 BOOL	listnewf= FALSE;
+BOOL	hpdev	= FALSE;
+BOOL	modebits= FALSE;
+BOOL	copylinks= FALSE;
+
+BOOL	fcompat	= FALSE;
 
 int	intr	= 0;
 
-char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";
+char	*opts = "C*,help,xhelp,version,debug,time,no_statistics,no-statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,force-hole,sparse,to_stdout,to-stdout,wready,force_remove,force-remove,ask_remove,ask-remove,remove_first,remove-first,remove_recursive,remove-recursive,nullout,onull,fifo,no_fifo,no-fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,bz,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,w,O,signed_checksum,signed-checksum,P,S,F+,U,xdir,k,keep_old_files,keep-old-files,refresh_old_files,refresh-old-files,refresh,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest-file,newest,hpdev,modebits,copylinks";
 
 EXPORT int
 main(ac, av)
@@ -184,9 +214,11 @@ main(ac, av)
 
 	save_args(ac, av);
 
-	--cac,cav++;
+	if (ac > 1 && av[1][0] != '-')
+		docompat(&cac, &cav);
 
-	gargs(ac, av);
+	gargs(cac, cav);
+	--cac,cav++;
 
 	if (signal(SIGHUP, SIG_IGN) != SIG_IGN)
 		(void) signal(SIGHUP, sighup);
@@ -200,21 +232,25 @@ main(ac, av)
 	initbuf(nblocks);
 
 	(void)openremote();		/* This needs super user privilleges */
+
+	if (geteuid() != getuid()) {	/* AIX does not like to do this */
+					/* If we are not root		*/
 #ifdef	HAVE_SETREUID
-	if (setreuid(-1, getuid()) < 0)
+		if (setreuid(-1, getuid()) < 0)
 #else
 #ifdef	HAVE_SETEUID
-	if (seteuid(getuid()) < 0)
+		if (seteuid(getuid()) < 0)
 #else
-	if (setuid(getuid()) < 0)
+		if (setuid(getuid()) < 0)
 #endif
 #endif
-		comerr("Panic cannot set back efective uid.\n");
+			comerr("Panic cannot set back efective uid.\n");
+	}
 
-	opentape();  
+	opentape();
 
 	uid = geteuid();
-  
+
 	if (stampfile)
 		getstamp();
 
@@ -241,7 +277,7 @@ main(ac, av)
 					getdir(&cac, &cav, &currdir);
 				if (getfiles(&cac, &cav, opts) == 0)
 					break;
-				addpattern(cav[0]);
+				addarg(cav[0]);
 			}
 			closepattern();
 		}
@@ -256,14 +292,16 @@ main(ac, av)
 			if((currdir = dir_flags) != NULL)
 				dochdir(currdir, TRUE);
 			if (xflag)
-				extract();
+				extract(volhdr);
 			else
 				diff();
 		}
 	}
+	closepattern();
 	if (uflag || rflag) {
 		skipall();
 		syncbuf();
+		backtape();
 	}
 	if (cflag) {
 		put_volhdr(volhdr);
@@ -305,6 +343,13 @@ main(ac, av)
 	while (wait(0) >= 0)
 		;
 	prstats();
+	if (checkerrs()) {
+		if (!nowarn && !no_stats) {
+			errmsgno(EX_BAD,
+			"Processed all possible files, despite earlier errors.\n");
+		}
+		exit(-2);
+	}
 	exit(0);
 	/* NOTREACHED */
 	return(0);	/* keep lint happy */
@@ -322,32 +367,24 @@ getdir(acp, avp, dirp)
 	getfiles(acp, avp, &opts[3]);
 
 	if (debug) /* temporary */
-		errmsgno(BAD, "Flag/File: '%s'.\n", *avp[0]);
+		errmsgno(EX_BAD, "Flag/File: '%s'.\n", *avp[0]);
 
 	if (getargs(acp, avp, "C*", dirp) < 0) {
 		/*
 		 * Skip all other flags.
 		 */
 		if (getfiles(acp, avp, &opts[3]) < 0) {
-			errmsgno(BAD, "Badly placed Option: %s.\n", *avp[0]);
-			usage(BAD);
+			errmsgno(EX_BAD, "Badly placed Option: %s.\n", *avp[0]);
+			usage(EX_BAD);
 		}
 	}
 	if (debug) /* temporary */
-		errmsgno(BAD, "Dir: '%s'.\n", *dirp);
+		errmsgno(EX_BAD, "Dir: '%s'.\n", *dirp);
 }
 
-#ifdef JOS
-	extern char	*gwd();
-#else
-#	if defined(SVR4) || defined(hpux)
-#		define	gwd(b)		getcwd(b, (PATH_MAX - 1))
-#	elif	defined(BSD4_2)
-#		define	gwd(b)		getwd(b)
-#	else
-#		define	gwd(b)		getcwd(b, (PATH_MAX - 1))
-#	endif
-#endif
+#include <dirdefs.h>
+#include <maxpath.h>
+#include <getcwd.h>
 
 LOCAL char *
 dogetwdir()
@@ -355,7 +392,9 @@ dogetwdir()
 	char	dir[PATH_MAX+1];
 	char	*ndir;
 
-	if (gwd(dir) == NULL)
+/* XXX MAXPATHNAME vs. PATH_MAX ??? */
+
+	if (getcwd(dir, PATH_MAX) == NULL)
 		comerr("Cannot get working directory\n");
 	ndir = malloc(strlen(dir)+1);
 	if (ndir == NULL)
@@ -409,14 +448,14 @@ usage(ret)
 	error("\t-x/-t/-n\textract/list/trace named files from tape\n");
 	error("\t-diff\t\tdiff archive against file system (see -xhelp)\n");
 	error("Options:\n");
-	error("\t-help,-h\tprint this help\n");
+	error("\t-help\t\tprint this help\n");
 	error("\t-xhelp\t\tprint extended help\n");
 	error("\tblocks=#,b=#\tset blocking factor to #x512 Bytes (default 20)\n"); 
 	error("\tfile=nm,f=nm\tuse 'nm' as tape instead of stdin/stdout\n");
 	error("\t-T\t\tuse $TAPE as tape instead of stdin/stdout\n");
 #ifdef	FIFO
-	error("\t-fifo/-no_fifo\tuse/don't use a fifo to optimize data flow from/to tape\n");
-#if defined(USE_MMAP) && defined(USE_SHM)
+	error("\t-fifo/-no-fifo\tuse/don't use a fifo to optimize data flow from/to tape\n");
+#if defined(USE_MMAP) && defined(USE_USGSHM)
 	error("\t-shm\t\tuse SysV shared memory for fifo\n");
 #endif
 #endif
@@ -425,6 +464,7 @@ usage(ret)
 	error("\tH=header\tgenerate 'header' type archive (see H=help)\n");
 	error("\tC=dir\t\tperform a chdir to 'dir' before storing next file\n");
 	error("\t-z\t\tpipe input/output through gzip, does not work on tapes\n");
+	error("\t-bz\t\tpipe input/output through bzip2, does not work on tapes\n");
 	error("\t-B\t\tperform multiple reads (needed on pipes)\n");
 	error("\t-i\t\tignore checksum errors\n");
 	error("\t-d\t\tdo not store/create directories\n");
@@ -436,10 +476,11 @@ usage(ret)
 	error("\t-L\t\tfollow symbolic links as if they were files\n");
 	error("\t-D\t\tdo not descend directories\n");
 	error("\t-M\t\tdo not descend mounting points\n");
-	error("\t-I\t\tdo interactive creation/extraction/renaming\n");
+	error("\t-I,-w\t\tdo interactive creation/extraction/renaming\n");
 	error("\t-O\t\tbe compatible to old tar (except for checksum bug)\n");
 	error("\t-P\t\tlast record may be partial (useful on cartridge tapes)\n");
 	error("\t-S\t\tdo not store/create special files\n");
+	error("\t-F,-FF,-FFF,...\tdo not store/create SCCS/RCS, core and object files\n");
 	error("\t-U\t\trestore files unconditionally\n");
 	exit(ret);
 	/* NOTREACHED */
@@ -455,7 +496,8 @@ xusage(ret)
 	error("\t-not,-V\t\tuse those files which do not match pattern\n");
 	error("\tVOLHDR=name\tuse name to generate a volume header\n");
 	error("\t-xdir\t\textract dir even if the current is never\n");
-	error("\t-keep_old_files,-k\tkeep existing files\n");
+	error("\t-keep-old-files,-k\tkeep existing files\n");
+	error("\t-refresh-old-files\trefresh existing files, don't create new files\n");
 	error("\t-/\t\tdon't strip leading '/'s from file names\n");
 	error("\tlist=name\tread filenames from named file\n");
 	error("\t-dodesc\t\tdo descend directories found in a list= file\n");
@@ -478,23 +520,26 @@ xusage(ret)
 						TSIZE(QIC_250_TSIZE)/1024);
 	error("\t-nowarn\t\tdo not print warning messages\n");
 	error("\t-time\t\tprint timing info\n");
-	error("\t-no_statistics\tdo not print statistics\n");
+	error("\t-no-statistics\tdo not print statistics\n");
 #ifdef	FIFO
 	error("\t-fifostats\tprint fifo statistics\n");
 #endif
 	error("\t-numeric\tdon't use user/group name from tape\n");
 	error("\t-newest\t\tfind newest file on tape\n");
-	error("\t-newest_file\tfind newest regular file on tape\n");
-	error("\t-signed_checksum\tuse signed chars to calculate checksum\n");
+	error("\t-newest-file\tfind newest regular file on tape\n");
+	error("\t-hpdev\t\tuse HP's non POSIX compliant method to store dev numbers\n");
+	error("\t-modebits\tinclude all 16 bits from stat.st_mode, this violates POSIX-1003.1\n");
+	error("\t-copylinks\tCopy hard and symlinks rather than linking\n");
+	error("\t-signed-checksum\tuse signed chars to calculate checksum\n");
 	error("\t-sparse\t\thandle file with holes effectively on store/create\n");
-	error("\t-force_hole\ttry to extract all files with holes\n");
-	error("\t-to_stdout\textract files to stdout\n");
+	error("\t-force-hole\ttry to extract all files with holes\n");
+	error("\t-to-stdout\textract files to stdout\n");
 	error("\t-wready\t\twait for tape drive to become ready\n");
-	error("\t-force_remove\tforce to remove non writable files on extraction\n");
-	error("\t-ask_remove\task to remove non writable files on extraction\n");
-	error("\t-remove_first\tremove files before extraction\n");
-	error("\t-remove_recursive\tremove files recursive\n");
-	error("\t-nullout\tsimulate creating an achive to compute the size\n");
+	error("\t-force-remove\tforce to remove non writable files on extraction\n");
+	error("\t-ask-remove\task to remove non writable files on extraction\n");
+	error("\t-remove-first\tremove files before extraction\n");
+	error("\t-remove-recursive\tremove files recursive\n");
+	error("\t-onull,-nullout\tsimulate creating an achive to compute the size\n");
 	exit(ret);
 	/* NOTREACHED */
 }
@@ -538,6 +583,7 @@ husage(ret)
 	error("\tgnutar\t\tgnu tar format\n");
 	error("\tustar\t\tstandard tar (ieee 1003.1) format\n");
 	error("\txstar\t\textended standard tar format\n");
+	error("\txustar\t\textended standard tar format without tar signature\n");
 	exit(ret);
 	/* NOTREACHED */
 }
@@ -549,6 +595,7 @@ gargs(ac, av)
 {
 	BOOL	help	= FALSE;
 	BOOL	xhelp	= FALSE;
+	BOOL	prvers	= FALSE;
 	BOOL	oldtar	= FALSE;
 	BOOL	no_fifo	= FALSE;
 	BOOL	usetape	= FALSE;
@@ -557,20 +604,19 @@ gargs(ac, av)
 	BOOL	qic120	= FALSE;
 	BOOL	qic150	= FALSE;
 	BOOL	qic250	= FALSE;
-	char	*p;
+	const	char	*p;
 
-/*char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";*/
+/*char	*opts = "C*,help,xhelp,version,debug,time,no_statistics,no-statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,force-hole,sparse,to_stdout,to-stdout,wready,force_remove,force-remove,ask_remove,ask-remove,remove_first,remove-first,remove_recursive,remove-recursive,nullout,onull,fifo,no_fifo,no-fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,bz,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,w,O,signed_checksum,signed-checksum,P,S,F+,U,xdir,k,keep_old_files,keep-old-files,refresh_old_files,refresh-old-files,refresh,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest-file,newest,hpdev,modebits,copylinks";*/
 
-	if ((p = strchr(av[0], '/')) == NULL)
-		p = av[0];
-	if (streql(p, "ustar"))
-		chdrtype = H_USTAR;
-
-	--ac,++av;  
+	p = filename(av[0]);
+	if (streql(p, "ustar")) {
+		hdrtype = H_USTAR;
+	}
+	--ac,++av;
 	if (getallargs(&ac, &av, opts,
 				&dir_flags,
-				&help, &help, &xhelp, &debug,
-				&showtime, &no_stats, &do_fifostats,
+				&help, &xhelp, &prvers, &debug,
+				&showtime, &no_stats, &no_stats, &do_fifostats,
 				&numeric, &verbose, &tpath,
 #ifndef	lint
 				&cflag,
@@ -581,11 +627,11 @@ gargs(ac, av)
 				&nflag,
 				&diff_flag, add_diffopt, &diffopts,
 				gethdr, &chdrtype,
-				&force_hole, &sparse, &to_stdout, &wready,
-				&force_remove, &ask_remove,
-				&remove_first, &remove_recursive,
-				&nullout,
-				&use_fifo, &no_fifo, &shmflag,
+				&force_hole, &force_hole, &sparse, &to_stdout, &to_stdout, &wready,
+				&force_remove, &force_remove, &ask_remove, &ask_remove,
+				&remove_first, &remove_first, &remove_recursive, &remove_recursive,
+				&nullout, &nullout,
+				&use_fifo, &no_fifo, &no_fifo, &shmflag,
 				getnum, &fs,
 				&volhdr,
 				&listfile,
@@ -593,7 +639,7 @@ gargs(ac, av)
 				&usetape,
 				getnum, &bs,
 				&nblocks, &nblocks,
-				&zflag, &multblk,
+				&zflag, &bzflag, &multblk,
 				addpattern, NULL,
 				addpattern, NULL,
 				&ignoreerr,
@@ -606,12 +652,13 @@ gargs(ac, av)
 				&nodesc,
 				&dodesc,
 				&nomount,
-				&interactive,
-				&oldtar, &signedcksum,
+				&interactive, &interactive,
+				&oldtar, &signedcksum, &signedcksum,
 				&partial,
-				&nospec,
+				&nospec, &Fflag,
 				&uncond, &xdir,
-				&keep_old, &keep_old,
+				&keep_old, &keep_old, &keep_old,
+				&refresh_old, &refresh_old, &refresh_old,
 				&abs_path,
 				&notpat, &notpat,
 				&maxsize,
@@ -624,36 +671,46 @@ gargs(ac, av)
 				&qic250,
 				&nowarn,
 #endif /* lint */
-				&listnewf,
-				&listnew) < 0){
-		errmsgno(BAD, "Bad Option: %s.\n", av[0]);
-		usage(BAD);
+				&listnewf, &listnewf,
+				&listnew,
+				&hpdev, &modebits, &copylinks) < 0){
+		errmsgno(EX_BAD, "Bad Option: %s.\n", av[0]);
+		usage(EX_BAD);
 	}
 	if (help)
 		usage(0);
 	if (xhelp)
 		xusage(0);
+	if (prvers) {
+		printf("star %s (%s-%s-%s)\n\n", strvers, HOST_CPU, HOST_VENDOR, HOST_OS);
+		printf("Copyright (C) 1985, 88-90, 92-96, 98, 99, 2000-2001 Jörg Schilling\n");
+		printf("This is free software; see the source for copying conditions.  There is NO\n");
+		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
+		exit(0);
+	}
 
 	if ((xflag + cflag + uflag + rflag + tflag + nflag + diff_flag) > 1) {
-		errmsgno(BAD, "Only one of -x -c -u -r -t or -n.\n");
-		usage(BAD);
+		errmsgno(EX_BAD, "Only one of -x -c -u -r -t or -n.\n");
+		usage(EX_BAD);
 	}
 	if (!(xflag | cflag | uflag | rflag | tflag | nflag | diff_flag)) {
-		errmsgno(BAD, "Must specify -x -c -u -r -t -n -diff.\n");
-		usage(BAD);
+		errmsgno(EX_BAD, "Must specify -x -c -u -r -t -n -diff.\n");
+		usage(EX_BAD);
 	}
 	if (uflag || rflag) {
-		errmsgno(BAD, "-u and -r currently not implemented sorry.\n");
-		if (uflag)
-			usage(BAD);
 		cflag = TRUE;
+		no_fifo = TRUE;	/* Until we are able to reverse the FIFO */
+	}
+	if (nullout && !cflag) {
+		errmsgno(EX_BAD, "-nullout only make sense in create mode.\n");
+		usage(EX_BAD);
 	}
 	if (no_fifo || nullout)
 		use_fifo = FALSE;
 #ifndef	FIFO
 	if (use_fifo) {
-		errmsgno(BAD, "Fifo not configured in.\n");
-		usage(BAD);
+		errmsgno(EX_BAD, "Fifo not configured in.\n");
+		usage(EX_BAD);
 	}
 #endif
 	if (oldtar)
@@ -677,8 +734,8 @@ gargs(ac, av)
 		if (diffopts == 0)
 			diffopts = D_DEFLT;
 	} else if (diffopts != 0) {
-		errmsgno(BAD, "diffopts= only makes sense with -diff\n");
-		usage(BAD);
+		errmsgno(EX_BAD, "diffopts= only makes sense with -diff\n");
+		usage(EX_BAD);
 	}
 	if (fs == 0L) {
 		char	*ep = getenv("STAR_FIFO_SIZE");
@@ -690,19 +747,19 @@ gargs(ac, av)
 		}
 	}
 	if (bs % TBLOCK) {
-		errmsgno(BAD, "Invalid blocksize %ld.\n", bs);
-		usage(BAD);
+		errmsgno(EX_BAD, "Invalid blocksize %ld.\n", bs);
+		usage(EX_BAD);
 	}
 	if (bs)
 		nblocks = bs / TBLOCK;
 	if (nblocks <= 0) {
-		errmsgno(BAD, "Invalid blocksize %d blocks.\n", nblocks);
-		usage(BAD);
+		errmsgno(EX_BAD, "Invalid blocksize %d blocks.\n", nblocks);
+		usage(EX_BAD);
 	}
 	bs = nblocks * TBLOCK;
 	if (tsize > 0 && tsize < 3) {
-		errmsgno(BAD, "Tape size must be at least 3 blocks.\n");
-		usage(BAD);
+		errmsgno(EX_BAD, "Tape size must be at least 3 blocks.\n");
+		usage(EX_BAD);
 	}
 	if (tsize == 0) {
 		if (qic24)  tsize = QIC_24_TSIZE;
@@ -739,6 +796,8 @@ gargs(ac, av)
 	}
 	if (remove_recursive)
 		comerrno(EX_BAD, "-remove_recursive not implemented\n");
+	if (keep_old && refresh_old)
+		comerrno(EX_BAD, "Cannot use -keep_old_files and -refresh_old_files together.\n");
 }
 
 LOCAL long
@@ -788,6 +847,46 @@ getnum(arg, valp)
 	return (ret);
 }
 
+EXPORT const char *
+filename(name)
+	const char	*name;
+{
+	char	*p;
+
+	if ((p = strrchr(name, '/')) == NULL)
+		return (name);
+	return (++p);
+}
+
+LOCAL BOOL
+nameprefix(patp, name)
+	register const char	*patp;
+	register const char	*name;
+{
+	while (*patp) {
+		if (*patp++ != *name++)
+			return (FALSE);
+	}
+	if (*name) {
+		return (*name == '/');	/* Directory tree match	*/
+	}
+	return (TRUE);			/* Names are equal	*/
+}
+
+LOCAL int
+namefound(name)
+	const	char	*name;
+{
+	register int	i;
+
+	for (i=npat; i < narg; i++) {
+		if (nameprefix((const char *)pat[i], name)) {
+			return (i);
+		}
+	}
+	return (-1);
+}
+
 EXPORT BOOL
 match(name)
 	const	char	*name;
@@ -795,14 +894,22 @@ match(name)
 	register int	i;
 		char	*ret = NULL;
 
+	if (!cflag && narg > 0) {
+		if ((i = namefound(name)) < 0)
+			return (FALSE);
+		if (npat == 0)
+			goto found;
+	}
+
 	for (i=0; i < npat; i++) {
 		ret = (char *)patmatch(pat[i], aux[i],
 					(const unsigned char *)name, 0,
-					strlen(name), alt[i]);
+					strlen(name), alt[i], state);
 		if (ret != NULL && *ret == '\0')
 			break;
 	}
 	if (notpat ^ (ret != NULL && *ret == '\0')) {
+found:
 		if (!(xflag || diff_flag))	/* Chdir only on -x or -diff */
 			return (TRUE);
 		if (dirs[i] != NULL && currdir != dirs[i]) {
@@ -821,20 +928,43 @@ addpattern(pattern)
 {
 	int	plen;
 
+/*	if (debug)*/
+/*		error("Add pattern '%s'.\n", pattern);*/
+
 	if (npat >= NPAT)
-		comerrno(BAD, "Too many patterns (max is %d).\n", NPAT);
+		comerrno(EX_BAD, "Too many patterns (max is %d).\n", NPAT);
 	plen = strlen(pattern);
 	pat[npat] = (const unsigned char *)pattern;
-	if (plen > MAXPAT)
-		comerrno(BAD, "Pattern too long: %d, max is %d.\n",
-			plen, MAXPAT);
-	if ((aux[npat] = malloc(MAXPAT*sizeof(int))) == NULL)
+
+	if (plen > maxplen)
+		maxplen = plen;
+
+	if ((aux[npat] = malloc(plen*sizeof(int))) == NULL)
 		comerr("Cannot alloc space for compiled pattern.\n");
 	if ((alt[npat] = patcompile((const unsigned char *)pattern,
 							plen, aux[npat])) == 0)
-		comerrno(BAD, "Bad pattern: '%s'.\n", pattern);
+		comerrno(EX_BAD, "Bad pattern: '%s'.\n", pattern);
 	dirs[npat] = currdir;
 	npat++;
+	return (TRUE);
+}
+
+LOCAL int
+addarg(pattern)
+	const char	*pattern;
+{
+	if (narg == 0)
+		narg = npat;
+
+/*	if (debug)*/
+/*		error("Add arg '%s'.\n", pattern);*/
+
+	if (narg >= NPAT)
+		comerrno(EX_BAD, "Too many patterns (max is %d).\n", NPAT);
+
+	pat[narg] = (const unsigned char *)pattern;
+	dirs[narg] = currdir;
+	narg++;
 	return (TRUE);
 }
 
@@ -858,6 +988,14 @@ closepattern()
 
 	if (debug) /* temporary */
 		printpattern();
+
+	if (npat > 0 || narg > 0)
+		havepat = TRUE;
+
+	if (npat > 0) {
+		if ((state = malloc((maxplen+1)*sizeof(int))) == NULL)
+			comerr("Cannot alloc space for pattern state.\n");
+	}
 }
 
 LOCAL void
@@ -865,8 +1003,12 @@ printpattern()
 {
 	register int	i;
 
+	error("npat: %d narg: %d\n", npat, narg);
 	for (i=0; i < npat; i++) {
 		error("pat %s dir %s\n", pat[i], dirs[i]);
+	}
+	for (i=npat; i < narg; i++) {
+		error("arg %s dir %s\n", pat[i], dirs[i]);
 	}
 }
 
@@ -907,8 +1049,8 @@ add_diffopt(optstr, flagp)
 			optflags |= D_TYPE;
 		} else if (strncmp(optstr, "nlink", optlen) == 0) {
 			optflags |= D_NLINK;
-			errmsgno(BAD, "nlink not supported\n");
-			dusage(BAD);
+			errmsgno(EX_BAD, "nlink not supported\n");
+			dusage(EX_BAD);
 		} else if (strncmp(optstr, "uid", optlen) == 0) {
 			optflags |= D_UID;
 		} else if (strncmp(optstr, "gid", optlen) == 0) {
@@ -931,6 +1073,8 @@ add_diffopt(optstr, flagp)
 			optflags |= D_HLINK;
 		} else if (strncmp(optstr, "symlink", optlen) == 0) {
 			optflags |= D_SLINK;
+		} else if (strncmp(optstr, "sparse", optlen) == 0) {
+			optflags |= D_SPARS;
 		} else if (strncmp(optstr, "atime", optlen) == 0) {
 			optflags |= D_ATIME;
 		} else if (strncmp(optstr, "mtime", optlen) == 0) {
@@ -943,7 +1087,7 @@ add_diffopt(optstr, flagp)
 			dusage(0);
 		} else {
 			error("Illegal diffopt.\n");
-			dusage(BAD);
+			dusage(EX_BAD);
 			return (-1);
 		}
 		optstr = np;
@@ -978,11 +1122,13 @@ gethdr(optstr, typep)
 		type = H_USTAR;
 	} else if (streql(optstr, "xstar")) {
 		type = H_XSTAR;
+	} else if (streql(optstr, "xustar")) {
+		type = H_XUSTAR;
 	} else if (streql(optstr, "help")) {
 		husage(0);
 	} else {
 		error("Illegal header type '%s'.\n", optstr);
-		husage(BAD);
+		husage(EX_BAD);
 		return (-1);
 	}
 	if (swapped)
@@ -991,6 +1137,42 @@ gethdr(optstr, typep)
 		*typep = type;
 	return (TRUE);
 }
+
+#ifdef	USED
+/*
+ * Add archive file.
+ * May currently not be activated:
+ *	If the option string ends with ",&", the -C option will not work
+ *	anymore.
+ */
+LOCAL int
+addfile(optstr, dummy)
+	char	*optstr;
+	long	*dummy;
+{
+	char	*p;
+
+/*	error("got_it: %s\n", optstr);*/
+
+	if (!strchr("01234567", optstr[0]))
+		return (NOTAFILE);/* Tell getargs that this may be a flag */
+
+	for (p = &optstr[1]; *p; p++) {
+		if (*p != 'l' && *p != 'm' && *p != 'h')
+			return (BADFLAG);
+	}
+/*	error("is_tape: %s\n", optstr);*/
+
+	comerrno(EX_BAD, "Options [0-7][lmh] currently not supported.\n");
+	/*
+	 * The tape device should be determined from the defaults file
+	 * in the near future.
+	 * Search for /etc/opt/schily/star, /etc/default/star, /etc/default/tar
+	 */
+
+	return (1);		/* Success */
+}
+#endif
 
 LOCAL void
 exsig(sig)
@@ -1045,4 +1227,100 @@ getstamp()
 	follow = ofollow;
 
 	Newer = finfo.f_mtime;
+}
+
+EXPORT void *
+__malloc(size)
+	unsigned int size;
+{
+	void	*ret;
+
+	ret = malloc(size);
+	if (ret == NULL) {
+		comerr("No memory.\n");
+		/* NOTREACHED */
+	}
+	return (ret);
+}
+
+EXPORT char *
+__savestr(s)
+	char	*s;
+{
+	char	*ret = __malloc(strlen(s)+1);
+
+	strcpy(ret, s);
+	return (ret);
+}
+
+/*
+ * Convert old tar type syntax into the new UNIX option syntax.
+ * Allow only a limited subset of the single character options to avoid
+ * collisions between interpretation of options in different
+ * tar implementations. The old syntax has a risk to damage files
+ * which is avoided with the 'fcompat' flag (see opentape()).
+ *
+ * Problems:
+ *	The 'e' and 'X' option are currently not implemented.
+ *	The 'h' option can only be implemented if the -help 
+ *	shortcut in star is removed.
+ *	There is a collision between the BSD -I (include) and
+ *	star's -I (interactive) which may be solved by using -w instead.
+ */
+LOCAL void
+docompat(pac, pav)
+	int	*pac;
+	char	*const **pav;
+{
+	int	ac	= *pac;
+	char	*const *av	= *pav;
+	int	nac;
+	char	**nav;
+	char	nopt[3];
+	char	*copt = "crtuxbfXBFTLdeiklmnopvwz01234567";
+	char	*p;
+	char	c;
+	char	*const *oa;
+	char	**na;
+
+	if (strchr(av[1], '=') != NULL)		/* Do not try to convert bs= */
+		return;
+
+	nac = ac + strlen(av[1]);
+	nav = __malloc(nac-- * sizeof(char *));	/* keep space for NULL ptr */
+	oa = av;
+	na = nav;
+	*na++ = *oa++;
+	oa++;					/* Skip over av[1] */
+
+	nopt[0] = '-';
+	nopt[2] = '\0';
+
+	for (p=av[1]; (c = *p) != '\0'; p++) {
+		if (strchr(copt, c) == NULL) {
+			errmsgno(EX_BAD, "Illegal option '%c' for compat mode.\n", c);
+			usage(EX_BAD);
+		}
+		nopt[1] = c;
+		*na++ = __savestr(nopt);
+		if (c == 'f' || c == 'b' || c == 'X') {
+			*na++ = *oa++;
+			/*
+			 * The old syntax has a high risk of corrupting
+			 * files if the user disorders the args.
+			 */
+			if (c == 'f')
+				fcompat = TRUE;
+		}
+	}
+
+	/*
+	 * Now copy over the rest...
+	 */
+	while ((av + ac) > oa)
+		*na++ = *oa++;
+	*na = NULL;
+
+	*pac = nac;
+	*pav = nav;
 }

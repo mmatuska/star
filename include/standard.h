@@ -1,6 +1,13 @@
-/* @(#)standard.h	1.17 97/01/26 Copyright 1985 J. Schilling */
+/* @(#)standard.h	1.27 01/02/23 Copyright 1985 J. Schilling */
 /*
  *	standard definitions
+ *
+ *	This file should be included past:
+ *
+ *	mconfig.h / config.h
+ *	stdio.h
+ *	stdlib.h	(better use stdxlib.h)
+ *	unistd.h	(better use unixstd.h) needed LARGEFILE support
  *
  *	Copyright (c) 1985 J. Schilling
  */
@@ -23,25 +30,29 @@
 #ifndef _STANDARD_H
 #define _STANDARD_H
 
+#ifndef _MCONFIG_H
+#include <mconfig.h>
+#endif
+#ifndef _PROTOTYP_H
+#include <prototyp.h>
+#endif
+
 #ifdef	M68000
 #	ifndef	tos
 #		define	JOS	1
 #	endif
 #endif
-#include <prototyp.h>
 
 /*
  *	fundamental constants
  */
 #ifndef	NULL
-#	define	NULL		(char *)0
+#	define	NULL		0
 #endif
 #ifndef	TRUE
 #	define	TRUE		1
 #	define	FALSE		0
 #endif
-#define	YES			1
-#define	NO			0
 
 /*
  *	Program exit codes
@@ -57,12 +68,7 @@
 #define	INTERN	static
 #define	LOCAL	static
 #define	FAST	register
-#define	global	extern
-#define	import	extern
-#define	export
-#define	intern	static
-#define	local	static
-#define	fast	register
+
 #ifndef	PROTOTYPES
 #	ifndef	const
 #		define	const
@@ -77,9 +83,12 @@
 
 /*
  *	standard type definitions
+ *
+ *	The hidden Schily BOOL definition is used in case we need to deal
+ *	with other BOOL defines on systems we like to port to.
  */
+typedef int __SBOOL;
 typedef int BOOL;
-typedef int bool;
 #ifdef	JOS
 #	define	NO_VOID
 #endif
@@ -92,117 +101,30 @@ typedef int bool;
 	typedef	void	VOID;
 #endif
 
-#ifdef	EOF	/* stdio.h has been included */
-extern	int	_cvmod __PR((const char *, int *, int *));
-extern	FILE	*_fcons __PR((FILE *, int, int));
-extern	FILE	*fdup __PR((FILE *));
-extern	int	fdown __PR((FILE *));
-extern	int	fexecl __PR((const char *, FILE *, FILE *, FILE *,
-							const char *, ...));
-extern	int	fexecle __PR((const char *, FILE *, FILE *, FILE *,
-							const char *, ...));
-		/* 6th arg not const, fexecv forces av[ac] = NULL */
-extern	int	fexecv __PR((const char *, FILE *, FILE *, FILE *, int,
-							char **));
-extern	int	fexecve __PR((const char *, FILE *, FILE *, FILE *,
-					char * const *, char * const *));
-extern	int	fgetline __PR((FILE *, char *, int));
-extern	int	fgetstr __PR((FILE *, char *, int));
-extern	void	file_raise __PR((FILE *, int));
-extern	int	fileclose __PR((FILE *));
-extern	FILE	*fileluopen __PR((int, const char *));
-extern	FILE	*fileopen __PR((const char *, const char *));
-extern	long	filepos __PR((FILE *));
-extern	int	fileread __PR((FILE *, void *, int));
-extern	int	ffileread __PR((FILE *, void *, int));
-extern	FILE	*filereopen __PR((const char *, const char *, FILE *));
-extern	long	fileseek __PR((FILE *, long));
-extern	long	filesize __PR((FILE *));
-#ifdef	S_IFMT
-extern	int	filestat __PR((FILE *, struct stat *));
+#if	defined(_INCL_SYS_TYPES_H) || defined(off_t)
+#	ifndef	FOUND_OFF_T
+#	define	FOUND_OFF_T
+#	endif
 #endif
-extern	int	filewrite __PR((FILE *, void *, int));
-extern	int	ffilewrite __PR((FILE *, void *, int));
-extern	int	flush __PR((void));
-extern	int	fpipe __PR((FILE **));
-extern	int	fprintf __PR((FILE *, const char *, ...));
-extern	int	getbroken __PR((FILE *, char *, char, char **, int));
-extern	int	ofindline __PR((FILE *, char, const char *, int,
-							char **, int));
-extern	int	peekc __PR((FILE *));
-
-extern	int	spawnv __PR((FILE *, FILE *, FILE *, int, char * const *));
-extern	int	spawnl __PR((FILE *, FILE *, FILE *,
-					const char *, const char *, ...));
-extern	int	spawnv_nowait __PR((FILE *, FILE *, FILE *,
-					const char *, int, char *const*));
-#endif	/* EOF */
-
-extern	int	_niread __PR((int, void *, int));
-extern	int	_openfd __PR((const char *, int));
-extern	void	comerr __PR((const char *, ...));
-extern	void	comerrno __PR((int, const char *, ...));
-extern	int	errmsg __PR((const char *, ...));
-extern	int	errmsgno __PR((int, const char *, ...));
-extern	char	*errmsgstr __PR((int));
-extern	int	error __PR((const char *, ...));
-extern	char	*fillbytes __PR((void *, int, char));
-extern	int	findline __PR((const char *, char, const char *,
-							int, char **, int));
-extern	int	getline __PR((char *, int));
-extern	int	getstr __PR((char *, int));
-extern	int	breakline __PR((char *, char, char **, int));
-extern	int	getallargs __PR((int *, char * const**, const char *, ...));
-extern	int	getargs __PR((int *, char * const**, const char *, ...));
-extern	int	getfiles __PR((int *, char * const**, const char *));
-extern	char	*astoi __PR((const char *, int *));
-extern	char	*astol __PR((const char *, long *));
-
-/*extern	void	handlecond __PR((const char *, SIGBLK *, int(*)(const char *, long, long), long));*/
-extern	void	unhandlecond __PR((void));
-
-extern	int		patcompile __PR((const unsigned char *, int, int *));
-extern	unsigned char	*patmatch __PR((const unsigned char *, const int *,
-					const unsigned char *, int, int, int));
-
-extern	int	printf __PR((const char *, ...));
-extern	char	*movebytes __PR((const void *, void *, int));
-
-extern	void	save_args __PR((int, char**));
-extern	int	saved_ac __PR((void));
-extern	char	**saved_av __PR((void));
-extern	char	*saved_av0 __PR((void));
-#ifndef	seterrno
-extern	int	seterrno __PR((int));
-#endif
-extern	void	set_progname __PR((const char *));
-extern	char	*get_progname __PR((void));
-
-extern	void	setfp __PR((void * const *));
-extern	int	wait_chld __PR((int));
-extern	int	geterrno __PR((void));
-extern	void	raisecond __PR((const char *, long));
-extern	int	snprintf __PR((char *, unsigned, const char *, ...));
-/*extern	int	sprintf __PR((char *, const char *, ...)); ist woanders falsch deklariert !!!*/
-extern	char	*strcatl __PR((char *, ...));
-extern	int	streql __PR((const char *, const char *));
-#ifdef	va_arg
-extern	int	format __PR((void (*)(char, long), long, const char *, va_list));
-#else
-extern	int	format __PR((void (*)(char, long), long, const char *, void *));
+#if	defined(_INCL_SYS_TYPES_H) || defined(size_t)
+#	ifndef	FOUND_SIZE_T
+#	define	FOUND_SIZE_T
+#	endif
 #endif
 
-extern	int	ftoes __PR((char *, double, int, int));
-extern	int	ftofs __PR((char *, double, int, int));
+#if	defined(_SIZE_T)     || defined(_T_SIZE_) || defined(_T_SIZE) || \
+	defined(__SIZE_T)    || defined(_SIZE_T_) || \
+	defined(_GCC_SIZE_T) || defined(_SIZET_)  || \
+	defined(__sys_stdtypes_h) || defined(___int_size_t_h) || defined(size_t)
 
-extern	void	swabbytes __PR((void *, int));
-extern	char	*getav0 __PR((void));
-extern	char	**getavp __PR((void));
-extern	void	**getfp __PR((void));
-extern	int	flush_reg_windows __PR((int));
-extern	int	cmpbytes __PR((const void *, const void *, int));
+#ifndef	FOUND_SIZE_T
+#	define	FOUND_SIZE_T	/* We already included a size_t definition */
+#endif
+#endif
 
 #if defined(_JOS) || defined(JOS)
+#	include <schily.h>
+#	include <jos_defs.h>
 #	include <jos_io.h>
 #endif
 

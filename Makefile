@@ -8,8 +8,10 @@ include		$(SRCROOT)/$(RULESDIR)/rules.top
 
 #include		Targetdirs.$(M_ARCH)
 
-DIRS=	lib star man
+DIRS=	conf inc lib libdeflt star mt rmt man
 
 ###########################################################################
-include		$(SRCROOT)/$(RULESDIR)/rules.dir
+# Due to a bug in SunPRO make we need special rules for the root makefile
+#
+include		$(SRCROOT)/$(RULESDIR)/rules.rdi
 ###########################################################################

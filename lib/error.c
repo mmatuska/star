@@ -1,4 +1,4 @@
-/* @(#)error.c	1.9 97/06/01 Copyright 1985 J. Schilling */
+/* @(#)error.c	1.12 00/05/07 Copyright 1985 J. Schilling */
 /*
  *	fprintf() on standard error stdio stream
  *
@@ -23,11 +23,8 @@
 #include <mconfig.h>
 #include <stdio.h>
 #include <standard.h>
-#ifdef	HAVE_STDARG_H
-#	include <stdarg.h>
-#else
-#	include <varargs.h>
-#endif
+#include <vadefs.h>
+#include <schily.h>
 
 /* VARARGS1 */
 #ifdef	PROTOTYPES
@@ -46,7 +43,7 @@ int error(fmt, va_alist)
 #else
 	va_start(args);
 #endif
-	ret = fprintf(stderr, "%r", fmt, args);
+	ret = js_fprintf(stderr, "%r", fmt, args);
 	va_end(args);
 	return (ret);
 }

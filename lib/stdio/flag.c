@@ -1,4 +1,4 @@
-/* @(#)flag.c	2.4 97/05/29 Copyright 1986 J. Schilling */
+/* @(#)flag.c	2.7 00/12/03 Copyright 1986 J. Schilling */
 /*
  *	Copyright (c) 1986 J. Schilling
  */
@@ -18,14 +18,8 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <stdio.h>
 #include "io.h"
-#ifdef	HAVE_STDLIB_H
-#include <stdlib.h>
-#else
-extern	char	*malloc();
-extern	char	*realloc();
-#endif
+#include <stdxlib.h>
 
 #ifdef	DO_MYFLAG
 
@@ -39,7 +33,8 @@ _io_fl	*_io_myfl = _io_smyfl;	/* init to static space */
 
 LOCAL int _more_flags	__PR((FILE * ));
 
-LOCAL int _more_flags(fp)
+LOCAL int
+_more_flags(fp)
 	FILE	*fp;
 {
 	register int	f = fileno(fp);
@@ -67,7 +62,8 @@ LOCAL int _more_flags(fp)
 	}
 }
 
-int _io_get_my_flag(fp)
+EXPORT int
+_io_get_my_flag(fp)
 	register FILE	*fp;
 {
 	register int	f = fileno(fp);
@@ -90,7 +86,8 @@ int _io_get_my_flag(fp)
 	return (fl->fl_flags);
 }
 
-void _io_set_my_flag(fp, flag)
+EXPORT void
+_io_set_my_flag(fp, flag)
 	FILE	*fp;
 	int	flag;
 {
@@ -119,7 +116,8 @@ void _io_set_my_flag(fp, flag)
 	fl->fl_flags = flag;
 }
 
-void _io_add_my_flag(fp, flag)
+EXPORT void
+_io_add_my_flag(fp, flag)
 	FILE	*fp;
 	int	flag;
 {

@@ -1,7 +1,7 @@
-/* @(#)getargs.c	2.23 98/03/31 Copyright 1985, 1988, 1995 J. Schilling */
+/* @(#)getargs.c	2.29 00/12/30 Copyright 1985, 1988, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)getargs.c	2.23 98/03/31 Copyright 1985, 1988, 1995 J. Schilling";
+	"@(#)getargs.c	2.29 00/12/30 Copyright 1985, 1988, 1995 J. Schilling";
 #endif
 #define	NEW
 /*
@@ -37,10 +37,12 @@ static	char sccsid[] =
 /* LINTLIBRARY */
 #include <mconfig.h>
 #include <standard.h>
+#include <utypes.h>
 #include <getargs.h>
 #include <ctype.h>
 #include <vadefs.h>
 #include <strdefs.h>
+#include <schily.h>
 
 #define	NOARGS		  0	/* No more args			*/
 #define	NOTAFLAG	  1	/* Not a flag type argument	*/
@@ -228,14 +230,6 @@ LOCAL int dofile(pac, pav, pargp)
 	if (argp[0] != '-' && argp[0] != '+' && (!checkeql(argp)))
 		return (NOTAFLAG);
 
-	/*
-	 * flags beginning with '-' don't have to include the '-' in
-	 * the format string.
-	 * flags beginning with '+' have to include it in the format string.
-	 */
-	if (argp[0] == '-')
-		(*pargp)++;
-
 	return (NOTAFILE);
 }
 
@@ -258,16 +252,46 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 		BOOL		setargs;
 		va_list		oargs;
 {
+	char	argstr[2];
 	long	val;
+	Llong	llval;
 	int	singlecharflag	= 0;
 	BOOL	isspec;
+	BOOL	hasdash		= FALSE;
+	BOOL	doubledash	= FALSE;
 	BOOL	haseql		= checkeql(argp);
-	const char	*sargp	= argp;
+	const char	*sargp;
 	const char	*sfmt	= fmt;
 	va_list	args;
 	char	*const	*spav	= *pav;
 	int		spac	= *pac;
 	void		*curarg	= (void *)0;
+
+	/*
+	 * flags beginning with '-' don't have to include the '-' in
+	 * the format string.
+	 * flags beginning with '+' have to include it in the format string.
+	 */
+	if (argp[0] == '-') {
+		argp++;
+		hasdash = TRUE;
+		/*
+		 * Implement legacy support for --longopt
+		 * If we find a double dash, we do not look for combinations
+		 * of boolean single char flags.
+		 */
+		if (argp[0] == '-') {
+			argp++;
+			doubledash = TRUE;
+			/*
+			 * Allow -- only for long options.
+			 */
+			if (argp[1] == '\0') {
+				return (BADFLAG);
+			}
+		}
+	}
+	sargp = argp;
 
 	/*
 	 * Initialize 'args' to the start of the argument list.
@@ -345,12 +369,16 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 					 * and we only allow to match
 					 * the special pattern '&'.
 					 * We need this e.g. for 'make'.
-					 * Here allow any flag type argument to
+					 * We allow any flag type argument to
 					 * match the format string "&" to set
 					 * up a function that handles all odd
 					 * stuff that getargs will not grok.
+					 * In addition, to allow getargs to be
+					 * used for CPP type flags we allow to
+					 * match -Dabc=xyz on 'D&'. Note that
+					 * Dabc=xyz will not match 'D&'.
 					 */
-					if (argp != sargp || *fmt != '&')
+					if ((!hasdash && argp != sargp) || *fmt != '&')
 						goto nextarg;
 				}
 				/*
@@ -401,7 +429,7 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 			/*
 			 * Boolean type has been tested before.
 			 */
-			if (singlecharflag && 
+			if (singlecharflag && !doubledash &&
 			   (val = dosflags(sargp, sfmt, setargs, oargs)) !=
 								BADFLAG)
 				return (val);
@@ -453,10 +481,24 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 			 */
 			if (*argp != '\0')
 				goto nextchance;
+			/*
+			 * If *fmt is '+' and we are on the beginning
+			 * of the format desciptor that is currently
+			 * checked, this cannot be an inc type flag.
+			 */
+			if (fmt == sfmt || fmt[-1] == ',')
+				goto nextchance;
+
 			if (fmt[1] == 'l' || fmt[1] == 'L') {
-				if (setargs)
-					*((long *)curarg) += 1;
-				fmt++;
+				if (fmt[2] == 'l' || fmt[2] == 'L') {
+					if (setargs)
+						*((Llong *)curarg) += 1;
+					fmt += 2;
+				} else {
+					if (setargs)
+						*((long *)curarg) += 1;
+					fmt++;
+				}
 			} else if (fmt[1] == 's' || fmt[1] == 'S') {
 				if (setargs)
 					*((short *)curarg) += 1;
@@ -468,6 +510,8 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 					*((int *)curarg) += 1;
 			}
 
+			argstr[0] = *fmt;
+			argstr[1] = '\0';
 
 			return (checkfmt(fmt));
 
@@ -481,7 +525,7 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 					return (BADFLAG);
 				}
 			}
-			if (*astol(argp, &val) != '\0') {
+			if (*astoll(argp, &llval) != '\0') {
 				/*
 				 * arg is not a valid number!
 				 * go to next format in the format string
@@ -499,20 +543,29 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 				*pav = spav;
 				continue;
 			}
+			val = (long)llval;
 			if (fmt[1] == 'l' || fmt[1] == 'L') {
-				if (setargs)
-					*((long *)curarg) = val;
-				fmt++;
+				if (fmt[2] == 'l' || fmt[2] == 'L') {
+					if (setargs)
+						*((Llong *)curarg) = llval;
+					fmt += 2;
+				} else {
+					if (setargs)
+						*((long *)curarg) = val;
+					fmt++;
+				}
 			} else if (fmt[1] == 's' || fmt[1] == 'S') {
 				if (setargs)
-					*((short *)curarg) = val;
+					*((short *)curarg) = (short)val;
 				fmt++;
 			} else {
 				if (fmt[1] == 'i' || fmt[1] == 'I')
 					fmt++;
 				if (setargs)
-					*((int *)curarg) = val;
+					*((int *)curarg) = (int)val;
 			}
+			argstr[0] = *fmt;
+			argstr[1] = '\0';
 
 			return (checkfmt(fmt));
 
@@ -624,6 +677,12 @@ LOCAL int dosflags(argp, fmt, setargs, oargs)
 						if (fmt[1] == ',' ||
 						    fmt[1] == '\0') {
 							rsf[i].type = 'i';
+						} else if ((fmt[1] == 'l' ||
+							    fmt[1] == 'L') &&
+							   (fmt[2] == 'l' ||
+							    fmt[2] == 'L')) {
+							rsf[i].type = 'Q';
+							fmt++;
 						} else {
 							rsf[i].type = fmt[1];
 						}
@@ -657,6 +716,8 @@ LOCAL int dosflags(argp, fmt, setargs, oargs)
 				*((int *)rsf[i].curarg) += rsf[i].count;
 			} else if (rsf[i].type == 'l' || rsf[i].type == 'L') {
 				*((long *)rsf[i].curarg) += rsf[i].count;
+			} else if (rsf[i].type == 'Q') {
+				*((Llong *)rsf[i].curarg) += rsf[i].count;
 			} else if (rsf[i].type == 's' || rsf[i].type == 'S') {
 				*((short *)rsf[i].curarg) += rsf[i].count;
 			} else {
@@ -677,7 +738,9 @@ LOCAL int dosflags(argp, fmt, setargs, oargs)
 LOCAL int checkfmt(fmt)
 	const char	*fmt;
 {
-	char c = *(++fmt);
+	char	c;
+
+	c = *(++fmt);	/* non constant expression */
 
 
 	if (c == ',' || c == '\0') {

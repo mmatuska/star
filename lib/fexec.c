@@ -1,4 +1,4 @@
-/* @(#)fexec.c	1.15 98/06/02 Copyright 1985 J. Schilling */
+/* @(#)fexec.c	1.18 00/05/07 Copyright 1985 J. Schilling */
 /*
  *	Execute a program with stdio redirection
  *
@@ -22,43 +22,26 @@
 
 #include <mconfig.h>
 #include <stdio.h>
-#define	fexecl	__nothing_1_	/* prototype in standard.h is wrong */
-#define	fexecle	__nothing_2_	/* prototype in standard.h is wrong */
 #include <standard.h>
+#define	fexecl	__nothing_1_	/* prototype in schily.h is wrong */
+#define	fexecle	__nothing_2_	/* prototype in schily.h is wrong */
+#include <schily.h>
 #undef	fexecl
 #undef	fexecle
 	int fexecl	__PR((const char *, FILE *, FILE *, FILE *, ...));
 	int fexecle	__PR((const char *, FILE *, FILE *, FILE *, ...));
-#ifdef	HAVE_UNISTD_H
-#	include <unistd.h>
-#endif
+#include <unixstd.h>
 #include <stdxlib.h>
-#ifdef	HAVE_STRING_H
-#	include <string.h>
-#endif
-#ifdef	HAVE_STDARG_H
-#	include <stdarg.h>
-#else
-#	include <varargs.h>
-#endif
+#include <strdefs.h>
+#include <vadefs.h>
+
 #ifdef JOS
 #	include <error.h>
-#	include "../../kern/header/dirent.h"
 #else
 #	include <errno.h>
-#	include	<fcntl.h>
-#	include <sys/types.h>
-#	include <sys/param.h>	/* XXX nonportable (used for MAXPATHLEN) */
-#	if defined(SVR4)
-#		include <sys/dirent.h>	/* used for MAXNAMLEN */
-#		undef	BSD4_2
-#	else
-#		include <sys/dir.h>	/* used for MAXNAMLEN */
-#	endif
-#ifdef	BSD4_2
-#	define	strchr	index
 #endif
-#endif
+#include <fctldefs.h>
+#include <dirdefs.h>
 #include <maxpath.h>
 
 #define	MAX_F_ARGS	16
@@ -230,10 +213,12 @@ int fexecve(name, in, out, err, av, env)
 				ret = ENOFILE;
 		}
 	} else {
+		int	nlen = strlen(name);
+
 		for(;;) {
 			np = nbuf;
 			while (*path != ':' && *path != '\0'
-			    && np < &nbuf[MAXPATHNAME-MAXFILENAME-2])
+			    && np < &nbuf[MAXPATHNAME-nlen-2])
   				*np++ = *path++;
 			*np = '\0';
 			if (*nbuf == '\0')
@@ -290,10 +275,12 @@ int fexecve(name, in, out, err, av, env)
 			ret = execve (nbuf, av, env);
 		}
 	} else {
+		int	nlen = strlen(name);
+
 		for(;;) {
 			np = nbuf;
 			while (*path != ':' && *path != '\0'
-			    && np < &nbuf[MAXPATHNAME-MAXFILENAME-2])
+			    && np < &nbuf[MAXPATHNAME-nlen-2])
   				*np++ = *path++;
 			*np = '\0';
 			if (*nbuf == '\0')

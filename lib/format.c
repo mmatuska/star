@@ -1,4 +1,4 @@
-/* @(#)format.c	1.29 98/03/31 Copyright 1985 J. Schilling */
+/* @(#)format.c	1.35 01/02/26 Copyright 1985 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -28,10 +28,23 @@
 #include <vadefs.h>
 #include <strdefs.h>
 #include <stdxlib.h>
-#ifndef	HAVE_STDLIB_H
+#if	!defined(HAVE_STDLIB_H) || !defined(HAVE_GCVT)
 extern	char	*gcvt __PR((double, int, char *));
 #endif
 #include <standard.h>
+#include <utypes.h>
+#include <schily.h>
+
+/*
+ * As Llong is currently a 'best effort' long long, we usually need to
+ * include long long print formats.
+ * This may go away, if we implement maxint_t formats.
+ */
+#define	USE_LONGLONG
+
+#ifdef	NO_LONGLONG
+#undef	USE_LONGLONG
+#endif
 
 /*
  * Some CPU's (e.g. PDP-11) cannot do logical shifts.
@@ -65,26 +78,27 @@ extern	long	modlbys();
 #define	to_cap(c)	(is_cap(c) ? c : c - 'a' + 'A')
 #define	cap_ty(c)	(is_cap(c) ? 'L' : 'I')
 
-typedef unsigned int	Uint;
-typedef unsigned short	Ushort;
-typedef unsigned long	Ulong;
 #ifdef	HAVE_LONGLONG
-typedef unsigned long long	Ullong;
+typedef union {
+	Ullong	ll;
+	Ulong	l[2];
+	char	c[8];
+} quad_u;
 #endif
 
 typedef struct f_args {
-	void	(*outf) __PR((char, long)); /* Func from format(fun, arg) */
-	long	farg;			    /* Arg from format (fun, arg) */
-	int	minusflag;
-	int	flags;
-	int	fldwidth;
-	int	signific;
-	int	lzero;
-	char	*buf;
-	char	*bufp;
-	char	fillc;
-	char	*prefix;
-	int	prefixlen;
+	void  (*outf)__PR((char,long));	/* Func from format(fun, arg)	*/
+	long	farg;			/* Arg from format (fun, arg)	*/
+	int	minusflag;		/* Fieldwidth is negative	*/
+	int	flags;			/* General flags (+-#)		*/
+	int	fldwidth;		/* Field width as in %3d	*/
+	int	signific;		/* Significant chars as in %.4d	*/
+	int	lzero;			/* Left '0' pad flag		*/
+	char	*buf;			/* Out print buffer		*/
+	char	*bufp;			/* Write ptr into buffer	*/
+	char	fillc;			/* Left fill char (' ' or '0')	*/
+	char	*prefix;		/* Prefix to print before buf	*/
+	int	prefixlen;		/* Len of prefix ('+','-','0x')	*/
 } f_args;
 
 #define	MINUSFLG	1	/* '-' flag */
@@ -97,6 +111,13 @@ LOCAL	void	prdnum __PR((Ulong, f_args *));
 LOCAL	void	pronum __PR((Ulong, f_args *));
 LOCAL	void	prxnum __PR((Ulong, f_args *));
 LOCAL	void	prXnum __PR((Ulong, f_args *));
+#ifdef	USE_LONGLONG
+LOCAL	void	prlnum  __PR((Ullong, unsigned, f_args *));
+LOCAL	void	prldnum __PR((Ullong, f_args *));
+LOCAL	void	prlonum __PR((Ullong, f_args *));
+LOCAL	void	prlxnum __PR((Ullong, f_args *));
+LOCAL	void	prlXnum __PR((Ullong, f_args *));
+#endif
 LOCAL	int	prbuf  __PR((const char *, f_args *));
 LOCAL	int	prc    __PR((char, f_args *));
 LOCAL	int	prstring __PR((const char *, f_args *));
@@ -127,6 +148,9 @@ EXPORT int format(fun, farg, fmt, args)
 	short sh;
 	const char *str;
 	double dval;
+#ifdef	USE_LONGLONG
+	Llong llval = 0;
+#endif
 	Ulong res;
 	char *rfmt;
 	f_args	fa;
@@ -268,6 +292,12 @@ EXPORT int format(fun, farg, fmt, args)
 
 		getmode:
 			if (!strchr("udioxX", *(++fmt))) {
+#ifdef	USE_LONGLONG
+				if (*fmt == 'l') {
+					type = 'Q';
+					goto getmode;
+				}
+#endif
 				fmt--;
 				mode = 'D';
 			} else {
@@ -288,7 +318,6 @@ EXPORT int format(fun, farg, fmt, args)
 		case 'o': case 'O':
 		case 'd': case 'D':
 		case 'i': case 'I':
-		case 'p':
 		case 'X':
 		case 'z': case 'Z':
 			mode = to_cap(*fmt);
@@ -296,6 +325,10 @@ EXPORT int format(fun, farg, fmt, args)
 			type = cap_ty(*fmt);
 			if (mode == 'I')	/*XXX kann entfallen*/
 				mode = 'D';	/*wenn besseres uflg*/
+			break;
+		case 'p':
+			mode = 'P';
+			type = 'L';
 			break;
 
 		case '%':
@@ -397,6 +430,7 @@ EXPORT int format(fun, farg, fmt, args)
 		/*
 		 * print numbers:
 		 * first prepare type 'C'har, 'S'hort, 'I'nt, or 'L'ong
+		 * or 'Q'ad
 		 */
 		switch(type) {
 
@@ -435,6 +469,12 @@ EXPORT int format(fun, farg, fmt, args)
 		case 'L':
 			val = va_arg(args, long);
 			break;
+#ifdef	USE_LONGLONG
+		case 'Q':
+			llval = va_arg(args, Llong);
+			val = llval != 0;
+			break;
+#endif
 		}
 
 		/*
@@ -458,6 +498,24 @@ EXPORT int format(fun, farg, fmt, args)
 		} else switch(mode) {
 
 		case 'D':
+#ifdef	USE_LONGLONG
+			if (type == 'Q') {
+				if (!unsflag && llval < 0) {
+					fa.prefix = "-";
+					fa.prefixlen = 1;
+					llval = -llval;
+				} else if (fa.flags & PLUSFLG) {
+					fa.prefix = "+";
+					fa.prefixlen = 1;
+				} else if (fa.flags & SPACEFLG) {
+					fa.prefix = " ";
+					fa.prefixlen = 1;
+				}
+				if (llval == 0)
+					goto printzero;
+				goto prunsigned;
+			}
+#endif
 			if (!unsflag && val < 0) {
 				fa.prefix = "-";
 				fa.prefixlen = 1;
@@ -473,6 +531,12 @@ EXPORT int format(fun, farg, fmt, args)
 				goto printzero;
 		case 'U':
 			/* output a long unsigned decimal number */
+#ifdef	USE_LONGLONG
+		prunsigned:
+			if (type == 'Q')
+				prldnum(llval, &fa);
+			else
+#endif
 			prdnum(val, &fa);
 			break;
 		case 'O':
@@ -481,9 +545,16 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0";
 				fa.prefixlen = 1;
 			}
-			pronum(val & 07, &fa);
-			if ((res = (val>>3) & rshiftmask(long, 3)) != 0)
-				pronum(res, &fa);
+#ifdef	USE_LONGLONG
+			if (type == 'Q') {
+				prlonum(llval, &fa);
+			} else
+#endif
+			{
+				pronum(val & 07, &fa);
+				if ((res = (val>>3) & rshiftmask(long, 3)) != 0)
+					pronum(res, &fa);
+			}
 			break;
 		case 'p':
 		case 'x':
@@ -492,9 +563,16 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0x";
 				fa.prefixlen = 2;
 			}
-			prxnum(val & 0xF, &fa);
-			if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
-				prxnum(res, &fa);
+#ifdef	USE_LONGLONG
+			if (type == 'Q')
+				prlxnum(llval, &fa);
+			else
+#endif
+			{
+				prxnum(val & 0xF, &fa);
+				if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
+					prxnum(res, &fa);
+			}
 			break;
 		case 'P':
 		case 'X':
@@ -503,15 +581,29 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0X";
 				fa.prefixlen = 2;
 			}
-			prXnum(val & 0xF, &fa);
-			if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
-				prXnum(res, &fa);
+#ifdef	USE_LONGLONG
+			if (type == 'Q')
+				prlXnum(llval, &fa);
+			else
+#endif
+			{
+				prXnum(val & 0xF, &fa);
+				if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
+					prXnum(res, &fa);
+			}
 			break;
 		case 'Z':
 			/* output a binary long */
-			prnum(val & 0x1, 2, &fa);
-			if ((res = (val>>1) & rshiftmask(long, 1)) != 0)
-				prnum(res, 2, &fa);
+#ifdef	USE_LONGLONG
+			if (type == 'Q')
+				prlnum(llval, 2, &fa);
+			else
+#endif
+			{
+				prnum(val & 0x1, 2, &fa);
+				if ((res = (val>>1) & rshiftmask(long, 1)) != 0)
+					prnum(res, 2, &fa);
+			}
 		}
 		fa.lzero = -1;
 		/*
@@ -605,6 +697,80 @@ LOCAL void prXnum(val, fa)
 	fa->bufp = p;
 }
 
+#ifdef	USE_LONGLONG
+LOCAL void prlnum(val, base, fa)
+	register Ullong val;
+	register unsigned base;
+	f_args *fa;
+{
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[modlbys(val, base)];
+		val = divlbys(val, base);
+	} while (val > 0);
+
+	fa->bufp = p;
+}
+
+LOCAL void prldnum(val, fa)
+	register Ullong val;
+	f_args *fa;
+{
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[val % (unsigned)10];
+		val = val / (unsigned)10;
+	} while (val > 0);
+
+	fa->bufp = p;
+}
+
+LOCAL void prlonum(val, fa)
+	register Ullong val;
+	f_args *fa;
+{
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[val & 7];
+		val >>= 3;
+	} while (val > 0);
+
+	fa->bufp = p;
+}
+
+LOCAL void prlxnum(val, fa)
+	register Ullong val;
+	f_args *fa;
+{
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[val & 15];
+		val >>= 4;
+	} while (val > 0);
+
+	fa->bufp = p;
+}
+
+LOCAL void prlXnum(val, fa)
+	register Ullong val;
+	f_args *fa;
+{
+	register char *p = fa->bufp;
+
+	do {
+		*--p = udtab[val & 15];
+		val >>= 4;
+	} while (val > 0);
+
+	fa->bufp = p;
+}
+
+#endif
+
 /*
  * Final buffer print out routine.
  */
@@ -621,10 +787,13 @@ LOCAL int prbuf(s, fa)
 
 	count = strlen(s);
 
+	/*
+	 * lzero becomes the number of left fill chars needed to reach signific
+	 */
 	if (fa->lzero < 0 && count < fa->signific)
 		lzero = fa->signific - count;
-	diff = fa->fldwidth - lzero - count - fa->prefixlen;
-	count += lzero;
+	count += lzero + fa->prefixlen;
+	diff = fa->fldwidth - count;
 	if (diff > 0)
 		count += diff;
 
@@ -722,3 +891,4 @@ LOCAL int prstring(s, fa)
 
 	return (prbuf(fa->buf, fa));
 }
+
