@@ -7220,7 +7220,7 @@ else
 fi
 done
 
-for ac_func in lstat readlink link rename mkfifo mknod
+for ac_func in lstat readlink symlink link rename mkfifo mknod
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
 echo "configure:7227: checking for $ac_func" >&5
@@ -7605,7 +7605,7 @@ else
 fi
 done
 
-for ac_func in execl execle execv execve execvp
+for ac_func in execl execle execlp execv execve execvp
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
 echo "configure:7612: checking for $ac_func" >&5
@@ -7770,7 +7770,7 @@ else
 fi
 done
 
-for ac_func in poll select lchown times utimes
+for ac_func in poll select chown lchown times utimes
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
 echo "configure:7777: checking for $ac_func" >&5

@@ -1,4 +1,4 @@
-/* @(#)libport.h	1.5 01/11/28 Copyright 1995 J. Schilling */
+/* @(#)libport.h	1.6 02/05/27 Copyright 1995 J. Schilling */
 /*
  *	Copyright (c) 1995 J. Schilling
  */
@@ -27,6 +27,9 @@
 #endif
 #ifndef	_PROTOTYP_H
 #include <prototyp.h>
+#endif
+#ifndef _STANDARD_H
+#include <standard.h>
 #endif
 
 #ifdef	__cplusplus

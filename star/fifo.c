@@ -1,7 +1,7 @@
-/* @(#)fifo.c	1.29 02/01/01 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.31 02/06/08 Copyright 1989 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.29 02/01/01 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.31 02/06/08 Copyright 1989 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -178,9 +178,10 @@ initfifo()
 	fifo_setparams();
 
 	if (pipe(mp->gp) < 0)
-		comerr("pipe\n");
+		comerr("Cannot create get pipe\n");
 	if (pipe(mp->pp) < 0)
-		comerr("pipe\n");
+		comerr("Cannot create put pipe\n");
+
 	mp->putptr = mp->getptr = mp->base;
 	prmp();
 	{
@@ -252,6 +253,11 @@ runfifo()
 	if ((pid = fork()) < 0)
 		comerr("Cannot fork.\n");
 
+#ifdef USE_OS2SHM
+	if (pid == 0)
+		DosGetSharedMem(buf,3);	/* PAG_READ|PAG_WRITE */
+#endif
+
 	if ((pid != 0) ^ cflag) {
 		EDEBUG(("Get prozess: cflag: %d pid: %d\n", cflag, pid));
 		/* Get Prozess */
@@ -265,9 +271,6 @@ runfifo()
 	}
 
 	if (pid == 0) {
-#ifdef USE_OS2SHM
-		DosGetSharedMem(buf,3);	/* PAG_READ|PAG_WRITE */
-#endif
 		if (cflag) {
 			mp->ibs = mp->size;
 			mp->obs = bs;
@@ -280,8 +283,10 @@ runfifo()
 		}
 #ifdef	USE_OS2SHM
 		DosFreeMem(buf);
+#ifdef	__needed__
 		sleep(30000);	/* XXX If calling _exit() here the parent process seems to be blocked */
 				/* XXX This should be fixed soon */
+#endif
 #endif
 		exit(0);
 	} else {

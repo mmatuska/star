@@ -1,7 +1,7 @@
-/* @(#)header.c	1.67 02/05/10 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.70 02/06/19 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.67 02/05/10 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.70 02/06/19 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -803,11 +803,13 @@ info_to_tcb(info, ptb)
 		if (info->f_uid > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_UID;
 		}
+/* XXX */
 		litos(ptb->dbuf.t_uid, info->f_uid & MAXOCTAL7, 7);
 
 		if (info->f_gid > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_GID;
 		}
+/* XXX */
 		litos(ptb->dbuf.t_gid, info->f_gid & MAXOCTAL7, 7);
 	} else {
 		/*
@@ -823,21 +825,29 @@ info_to_tcb(info, ptb)
 		if (info->f_uid > MAXOCTAL6 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_UID;
 		}
+/* XXX */
 		litos(ptb->dbuf.t_uid, info->f_uid & MAXOCTAL6, 6);
 
 		if (info->f_gid > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_GID;
 		}
+/* XXX */
 		litos(ptb->dbuf.t_gid, info->f_gid & MAXOCTAL6, 6);
 	}
 
 	if (info->f_rsize > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
 		info->f_xflags |= XF_SIZE;
 	}
+/* XXX */
 	if (info->f_rsize <= MAXINT32) {
 		litos(ptb->dbuf.t_size, (Ulong)info->f_rsize, 11);
 	} else {
-		llitos(ptb->dbuf.t_size, (Ullong)info->f_rsize, 11);
+		if (info->f_rsize > MAXOCTAL11 &&
+		   (props.pr_flags & PR_BASE256) == 0) {
+			litos(ptb->dbuf.t_size, (Ulong)0, 11);
+		} else {
+			llitos(ptb->dbuf.t_size, (Ullong)info->f_rsize, 11);
+		}
 	}
 	litos(ptb->dbuf.t_mtime, (Ulong)info->f_mtime, 11);
 	ptb->dbuf.t_linkflag = XTTOUS(info->f_xftype);
@@ -930,9 +940,6 @@ info_to_ustar(info, ptb)
 	register FINFO	*info;
 	register TCB	*ptb;
 {
-/*XXX solaris hat illegalerweise mehr als 12 Bit in t_mode !!!
- *	litos(ptb->dbuf.t_mode, info->f_mode|info->f_type & 0xFFFF, 6);	XXX -> 7 ???
-*/
 /*	strcpy(ptb->ustar_dbuf.t_magic, magic);*/
 	ptb->ustar_dbuf.t_magic[0] = 'u';
 	ptb->ustar_dbuf.t_magic[1] = 's';
@@ -963,6 +970,7 @@ info_to_ustar(info, ptb)
 	if (info->f_rdevmaj > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
 		info->f_xflags |= XF_DEVMAJOR;
 	}
+/* XXX */
 	litos(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 7);
 #if	DEV_MINOR_BITS > 21		/* XXX */
 	/*
@@ -975,14 +983,6 @@ info_to_ustar(info, ptb)
 
 		if (props.pr_flags & PR_XHDR) {
 			info->f_xflags |= XF_DEVMINOR;
-		}
-		if (!is_special(info)) {
-			/*
-			 * Until we know how to deal with this, we reduce
-			 * the number of files that get non POSIX headers.
-			 */
-			info->f_rdevmin = 0;
-			goto doposix;
 		}
 		if ((info->f_rdevmin <= MAXOCTAL8) && hpdev) {
 			char	c;
@@ -1001,14 +1001,12 @@ info_to_ustar(info, ptb)
 			 * XXX devmajor, we need to change llitos() to check
 			 * XXX for 7 char limits too.
 			 */
+/* XXX */
 			btos(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 7);
 		}
 	} else
 #endif
 		{
-#if	DEV_MINOR_BITS > 21
-doposix:
-#endif
 		litos(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 7);
 	}
 }
@@ -1090,6 +1088,7 @@ tcb_to_info(ptb, info)
 	int	ret = 0;
 	char	xname;
 	char	xlink;
+	char	xpfx;
 	Ulong	ul;
 	Ullong	ull;
 	int	xt = XT_BAD;
@@ -1113,6 +1112,8 @@ static	BOOL	modewarn = FALSE;
 	info->f_contoffset = (off_t)0;
 	info->f_flags &= F_HAS_NAME;
 	info->f_fflags = 0L;
+	info->f_nlink = 0;
+	info->f_dir = NULL;
 
 /* XXX JS Test */if (H_TYPE(hdrtype) >= H_CPIO_BASE) {
 /* XXX JS Test */cpiotcb_to_info(ptb, info);
@@ -1264,6 +1265,8 @@ static	BOOL	modewarn = FALSE;
 	ptb->dbuf.t_name[NAMSIZ] = '\0';	/* allow 100 chars in name */
 	xlink = ptb->dbuf.t_linkname[NAMSIZ];
 	ptb->dbuf.t_linkname[NAMSIZ] = '\0';/* allow 100 chars in linkname */
+	xpfx = ptb->dbuf.t_prefix[PFXSIZ];
+	ptb->dbuf.t_prefix[PFXSIZ] = '\0';	/* allow 155 chars in prefix*/
 
 	/*
 	 * Handle long name in posix split form now.
@@ -1273,6 +1276,7 @@ static	BOOL	modewarn = FALSE;
 
 	ptb->dbuf.t_name[NAMSIZ] = xname;	/* restore remembered value */
 	ptb->dbuf.t_linkname[NAMSIZ] = xlink;	/* restore remembered value */
+	ptb->dbuf.t_prefix[PFXSIZ] = xpfx;	/* restore remembered value */
 
 	return (ret);
 }

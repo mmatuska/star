@@ -1,4 +1,4 @@
-/* @(#)xconfig.h.in	1.51 02/05/16 Copyright 1998 J. Schilling */
+/* @(#)xconfig.h.in	1.53 02/06/09 Copyright 1998 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
  *
@@ -175,6 +175,7 @@
 #undef HAVE_STIME		/* stime() is present in libc */
 #undef HAVE_POLL		/* poll() is present in libc */
 #undef HAVE_SELECT		/* select() is present in libc */
+#undef HAVE_CHOWN		/* chown() is present in libc */
 #undef HAVE_LCHOWN		/* lchown() is present in libc */
 #undef HAVE_BRK			/* brk() is present in libc */
 #undef HAVE_SBRK		/* sbrk() is present in libc */
@@ -188,6 +189,7 @@
 #undef HAVE_SEMGET		/* semget() is present in libc */
 #undef HAVE_LSTAT		/* lstat() is present in libc */
 #undef HAVE_READLINK		/* readlink() is present in libc */
+#undef HAVE_SYMLINK		/* symlink() is present in libc */
 #undef HAVE_LINK		/* link() is present in libc */
 #undef HAVE_RENAME		/* rename() is present in libc */
 #undef HAVE_MKFIFO		/* mkfifo() is present in libc */
@@ -230,6 +232,7 @@
 #undef HAVE_FORK		/* fork() is present in libc */
 #undef HAVE_EXECL		/* execl() is present in libc */
 #undef HAVE_EXECLE		/* execle() is present in libc */
+#undef HAVE_EXECLP		/* execlp() is present in libc */
 #undef HAVE_EXECV		/* execv() is present in libc */
 #undef HAVE_EXECVE		/* execve() is present in libc */
 #undef HAVE_EXECVP		/* execvp() is present in libc */

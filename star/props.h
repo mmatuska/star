@@ -1,4 +1,4 @@
-/* @(#)props.h	1.12 01/12/07 Copyright 1994 J. Schilling */
+/* @(#)props.h	1.13 02/06/17 Copyright 1994 J. Schilling */
 /*
  *	Properties definitions to handle different
  *	archive types
@@ -73,6 +73,7 @@ struct properties {
 #define	PR_GNU_SPARSE_BUG	0x0020	/* size does not contain ext. headers*/
 #define	PR_VOLHDR		0x0100	/* can handle volume headers	*/
 #define	PR_XHDR			0x0200	/* POSIX.1-2001 extended headers */
+#define	PR_BASE256		0x0400	/* can handle base 256 for numbers */
 
 /*
  * name related flags

@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.51 02/04/28 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)star_unix.c	1.52 02/06/09 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.51 02/04/28 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)star_unix.c	1.52 02/06/09 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -247,6 +247,7 @@ getinfo(name, info)
 			info->f_rdev = 0;
 			info->f_rdevmaj	= 0;
 			info->f_rdevmin	= 0;
+			info->f_dir = NULL;	/* No directory content known*/
 			break;
 #ifdef	S_IFLNK
 	case S_IFLNK:	/* symbolic link */
@@ -474,10 +475,13 @@ setmodes(info)
 		set_fflags(info);
 #endif
 	if (!nochown && uid == ROOT_UID) {
+
+#if	defined(HAVE_CHOWN) || defined(HAVE_LCHOWN)
 		/*
 		 * Star will not allow non root users to give away files.
 		 */
 		lchown(info->f_name, (int)info->f_uid, (int)info->f_gid);
+#endif
 
 #ifndef	NEW_P_FLAG
 		if ((!is_dir(info) || pflag) && !is_symlink(info) &&
@@ -591,6 +595,7 @@ EXPORT int
 sxsymlink(info)
 	FINFO	*info;
 {
+#ifdef	HAVE_SYMLINK
 	struct	timeval tp[3];
 	struct  timeval curtime;
 	struct  timeval pasttime;
@@ -636,6 +641,10 @@ sxsymlink(info)
 #endif
 	seterrno(errsav);
 	return (ret);
+#else
+	seterrno(EINVAL);
+	return (-1);
+#endif
 }
 
 #ifdef	HAVE_SYS_FILIO_H

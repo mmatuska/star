@@ -1,4 +1,4 @@
-dnl @(#)configure.in	1.50 02/05/19 Copyright 1998 J. Schilling
+dnl @(#)configure.in	1.52 02/06/10 Copyright 1998 J. Schilling
 dnl Process this file with autoconf to produce a configure script.
 AC_REVISION($Revision$)dnl
 
@@ -159,7 +159,7 @@ AC_FUNC_BSD_GETPGRP
 AC_FUNC_BSD_SETPGRP
 AC_CHECK_FUNCS(brk sbrk strerror nice memmove flock lockf fchdir statvfs quotactl)
 AC_CHECK_FUNCS(getcwd shmat semget)
-AC_CHECK_FUNCS(lstat readlink link rename mkfifo mknod)
+AC_CHECK_FUNCS(lstat readlink symlink link rename mkfifo mknod)
 AC_CHECK_FUNCS(setreuid setresuid seteuid setuid)
 AC_CHECK_FUNCS(setregid setresgid setegid setgid)
 AC_CHECK_FUNCS(getpgid setpgid)
@@ -167,10 +167,10 @@ AC_CHECK_FUNCS(getpgrp setpgrp)
 dnl			getspwnam() on HP-UX is in libsec.a
 AC_CHECK_FUNCS(getspnam getspwnam)
 AC_CHECK_FUNCS(sync fsync fork wait4 waitid waitpid getrusage getrlimit setrlimit ulimit)
-AC_CHECK_FUNCS(execl execle execv execve execvp)
+AC_CHECK_FUNCS(execl execle execlp execv execve execvp)
 AC_CHECK_FUNCS(gethostid gethostname getdomainname getpagesize getdtablesize)
 AC_CHECK_FUNCS(gettimeofday settimeofday time stime)
-AC_CHECK_FUNCS(poll select lchown times utimes)
+AC_CHECK_FUNCS(poll select chown lchown times utimes)
 dnl AC_CHECK_FUNCS(ecvt fcvt gcvt)
 AC_CHECK_FUNCS(ecvt_r fcvt_r gcvt_r)
 AC_CHECK_FUNCS(econvert fconvert gconvert)

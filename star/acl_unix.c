@@ -1,7 +1,7 @@
-/* @(#)acl_unix.c	1.8 02/04/20 Copyright 2001 J. Schilling */
+/* @(#)acl_unix.c	1.9 02/06/14 Copyright 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)acl_unix.c	1.8 02/04/20 Copyright 2001 J. Schilling";
+	"@(#)acl_unix.c	1.9 02/06/14 Copyright 2001 J. Schilling";
 #endif
 /*
  *	ACL get and set routines for unix like operating systems.
@@ -693,7 +693,7 @@ set_acls(info)
 
 
 /*
- * Convert UNIX sdtandard mode bits into base ACL
+ * Convert UNIX standard mode bits into base ACL
  */
 LOCAL char *
 base_acl(mode)
@@ -818,6 +818,7 @@ acl_check_ids(acltext, infotext)
 		}
 		strcpy(acltext, token);
 		acltext += strlen(token);
+		*acltext++ = ',';
 
 		token = strtok(NULL, ", \t\n\r");
 	}

@@ -1,7 +1,7 @@
-/* @(#)buffer.c	1.73 02/05/20 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)buffer.c	1.75 02/06/10 Copyright 1985, 1995, 2001 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.73 02/05/20 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)buffer.c	1.75 02/06/10 Copyright 1985, 1995, 2001 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
@@ -201,7 +201,7 @@ opentape()
 			multblk = TRUE;
 		}
 		setbuf(tarf, (char *)NULL);
-#if	defined(__CYGWIN32__)
+#if	defined(__CYGWIN32__) || defined(__CYGWIN__) || defined(__EMX__)
 		setmode(fileno(tarf), O_BINARY);
 #endif
 	} else if (isremote) {
@@ -1123,7 +1123,7 @@ compressopen()
 		else
 			fclose(pp[0]);
 
-#if	defined(__CYGWIN32__)
+#if	defined(__CYGWIN32__) || defined(__CYGWIN__) || defined(__EMX__)
 		if (cflag)
 			setmode(fileno(pp[0]), O_BINARY);
 		else
@@ -1148,6 +1148,9 @@ compressopen()
 		tarf = pp[0];
 		fclose(pp[1]);
 	}
+#if	defined(__CYGWIN32__) || defined(__CYGWIN__) || defined(__EMX__)
+	setmode(fileno(tarf), O_BINARY);
+#endif
 #else
 	comerrno(EX_BAD, "Inline compression not available.\n");
 #endif

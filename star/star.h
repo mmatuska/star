@@ -1,4 +1,4 @@
-/* @(#)star.h	1.62 02/05/11 Copyright 1985, 1995-2001 J. Schilling */
+/* @(#)star.h	1.63 02/06/09 Copyright 1985, 1995-2001 J. Schilling */
 /*
  *	Copyright (c) 1985, 1995-2001 J. Schilling
  */
@@ -484,6 +484,8 @@ typedef	struct	{
 	Ulong	f_umaxlen;	/* Maximale Länge des Usernamens*/
 	char	*f_gname;	/* Group name oder NULL Pointer */
 	Ulong	f_gmaxlen;	/* Maximale Länge des Gruppennamens*/
+	char	*f_dir;		/* Directory Inhalt		*/
+	int	f_dirlen;	/* Extended strlen(f_dir)	*/
 	dev_t	f_dev;		/* Geraet auf dem sich d. Datei befindet */
 	ino_t	f_ino;		/* Dateinummer			*/
 	Ulong	f_nlink;	/* Anzahl der Links		*/

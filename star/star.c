@@ -99,7 +99,7 @@ LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
-char	strvers[] = "1.4";
+char	strvers[] = "1.4.1";
 
 struct star_stats	xstats;
 
@@ -1094,7 +1094,8 @@ addtarfile(tarfile)
 	if (ntarfiles >= NTARFILE)
 		comerrno(EX_BAD, "Too many tar files (max is %d).\n", NTARFILE);
 
-	if (streql(tarfile, "-") || (ntarfiles > 0 && streql(tarfiles[0], "-")))
+/*	if (streql(tarfile, "-") || (ntarfiles > 0 && streql(tarfiles[0], "-")))*/
+	if (ntarfiles > 0 && (streql(tarfile, "-") || streql(tarfiles[0], "-")))
 		comerrno(EX_BAD, "Cannot handle multi volume archives from/to stdin/stdout.\n");
 
 	tarfiles[ntarfiles] = tarfile;

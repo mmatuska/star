@@ -1,4 +1,4 @@
-/* @(#)fexec.c	1.20 02/04/20 Copyright 1985 J. Schilling */
+/* @(#)fexec.c	1.21 02/06/08 Copyright 1985 J. Schilling */
 /*
  *	Execute a program with stdio redirection
  *
@@ -45,6 +45,12 @@
 #include <maxpath.h>
 
 #define	MAX_F_ARGS	16
+
+#ifdef	__EMX__
+#define	PATH_ENV_DELIM	';'
+#else
+#define	PATH_ENV_DELIM	':'
+#endif
 
 extern	char **environ;
 
@@ -217,6 +223,9 @@ int fexecve(name, in, out, err, av, env)
 
 		for(;;) {
 			np = nbuf;
+			/*
+			 * JOS always uses ':' as PATH Environ separator
+			 */
 			while (*path != ':' && *path != '\0'
 			    && np < &nbuf[MAXPATHNAME-nlen-2])
   				*np++ = *path++;
@@ -285,7 +294,7 @@ int fexecve(name, in, out, err, av, env)
 
 		for(;;) {
 			np = nbuf;
-			while (*path != ':' && *path != '\0'
+			while (*path != PATH_ENV_DELIM && *path != '\0'
 			    && np < &nbuf[MAXPATHNAME-nlen-2])
   				*np++ = *path++;
 			*np = '\0';

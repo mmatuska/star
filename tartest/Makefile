@@ -1,17 +1,19 @@
 #ident %W% %E% %Q%
 ###########################################################################
-SRCROOT=	.
-DIRNAME=	SRCROOT
+# Sample makefile for general application programs
+###########################################################################
+SRCROOT=	..
 RULESDIR=	RULES
 include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
-#include		Targetdirs.$(M_ARCH)
-
-DIRS=	conf inc lib libdeflt star mt rmt tartest man
+INSDIR=		bin
+TARGET=		tartest
+#CPPOPTS +=	-Ispecincl
+CFILES=		tartest.c
+LIBS=		-lschily
+XMK_FILE=	Makefile.man
 
 ###########################################################################
-# Due to a bug in SunPRO make we need special rules for the root makefile
-#
-include		$(SRCROOT)/$(RULESDIR)/rules.rdi
+include		$(SRCROOT)/$(RULESDIR)/rules.cmd
 ###########################################################################

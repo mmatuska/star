@@ -1,7 +1,7 @@
-/* @(#)props.c	1.26 02/05/09 Copyright 1994 J. Schilling */
+/* @(#)props.c	1.27 02/06/17 Copyright 1994 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)props.c	1.26 02/05/09 Copyright 1994 J. Schilling";
+	"@(#)props.c	1.27 02/06/17 Copyright 1994 J. Schilling";
 #endif
 /*
  *	Set up properties for different archive types
@@ -63,7 +63,7 @@ setprops(htype)
 
 	case H_STAR:				/* Old star format (1985)    */
 		props.pr_maxsize = 0;
-		props.pr_flags = PR_LOCAL_STAR|PR_SPARSE|PR_VOLHDR;
+		props.pr_flags = PR_LOCAL_STAR|PR_SPARSE|PR_VOLHDR|PR_BASE256;
 		props.pr_xdflags = 0;
 		props.pr_fillc = ' ';		/* Use old tar octal format  */
 		props.pr_xc    = 'x';		/* Use POSIX.1-2001 x-hdr    */
@@ -94,7 +94,7 @@ setprops(htype)
 	case H_EXUSTAR:				/* ext P-2001 format (2001)  */
 		props.pr_maxsize = 0;
 		props.pr_flags =
-			PR_POSIX_OCTAL|PR_LOCAL_STAR|PR_SPARSE|PR_VOLHDR;
+			PR_POSIX_OCTAL|PR_LOCAL_STAR|PR_SPARSE|PR_VOLHDR|PR_BASE256;
 		if (H_TYPE(htype) == H_XUSTAR || H_TYPE(htype) == H_EXUSTAR)
 			props.pr_flags |= PR_XHDR;
 		props.pr_xdflags = 0;
@@ -191,7 +191,7 @@ setprops(htype)
 	case H_GNUTAR:				/* gnu tar format (1989)     */
 		props.pr_maxsize = 0;
 		props.pr_flags =
-			PR_LOCAL_GNU|PR_SPARSE|PR_GNU_SPARSE_BUG|PR_VOLHDR;
+			PR_LOCAL_GNU|PR_SPARSE|PR_GNU_SPARSE_BUG|PR_VOLHDR|PR_BASE256;
 		props.pr_xdflags = 0;
 		props.pr_fillc = ' ';		/* Use old tar octal format  */
 		props.pr_xc    = 'x';		/* Really ??? */
