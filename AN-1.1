@@ -1,6 +1,6 @@
-Newsgroups: comp.unix.admin,comp.unix.misc,alt.os.linux,alt.sys.sun,bln.comp.sun,bln.comp.unix,comp.os.linux.development.apps,comp.os.linux.misc,comp.sys.hp.apps,comp.sys.hp.misc,comp.sys.sgi.admin,comp.sys.sgi.apps,comp.sys.sgi.misc,comp.sys.sun.admin,comp.sys.sun.apps,comp.sys.sun.misc,comp.unix.aix,comp.unix.bsd.freebsd.misc,comp.unix.solaris,de.comp.os.linux.misc,de.comp.os.unix,linux.dev.admin,linux.dev.apps,maus.os.linux,maus.os.linux68k,maus.os.unix,uk.comp.os.linux
+Newsgroups: comp.unix.admin,comp.unix.misc,alt.os.linux,alt.sys.sun,bln.comp.sun,bln.comp.unix,comp.os.linux.development.apps,comp.os.linux.misc,comp.sys.hp.apps,comp.sys.hp.misc,comp.sys.sgi.admin,comp.sys.sgi.apps,comp.sys.sgi.misc,comp.sys.sun.admin,comp.sys.sun.apps,comp.sys.sun.misc,comp.unix.aix,comp.unix.bsd.freebsd.misc,comp.unix.netbsd.misc,comp.unix.solaris,de.comp.os.linux.misc,de.comp.os.unix,linux.dev.admin,linux.dev.apps,maus.os.linux,maus.os.linux68k,maus.os.unix,uk.comp.os.linux
 
-Star, the fastest tar archiver for UNIX is now available in source.
+Star is the fastest tar archiver for UNIX
 
 Star has many improvements compared to other tar 
 imlementations (including gnu tar). See below for a short description
@@ -9,6 +9,25 @@ of the highlight of star.
 Star is located on:
 
 ftp://ftp.fokus.gmd.de/pub/unix/star
+
+Changes since star-1.0:
+	Better manual, better examples in the manual.
+	Add a -xdir flag to force extraction of directories regardless of time stamp.
+	Changed max number of patterns from 10 to 100.
+	First implementation of the -z flag.
+	Don't dump archive if it is a file.
+	Finally implement -C option even working in extract mode.
+	Star now defaults to 100% ansi if it is called as 'ustar'
+		(add ustar hardlink to star)
+	Fifo size may be controlled by STAR_FIFO_SIZE environment
+	Diff behaviour optimized to give less misleading output
+	EOF error messages better for better understanding of GNU tar EOF bug
+	Limit name length for old tar & GNU tar to 99 chars
+	New options -force_remove -ask_remove -remove_first -remove_recursive
+	New option -nullout to get the size of the archive as fast as possible
+	Many speed enhancements: Now using 40% less user CPU time.
+	Bug fix for -sparse (star & xstar format)
+	Compiles again on AIX (use setenv COPTX -DNO_FLOATINGPOINT before)
 
 Revision history (short)
 
@@ -26,7 +45,7 @@ Revision history (short)
 
 Supported platforms:
 
-SunOS 4.x, Solaris (SunOS 5.x), Linux, HP-UX, DG/UX, IRIX, AIX, FreeBSD
+SunOS 4.x, Solaris (SunOS 5.x), Linux, HP-UX, DG/UX, IRIX, AIX, FreeBSD, NetBSD
 
 Joerg
 
@@ -86,8 +105,6 @@ Its main advantages over other tar implementations are:
 	fully ansi compatible	- Star is fully ANSI/Posix 1003.1 compatible.
 				  See README.otherbugs for a complete description
 				  of bugs found in other tar implementations.
-
-This is the first source release of star that I put on the net.
 
 Have a look at the manual page, it is included in the distribution.
 

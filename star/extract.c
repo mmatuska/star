@@ -1,7 +1,7 @@
-/* @(#)extract.c	1.18 97/04/28 Copyright 1985 J. Schilling */
+/* @(#)extract.c	1.21 97/06/14 Copyright 1985 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)extract.c	1.18 97/04/28 Copyright 1985 J. Schilling";
+	"@(#)extract.c	1.21 97/06/14 Copyright 1985 J. Schilling";
 #endif
 /*
  *	extract files from archive
@@ -54,17 +54,19 @@ extern	BOOL	nflag;
 extern	BOOL	interactive;
 extern	BOOL	nodir;
 extern	BOOL	nospec;
+extern	BOOL	xdir;
 extern	BOOL	uncond;
 extern	BOOL	keep_old;
 extern	BOOL	abs_path;
 extern	BOOL	nowarn;
 extern	BOOL	force_hole;
 extern	BOOL	to_stdout;
+extern	BOOL	remove_first;
 
 EXPORT	void	extract		__PR((void));
 EXPORT	BOOL	newer		__PR((FINFO * info));
 LOCAL	BOOL	same_symlink	__PR((FINFO * info));
-LOCAL	BOOL	remove_file	__PR((char* name));
+LOCAL	BOOL	remove_file	__PR((char* name, BOOL isfirst));
 LOCAL	BOOL	create_dirs	__PR((char* name));
 LOCAL	BOOL	make_dir	__PR((FINFO * info));
 LOCAL	BOOL	make_link	__PR((FINFO * info));
@@ -120,9 +122,7 @@ extract()
 							finfo.f_name) ;
 			continue;
 		}
-		/* auch fuer directories ??? */
-/*		if (!is_dir(&finfo) && newer(&finfo)) {*/
-		if (newer(&finfo)) {
+		if (newer(&finfo) && !(xdir && is_dir(&finfo))) {
 			void_file(&finfo);
 			continue;
 		}
@@ -136,6 +136,12 @@ extract()
 			continue;
 		}
 		vprint(&finfo);
+		if (remove_first) {
+			/*
+			 * With keep_old we do not come here.
+			 */ 
+			(void)remove_file(finfo.f_name, TRUE);
+		}
 		if (is_dir(&finfo)) {
 			if (!make_dir(&finfo))
 				continue;
@@ -223,22 +229,31 @@ same_symlink(info)
 }
 
 LOCAL BOOL
-remove_file(name)
+remove_file(name, isfirst)
 	register char	*name;
+		 BOOL	isfirst;
 {
 	char	buf[32];
 	char	ans;
 	int	err = EX_BAD;
 extern	FILE	*tty;
+extern	BOOL	interactive;
+extern	BOOL	force_remove;
+extern	BOOL	ask_remove;
 
-
-	printf("remove ? Y(es)/N(o) :");flush();
-	fgetline(tty, buf, 2);
-	if ((ans = toupper(buf[0])) == 'Y') {
+	if (remove_first && !isfirst)
+		return (FALSE);
+	if (interactive || ask_remove) {
+		printf("remove '%s' ? Y(es)/N(o) :", name);flush();
+		fgetline(tty, buf, 2);
+	}
+	if (force_remove ||
+	    ((interactive || ask_remove) && (ans = toupper(buf[0])) == 'Y')) {
 
 		/*
 		 * only unlink non directories or empty
 		 * directories
+		 * XXX need to implement the -remove_recursive flag
 		 */
 		if (rmdir(name) < 0) {
 			err = geterrno();
@@ -375,7 +390,7 @@ get_file(info)
 	} else if ((f = fileopen(info->f_name, "wctu")) == (FILE *)NULL) {
 		if (geterrno() == EMISSDIR && create_dirs(info->f_name))
 			return get_file(info);
-		if (geterrno() == EACCES && remove_file(info->f_name))
+		if (geterrno() == EACCES && remove_file(info->f_name, FALSE))
 			return get_file(info);
 
 		errmsg("Cannot create '%s'.\n", info->f_name);
@@ -389,7 +404,7 @@ get_file(info)
 	if (force_hole)
 		return (get_forced_hole(f, info));
 
-	xt_file(info, (int(*)__PR((void *, char *, int)))filewrite, f, 0,
+	xt_file(info, (int(*)__PR((void *, char *, int)))ffilewrite, f, 0,
 								"writing");
 
 	if (!to_stdout)

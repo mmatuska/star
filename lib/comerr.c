@@ -1,10 +1,11 @@
-/* @(#)comerr.c	1.16 96/08/21 Copyright 1985 J. Schilling */
+/* @(#)comerr.c	1.17 97/05/03 Copyright 1985 J. Schilling */
 /*
  *	Routines for printing command errors
  *
  *	Copyright (c) 1985 J. Schilling
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -13,12 +14,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <mconfig.h>
 #include <stdio.h>
 #include <standard.h>
 #ifdef	HAVE_STDLIB_H
@@ -29,9 +31,12 @@
 #else
 #include <varargs.h>
 #endif
-
+#ifdef	HAVE_STRERROR
+#include <string.h>
+#else
 extern	char	*sys_errlist[];
 extern	int	sys_nerr;
+#endif
 
 local	int	_comerr __PR((int, int, const char *, va_list));
 
@@ -154,9 +159,13 @@ char *
 errmsgstr(err)
 	int	err;
 {
+#ifdef	HAVE_STRERROR
+	return (strerror(err));
+#else
 	if (err < 0 || err >= sys_nerr) {
 		return (NULL);
 	} else {
 		return (sys_errlist[err]);
 	}
+#endif
 }

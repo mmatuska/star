@@ -1,7 +1,7 @@
-/* @(#)create.c	1.21 97/01/27 Copyright 1985, 1995 J. Schilling */
+/* @(#)create.c	1.28 97/06/14 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)create.c	1.21 97/01/27 Copyright 1985, 1995 J. Schilling";
+	"@(#)create.c	1.28 97/06/14 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
@@ -44,9 +44,17 @@ typedef	struct	links {
 		char	l_name[1];	/* actually longer */
 } LINKS;
 
-LOCAL	LINKS	*links	= (LINKS *) NULL;
+#define	L_HSIZE		256		/* must be a power of two */
+
+#define	l_hash(info)	(((info)->f_ino + (info)->f_dev) & (L_HSIZE-1))
+
+LOCAL	LINKS	*links[L_HSIZE];
 
 extern	FILE	*listf;
+
+extern	long	tape_dev;
+extern	long	tape_ino;
+#define	is_tape(info)		((info)->f_dev == tape_dev && (info)->f_ino == tape_ino)
 
 extern	int	bufsize;
 extern	char	*bigptr;
@@ -56,6 +64,7 @@ extern	Ulong	curfs;
 extern	Ulong	maxsize;
 extern	Ulong	Newer;
 extern	Ulong	tsize;
+extern	BOOL	debug;
 extern	BOOL	nodir;
 extern	BOOL	acctime;
 extern	BOOL	dirmode;
@@ -67,17 +76,19 @@ extern	BOOL	abs_path;
 extern	BOOL	nowarn;
 extern	BOOL	sparse;
 extern	BOOL	Ctime;
+extern	BOOL	nullout;
 
 extern	int	intr;
 
 EXPORT	void	checklinks	__PR((void));
 LOCAL	BOOL	take_file	__PR((char* name, FINFO * info));
 EXPORT	void	create		__PR((char* name));
-LOCAL	void	createi		__PR((char* name, FINFO * info));
+LOCAL	void	createi		__PR((char* name, int namlen, FINFO * info));
 EXPORT	void	createlist	__PR((void));
 EXPORT	BOOL	read_symlink	__PR((char* name, FINFO * info, TCB * ptb));
 LOCAL	BOOL	read_link	__PR((char* name, int namlen, FINFO * info,
 								TCB * ptb));
+LOCAL	int	nullread	__PR((void *vp, char *cp, int amt));
 EXPORT	void	put_file	__PR((FILE * f, FINFO * info));
 EXPORT	void	cr_file		__PR((FINFO * info,
 					int (*)(void *, char *, int),
@@ -89,10 +100,33 @@ EXPORT void
 checklinks()
 {
 	register LINKS	*lp;
+	register int	i;
+	register int	used	= 0;
+	register int	curlen;
+	register int	maxlen	= 0;
+	register int	nlinks	= 0;
 
-	for(lp = links; lp != (LINKS *)NULL; lp = lp->l_next)
-		if (lp->l_nlink != 0)
-			errmsgno(BAD, "Missing links to '%s'.\n", lp->l_name);
+	for(i=0; i < L_HSIZE; i++) {
+		if (links[i] == (LINKS *)NULL)
+			continue;
+
+		curlen = 0;
+		used++;
+
+		for(lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
+			curlen++;
+			nlinks++;
+			if (lp->l_nlink != 0)
+				errmsgno(BAD, "Missing links to '%s'.\n",
+								lp->l_name);
+		}
+		if (maxlen < curlen)
+			maxlen = curlen;
+	}
+	if (debug) {
+		errmsgno(BAD, "hardlinks: %d hashents: %d/%d maxlen: %d\n",
+						nlinks, used, L_HSIZE, maxlen);
+	}
 }
 
 LOCAL BOOL
@@ -114,6 +148,9 @@ take_file(name, info)
 	} else if (is_special(info) && nospec) {
 		errmsgno(BAD, "'%s' is not a file. Not dumped.\n", name) ;
 		return (FALSE);
+	} else if (is_tape(info)) {
+		errmsgno(BAD, "'%s' is the archive. Not dumped.\n", name) ;
+		return (FALSE);
 	}
 	return (TRUE);
 }
@@ -132,12 +169,13 @@ create(name)
 	if (!getinfo(name, info))
 		errmsg("Cannot stat '%s'.\n", name);
 	else
-		createi(name, info);
+		createi(name, strlen(name), info);
 }
 
 LOCAL void
-createi(name, info)
+createi(name, namlen, info)
 	register char	*name;
+		 int	namlen;
 	register FINFO	*info;
 {
 		char	lname[PATH_MAX+1];
@@ -146,9 +184,7 @@ createi(name, info)
 		FILE	*f		= (FILE *)0;
 		BOOL	was_link	= FALSE;
 		BOOL	do_sparse	= FALSE;
-		int	namlen		= strlen(name);
 
-	fillbytes((char *)ptb, TBLOCK, '\0');
 	info->f_name = name;	/* XXX Das ist auch in getinfo !!!?!!! */
 	info->f_namelen = namlen;
 #ifdef	nonono_NICHT_BEI_CREATE	/* XXX */
@@ -165,7 +201,19 @@ createi(name, info)
 #endif	/* nonono_NICHT_BEI_CREATE	XXX */
 	info->f_lname = lname;	/*XXX nur Übergangsweise!!!!!*/
 	info->f_lnamelen = 0;
+
+	if (info->f_namelen <= props.pr_maxsname) {
+		/*
+		 * Allocate TCB from the buffer to avoid copying TCB
+		 * in the most frequent case.
+		 * Only very long names will cause that we have to
+		 * write out data before we can write the TCB.
+		 */
+		ptb = (TCB *)get_block();
+		info->f_flags |= F_TCB_BUF;
+	}
 	info->f_tcb = ptb;
+	fillbytes((char *)ptb, TBLOCK, '\0');
 	if (!name_to_tcb(info, ptb))	/* Name too long */
 		return;
 
@@ -178,11 +226,18 @@ createi(name, info)
 		printf("Skipping ...\n");
 	else if (is_symlink(info) && !read_symlink(name, info, ptb))
 		;
-	else if (is_file(info) &&
-			(f = fileopen(name,"ru")) == (FILE *)NULL &&
-							info->f_size != 0)
+	else if (is_file(info) && info->f_size != 0 && !nullout &&
+#ifdef	OLD_OPEN
+				(f = fileopen(name,"ru")) == (FILE *)NULL) {
+#else
+				/*
+				 * Avoid calling setbuf to speed up open.
+				 * We don't need it when using ffileread()
+				 */
+				(f = fileopen(name,"r")) == (FILE *)NULL) {
+#endif
 		errmsg("Cannot open '%s'.\n", name);
-	else {
+	} else {
 		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
 			was_link = TRUE;
 
@@ -191,6 +246,12 @@ createi(name, info)
 
 		do_sparse = (info->f_flags & F_SPARSE) && sparse &&
 						props.pr_flags & PR_SPARSE;
+
+		if (do_sparse && nullout &&
+				(f = fileopen(name,"r")) == (FILE *)NULL) {
+			errmsg("Cannot open '%s'.\n", name);
+			return;
+		}
 
 		if (was_link || !do_sparse) {
 			put_tcb(ptb, info);
@@ -266,17 +327,17 @@ read_symlink(name, info, ptb)
 		errmsgno(BAD, "%s: Symbolic link too long.\n", name);
 		return (FALSE);
 	}
-	if (len > NAMSIZ)
+	if (len > props.pr_maxslname)
 		info->f_flags |= F_LONGLINK;
 	/*
 	 * string from readlink is not null terminated
 	 */
 	info->f_lname[len] = '\0';
 	/*
-	 * if linkname is not longer than NAMSIZ
+	 * if linkname is not longer than props.pr_maxslname
 	 * that's all to do with linkname
 	 */
-	strncpy(ptb->dbuf.t_linkname, info->f_lname, NAMSIZ);
+	strncpy(ptb->dbuf.t_linkname, info->f_lname, props.pr_maxslname);
 	return (TRUE);
 }
 
@@ -288,15 +349,20 @@ read_link(name, namlen, info, ptb)
 	TCB	*ptb;
 {
 	register LINKS	*lp;
+	register LINKS	**lpp;
+		 int	i = l_hash(info);
 
-	for (lp = links; lp != (LINKS *)NULL; lp = lp->l_next) {
+	lp = links[i];
+	lpp = &links[i];
+
+	for (; lp != (LINKS *)NULL; lp = lp->l_next) {
 		if (lp->l_ino == info->f_ino && lp->l_dev == info->f_dev) {
 			if (lp->l_namlen > props.pr_maxlnamelen) {
 				errmsgno(BAD, "%s: Link name too long.\n",
 								lp->l_name);
 				return (TRUE);
 			}
-			if (lp->l_namlen > NAMSIZ)
+			if (lp->l_namlen > props.pr_maxslname)
 				info->f_flags |= F_LONGLINK;
 			if (--lp->l_nlink < 0) {
 				if (!nowarn)
@@ -305,10 +371,11 @@ read_link(name, namlen, info, ptb)
 						lp->l_name, lp->l_nlink);
 			}
 			/*
-			 * if linkname is not longer than NAMSIZ
+			 * if linkname is not longer than props.pr_maxslname
 			 * that's all to do with linkname
 			 */
-			strncpy(ptb->dbuf.t_linkname, lp->l_name, NAMSIZ);
+			strncpy(ptb->dbuf.t_linkname, lp->l_name,
+							props.pr_maxslname);
 			info->f_lname = lp->l_name;
 			info->f_lnamelen = lp->l_namlen;
 			info->f_xftype = XT_LINK;
@@ -325,8 +392,8 @@ read_link(name, namlen, info, ptb)
 	if ((lp = (LINKS *)malloc(sizeof(*lp)+namlen)) == (LINKS *)NULL) {
 		errmsg("Cannot alloc new link for '%s'.\n", name);
 	} else {
-		lp->l_next = links;
-		links = lp;
+		lp->l_next = *lpp;
+		*lpp = lp;
 		lp->l_ino = info->f_ino;
 		lp->l_dev = info->f_dev;
 		lp->l_nlink = info->f_nlink - 1;
@@ -336,14 +403,27 @@ read_link(name, namlen, info, ptb)
 	return (FALSE);
 }
 
+LOCAL int
+nullread(vp, cp, amt)
+	void	*vp;
+	char	*cp;
+	int	amt;
+{
+	return (amt);
+}
+
 EXPORT void
 put_file(f, info)
 	register FILE	*f;
 	register FINFO	*info;
 {
-	file_raise(f, FALSE);
-	cr_file(info, (int(*)__PR((void *, char *, int)))fileread, f, 0,
-								"reading");
+	if (nullout) {
+		cr_file(info, (int(*)__PR((void *, char *, int)))nullread,
+							f, 0, "reading");
+	} else {
+		cr_file(info, (int(*)__PR((void *, char *, int)))ffileread,
+							f, 0, "reading");
+	}
 }
 
 EXPORT void
@@ -358,6 +438,7 @@ cr_file(info, func, arg, amt, text)
 	register int	blocks;
 	register long	size;
 	register int	i = 0;
+	register int	n;
 
 	size = info->f_rsize;
 	if ((blocks = tarblocks(info->f_rsize)) == 0)
@@ -366,18 +447,22 @@ cr_file(info, func, arg, amt, text)
 		amt = bufsize;
 	do {
 		amount = buf_wait(TBLOCK);
-		amount = min(blocks*TBLOCK, amount);
 		amount = min(amount, amt);
 
 		if ((i = (*func)(arg, bigptr, max(amount, TBLOCK))) <= 0)
 			break;
 
 		size -= i;
-		buf_wake(amount);
-	} while ((blocks -= amount/TBLOCK) >= 0);
+		if (size < 0) {			/* File increased in size */
+			n = tarblocks(size+i);	/* use expected size only */
+		} else {
+			n = tarblocks(i);
+		}
+		buf_wake(n*TBLOCK);
+	} while ((blocks -= n) >= 0 && i == amount && size >= 0);
 	if (i < 0)
 		errmsg("Error %s '%s'.\n", text, info->f_name);
-	else if (blocks != 0 || size != 0)
+	else if ((blocks != 0 || size != 0) && func != nullread)
 		errmsgno(BAD, "'%s': file changed size.\n", info->f_name);
 	while(--blocks >= 0)
 		writeempty();
@@ -458,10 +543,14 @@ put_dir(dname, namlen, info, ptb)
 				strcpy(xdname, dir->d_name);
 				name = fname;
 
-				if (name[0] == '.' && name[1] == '/')
+				if (name[0] == '.' && name[1] == '/') {
 					for (name++; name[0] == '/'; name++);
-				if (name[0] == '\0')
+					xlen -= name - fname;
+				}
+				if (name[0] == '\0') {
 					name = ".";
+					xlen = 1;
+				}
 				if (!getinfo(name, ninfo)) {
 					errmsg("Cannot stat '%s'.\n", name);
 					continue;
@@ -477,7 +566,7 @@ put_dir(dname, namlen, info, ptb)
 					 */
 					closedir(d);
 				}
-				createi(name, ninfo);
+				createi(name, xlen, ninfo);
 				if (is_dir(ninfo) && depth <= 0) {
 					if (!(d = opendir(dname))) {
 						errmsg("Cannot open '%s'.\n",

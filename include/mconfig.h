@@ -1,4 +1,4 @@
-/* @(#)mconfig.h	1.11 97/04/28 Copyright 1995 J. Schilling */
+/* @(#)mconfig.h	1.15 97/06/03 Copyright 1995 J. Schilling */
 /*
  *	definitions for machine configuration
  *
@@ -91,10 +91,18 @@ extern "C" {
  *			and open(), creat(), fcntl() prototypes
  *			use sys/file.h otherwise for above constants
  *
+ * define HAVE_DIRENT_H	to use dirent.h instead of the old BSD sys/dir.h
+ * define HAVE_SYS_DIR_H to use the old BSD sys/dir.h, otherwise no readdir()
+ * define HAVE_NDIR_H	to use ndir.h
+ * define HAVE_SYS_NDIR_H to use sys/ndir.h
+ *
  * define HAVE_TERMIOS_H to use posix terminal and session control (termios.h)
  * define HAVE_TERMIO_H	to use SV terminal control (termio.h) *- no setpgrp -*
  *			Else use BSD style sgttyb and setpgrp (ioctl.h)
  *			XXX session control should be another define XXX
+ * 
+ * define HAVE_SYS_TIME_H may include sys/time.h for struct timeval
+ *			used internally in timedefs.h
  *
  * define HAVE_UTIMES	to use BSD utimes() and sys/time.h
  * define HAVE_UTIME_H	to use utime.h for the utimbuf structure declaration
@@ -135,6 +143,10 @@ extern "C" {
  *			f->_ptr			... pointer into buf
  *			_filbuf(FILE * f)	... fill buffer, return 1st ch
  *			_flsbuf(unsigned char *, FILE * f) ... flush buffer
+ *
+ * define HAVE_STRERROR	may use strerror() instead of sys_errlist[] and sys_nerr
+ *
+ * define HAVE_MEMMOVE	should use memmove() instead of bcopy()
  *
  * define HAVE_MMAP	may map memory (sys/types.h + sys/mman.h)
  * define HAVE_SMMAP	may map anonymous memory to get shared mem
@@ -264,8 +276,11 @@ extern "C" {
 #	define	HAVE_STRING_H
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
+#	define	HAVE_SYS_DIR_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 #	define	HAVE_SYS_WAIT_H
@@ -314,14 +329,18 @@ extern "C" {
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 #	define	HAVE_SYS_WAIT_H
 #	define	HAVE_SYS_UTSNAME_H
 #	define	MAJOR_IN_SYSMACROS
 /*#	define	HAVE_USG_STDIO*/
+#	define	HAVE_STRERROR
+/*#	define	HAVE_MEMMOVE*/
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -354,6 +373,7 @@ extern "C" {
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
 #	define	HAVE_SYS_TIME_H
@@ -370,6 +390,8 @@ extern "C" {
 #	define	HAVE_MTGET_BLKNO
 #	define	MAJOR_IN_MKDEV
 #	define	HAVE_USG_STDIO
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -401,6 +423,7 @@ extern "C" {
 #	define	HAVE_STDARG_H
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_UTIME_H
 #	define	HAVE_MSEM
@@ -453,6 +476,7 @@ extern "C" {
 #	endif
 #	define	HAVE_STDLIB_H
 #	define	HAVE_UNISTD_H
+#	define	HAVE_SYS_DIR_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_UTIME_H
 #	define	HAVE_USGSHM
@@ -473,13 +497,17 @@ extern "C" {
 #	define	HAVE_STDARG_H
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIME_H
 #	define	HAVE_SYS_WAIT_H
 #	define	HAVE_SYS_UTSNAME_H
 #	define	HAVE_SYS_MTIO_H
 #	define	MAJOR_IN_SYSMACROS
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -510,6 +538,7 @@ extern "C" {
 #	define	HAVE_ELF
 #	define	HAVE_STDARG_H
 #	define	HAVE_UNISTD_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
@@ -521,6 +550,8 @@ extern "C" {
 #	define	mt_type		mt_model
 #	define	mt_dsreg	mt_status1
 #	define	mt_erreg	mt_status2
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_USGSEM
 #	if defined(__i386_) || defined(i386)
 #		define	HAVE_XCHG
@@ -604,8 +635,10 @@ extern "C" {
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 /*#	define	HAVE_WAIT_H*/
@@ -617,6 +650,8 @@ extern "C" {
 #	define	HAVE_MTGET_FILENO
 #	define	HAVE_MTGET_BLKNO
 #	define	MAJOR_IN_SYSMACROS
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 /*#	define	HAVE_SMMAP*/
 #	define	HAVE_USGSHM
@@ -650,7 +685,9 @@ extern "C" {
 #	define	HAVE_STDARG_H
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 #	define	HAVE_MSEM
@@ -667,9 +704,9 @@ extern "C" {
 #endif
 
 /*
- * Prototype for FreeBSD
+ * Prototype for FreeBSD and NetBSD
  */
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 #	define	NO_FLOATINGPOINT/* No support for nonstd floatingpoint */
 #	define	PROTOTYPES
 #	define	HAVE_AOUT
@@ -681,7 +718,9 @@ extern "C" {
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 #	define	HAVE_SYS_WAIT_H
@@ -692,6 +731,8 @@ extern "C" {
 #	define	HAVE_MTGET_FILENO
 #	define	HAVE_MTGET_BLKNO
 /*#	define	HAVE_USG_STDIO*/
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -740,8 +781,10 @@ extern "C" {
 #	endif
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIME_H
 #	define	HAVE_WAIT_H
 #	define	HAVE_SYS_WAIT_H
@@ -756,6 +799,8 @@ extern "C" {
 #	define	HAVE_MTGET_BLKNO
 #	define	MAJOR_IN_MKDEV
 #	define	HAVE_USG_STDIO
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -806,8 +851,13 @@ extern "C" {
 #	define	HAVE_LONGLONG
 #	define	HAVE_UNISTD_H
 #	define	HAVE_FCNTL_H
+#	define	HAVE_DIRENT_H
+#	define	HAVE_SYS_DIR_H
+#	define	HAVE_NDIR_H
+#	define	HAVE_SYS_NDIR_H
 #	define	HAVE_TERMIOS_H
 #	define	HAVE_TERMIO_H
+#	define	HAVE_SYS_TIME_H
 #	define	HAVE_UTIMES
 #	define	HAVE_UTIME_H
 #	define	HAVE_WAIT_H
@@ -824,6 +874,8 @@ extern "C" {
 #	define	MAJOR_IN_MKDEV
 #	define	MAJOR_IN_SYSMACROS
 #	define	HAVE_USG_STDIO
+#	define	HAVE_STRERROR
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM

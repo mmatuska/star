@@ -1,4 +1,4 @@
-/* @(#)dir.h	1.3 96/06/26 Copyright 1987 J. Schilling */
+/* @(#)dir.h	1.4 97/06/03 Copyright 1987 J. Schilling */
 /*
  *	Copyright (c) 1987 J. Schilling
  */
@@ -32,7 +32,7 @@
 #	ifndef	BSD4_2
 #		define	direct	_direct
 #	endif
-#	ifdef	SVR4
+#	ifdef	HAVE_DIRENT_H
 #		include <dirent.h>
 #		define	direct	dirent
 #	else

@@ -1,4 +1,4 @@
-/* @(#)star.h	1.21 97/04/27 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.h	1.23 97/06/15 Copyright 1985, 1995 J. Schilling */
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
  */
@@ -370,7 +370,9 @@ typedef	struct	{
 #define	F_LONGLINK	0x02	/* Langer Linkname passt nicht in Header*/
 #define	F_SPLIT_NAME	0x04	/* Langer Name wurde gesplitted		*/
 #define	F_HAS_NAME	0x08	/* Langer Name in f_name soll bleiben	*/
-#define	F_SPARSE	0x10	/* Datei enthält Löcher		*/
+#define	F_SPARSE	0x10	/* Datei enthält Löcher			*/
+#define	F_TCB_BUF	0x20	/* TCB ist/war vom Buffer alloziert	*/
+#define	F_ADDSLASH	0x40	/* Langer Name benötigt Slash am Ende	*/
 
 #define	F_SPEC	0
 #define	F_FILE	1
@@ -382,6 +384,9 @@ typedef	struct	{
 #define	is_symlink(i)	((i)->f_filetype == F_SLINK)
 #define	is_dir(i)	((i)->f_filetype == F_DIR)
 
+#define	is_bdev(i)	((i)->f_xftype == XT_BLK)
+#define	is_cdev(i)	((i)->f_xftype == XT_CHR)
+#define	is_dev(i)	(is_bdev(i) || is_cdev(i))
 #define	is_link(i)	((i)->f_xftype == XT_LINK)
 #define	is_volhdr(i)	((i)->f_xftype == XT_VOLHDR)
 #define	is_sparse(i)	((i)->f_xftype == XT_SPARSE)
@@ -392,6 +397,20 @@ typedef	struct	{
 #define	toupper(c)	(isupper(c) ? (c) : (c) - ('a' - 'A'))
 #define	max(a,b)	((a) < (b) ? (b) : (a))
 #define	min(a,b)	((a) < (b) ? (a) : (b))
+
+
+struct star_stats {
+	int	s_staterrs;
+	int	s_readerrs;
+	int	s_openerrs;
+	int	s_toolong;
+	int	s_toobig;
+	int	s_isspecial;
+	int	s_sizeerrs;
+};
+
+extern	struct	star_stats	xstats;
+
 
 #ifdef	JOS
 #	define	BAD	(1)

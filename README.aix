@@ -1,0 +1,6 @@
+There is currently a problem with the macros isinf()/isnan()
+on AIX. To go around this problem do:
+
+setenv COPTX -DNO_FLOATINGPOINT
+
+before making star.

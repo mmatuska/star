@@ -20,7 +20,7 @@ DEFCCOM=	cc
 
 DEFINCDIRS=	$(SRCROOT)/include
 LDPATH=		-L/opt/schily/lib
-#RUNPATH=	-R /opt/schily/lib	Will probably not work
+#RUNPATH=	-R /opt/schily/lib -R $(OLIBSDIR)	Will probably not work
 
 ###########################################################################
 #

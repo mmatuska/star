@@ -1,4 +1,4 @@
-/* @(#)starsubs.h	1.1 96/06/13 Copyright 1996 J. Schilling */
+/* @(#)starsubs.h	1.3 97/06/14 Copyright 1996 J. Schilling */
 /*
  *	Prototypes for star subroutines
  *
@@ -38,6 +38,8 @@ extern	void	initbuf		__PR((int nblocks));
 extern	void	syncbuf		__PR((void));
 extern	int	readblock	__PR((char* buf));
 extern	int	readtape	__PR((char* buf, int amount));
+extern	void	*get_block	__PR((void));
+extern	void	put_block	__PR((void));
 extern	void	writeblock	__PR((char* buf));
 extern	int	writetape	__PR((char* buf, int amount));
 extern	void	writeempty	__PR((void));
@@ -192,6 +194,9 @@ extern	struct	mtget* rmtstatus	__PR((int fd));
  * star_unix.c
  */
 extern	BOOL	getinfo		__PR((char* name, FINFO * info));
+#ifdef	EOF
+extern	void	checkarch	__PR((FILE *f));
+#endif
 extern	void	setmodes	__PR((FINFO * info));
 extern	int	sxsymlink	__PR((FINFO * info));
 #ifdef	EOF

@@ -1,7 +1,7 @@
-/* @(#)longnames.c	1.13 96/06/26 Copyright 1993, 1995 J. Schilling */
+/* @(#)longnames.c	1.16 97/05/30 Copyright 1993, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)longnames.c	1.13 96/06/26 Copyright 1993, 1995 J. Schilling";
+	"@(#)longnames.c	1.16 97/05/30 Copyright 1993, 1995 J. Schilling";
 #endif
 /*
  *	Handle filenames that cannot fit into a single
@@ -36,6 +36,7 @@ static	char sccsid[] =
 typedef struct {
 	char	*m_name;
 	int	m_size;
+	int	m_add;
 } move_t;
 
 LOCAL	void	enametoolong	__PR((char* name, int len, int maxlen));
@@ -47,7 +48,8 @@ LOCAL	int	move_from_name	__PR((move_t * move, char* p, int amount));
 LOCAL	int	move_to_name	__PR((move_t * move, char* p, int amount));
 EXPORT	int	tcb_to_longname	__PR((TCB * ptb, FINFO * info));
 EXPORT	void	write_longnames	__PR((FINFO * info));
-LOCAL	void	put_longname	__PR((char* name, int namelen, char* tname,
+LOCAL	void	put_longname	__PR((FINFO * info,
+					char* name, int namelen, char* tname,
 							Ulong  xftype));
 
 LOCAL void
@@ -70,13 +72,16 @@ split_posix_name(name, namlen, add)
 	register char	*low;
 	register char	*high;
 
-	if (namlen+add > props.pr_maxprefix+1+NAMSIZ) {
-		if (props.pr_maxnamelen <= NAMSIZ)
+	if (namlen+add > props.pr_maxprefix+1+props.pr_maxsname) {
+		/*
+		 * Cannot split
+		 */
+		if (props.pr_maxnamelen <= props.pr_maxsname) /* No longnames*/
 			enametoolong(name, namlen+add,
-						props.pr_maxprefix+1+NAMSIZ);
+				props.pr_maxprefix+1+props.pr_maxsname);
 		return (NULL);
 	}
-	low = &name[namlen+add - NAMSIZ];
+	low = &name[namlen+add - props.pr_maxsname];
 	if (--low < name)
 		low = name;
 	high = &name[props.pr_maxprefix>namlen ? namlen:props.pr_maxprefix];
@@ -90,7 +95,7 @@ error("low: %d:%s high: %d:'%c',%s\n",
 		if (*high == '/')
 			break;
 	if (high < low) {
-		if (props.pr_maxnamelen <= NAMSIZ)
+		if (props.pr_maxnamelen <= props.pr_maxsname)
 			errmsgno(BAD, "%s: Name too long (cannot split)\n",
 									name);
 		return (NULL);
@@ -103,7 +108,7 @@ error("solved: add: %d prefix: %d suffix: %d\n",
 }
 
 /*
- * Es ist sichergestelt, daß namelen > 1 ist.
+ * Es ist sichergestelt, daß namelen >= 1 ist.
  */
 EXPORT BOOL
 name_to_tcb(info, ptb)
@@ -121,8 +126,11 @@ name_to_tcb(info, ptb)
 	if (is_dir(info) && name[namelen-1] != '/')
 		add++;
 
-	if ((namelen+add) <= NAMSIZ) {
-		strcatl(ptb->dbuf.t_name, name, add ? "/":"", (char *)NULL);
+	if ((namelen+add) <= props.pr_maxsname) {	/* Fits in shortname */
+		if (add)
+			strcatl(ptb->dbuf.t_name, name, "/", (char *)NULL);
+		else
+			strcpy(ptb->dbuf.t_name, name);
 		return (TRUE);
 	}
 
@@ -134,11 +142,9 @@ name_to_tcb(info, ptb)
 		 */
 		if (namelen+add <= props.pr_maxnamelen) {
 			info->f_flags |= F_LONGNAME;
-			if (add) {
-				name[info->f_namelen++] = '/';
-				name[info->f_namelen] = '\0';
-			}
-			strncpy(ptb->dbuf.t_name, name, NAMSIZ);
+			if (add)
+				info->f_flags |= F_ADDSLASH;
+			strncpy(ptb->dbuf.t_name, name, props.pr_maxsname);
 			return (TRUE);
 		} else {
 			enametoolong(name, namelen+add, props.pr_maxnamelen);
@@ -146,7 +152,10 @@ name_to_tcb(info, ptb)
 		}
 	}
 
-	strcatl(ptb->dbuf.t_name, &np[1], add ? "/":"", (char *)NULL);
+	if (add)
+		strcatl(ptb->dbuf.t_name, &np[1], "/", (char *)NULL);
+	else
+		strcpy(ptb->dbuf.t_name, &np[1]);
 	strncpy(ptb->dbuf.t_prefix, name, np - name);
 	info->f_flags |= F_SPLIT_NAME;
 	return (TRUE);
@@ -185,11 +194,14 @@ tcb_undo_split(ptb, info)
 	info->f_flags &= ~F_SPLIT_NAME;
 	info->f_flags |= F_LONGNAME;
 
-	strncpy(ptb->dbuf.t_name, info->f_name, NAMSIZ);
+	strncpy(ptb->dbuf.t_name, info->f_name, props.pr_maxsname);
 }
 
 #define	vp_move_from_name ((int(*)__PR((void *, char *, int)))move_from_name)
 
+/*
+ * Move name from archive.
+ */
 LOCAL int
 move_from_name(move, p, amount)
 	move_t	*move;
@@ -204,6 +216,9 @@ move_from_name(move, p, amount)
 
 #define	vp_move_to_name	((int(*)__PR((void *, char *, int)))move_to_name)
 
+/*
+ * Move name to archive.
+ */
 LOCAL int
 move_to_name(move, p, amount)
 	move_t	*move;
@@ -215,6 +230,15 @@ move_to_name(move, p, amount)
 	movebytes(move->m_name, p, amount);
 	move->m_name += amount;
 	move->m_size -= amount;
+	if (move->m_add) {
+		if (move->m_size == 1) {
+			p[amount-1] = '/';
+		} else if (move->m_size == 0) {
+			if (amount > 1)
+				p[amount-2] = '/';
+			p[amount-1] = '\0';
+		}
+	}
 	return (amount);
 }
 
@@ -261,33 +285,44 @@ EXPORT void
 write_longnames(info)
 	register FINFO	*info;
 {
-	if (info->f_namelen > NAMSIZ) {
-		put_longname(info->f_name, info->f_namelen+1,
+	/*
+	 * XXX Should test for F_LONGNAME & F_FLONGLINK
+	 */
+	if (info->f_namelen > props.pr_maxsname) {
+		put_longname(info, info->f_name, info->f_namelen+1,
 						"././@LongName", XT_LONGNAME);
 	}
-	if (info->f_lnamelen > NAMSIZ) {
-		put_longname(info->f_lname, info->f_lnamelen+1,
+	if (info->f_lnamelen > props.pr_maxslname) {
+		put_longname(info, info->f_lname, info->f_lnamelen+1,
 						"././@LongLink", XT_LONGLINK);
 	}
 }
 
 LOCAL void
-put_longname(name, namelen, tname, xftype)
+put_longname(info, name, namelen, tname, xftype)
+	FINFO	*info;
 	char	*name;
 	int	namelen;
 	char	*tname;
 	Ulong	xftype;
 {
 	FINFO	finfo;
-	TCB	tb;
-	TCB	*ptb	= &tb;
+	TCB	*ptb;
 	move_t	move;
 
 	fillbytes((char *)&finfo, sizeof(finfo), '\0');
+
+	ptb = (TCB *)get_block();
+	finfo.f_flags |= F_TCB_BUF;
 	fillbytes((char *)ptb, TBLOCK, '\0');
 
 	strcpy(ptb->dbuf.t_name, tname);
 
+	move.m_add = 0;
+	if ((info->f_flags & F_ADDSLASH) != 0 && xftype == XT_LONGNAME) {
+		move.m_add = 1;
+		namelen++;
+	}
 	finfo.f_rsize = finfo.f_size = namelen;
 	finfo.f_xftype = xftype;
 	info_to_tcb(&finfo, ptb);

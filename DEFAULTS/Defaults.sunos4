@@ -20,7 +20,7 @@ CWARNOPTS=
 
 DEFINCDIRS=	$(SRCROOT)/include
 LDPATH=		-L/opt/schily/lib
-#RUNPATH=	-R /opt/schily/lib	Will not work on SunOS
+#RUNPATH=	-R /opt/schily/lib -R $(OLIBSDIR)	Will not work on SunOS
 
 ###########################################################################
 #

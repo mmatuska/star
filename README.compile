@@ -62,7 +62,7 @@ that contains:
 #!/bin/sh
 MAKEPROG=gmake
 export MAKEPROG
-exec gmake $@
+exec gmake "$@"
 
 and call 'Gmake' instead of gmake.
 

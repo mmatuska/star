@@ -1,7 +1,7 @@
-/* @(#)list.c	1.19 97/04/28 Copyright 1985, 1995 J. Schilling */
+/* @(#)list.c	1.20 97/06/14 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)list.c	1.19 97/04/28 Copyright 1985, 1995 J. Schilling";
+	"@(#)list.c	1.20 97/06/14 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	List the content of an archive
@@ -35,6 +35,7 @@ static	char sccsid[] =
 #include "starsubs.h"
 
 extern	FILE	*tarf;
+extern	FILE	*vpr;
 extern	char	*listfile;
 
 extern	int	npat;
@@ -158,7 +159,7 @@ list_file(info)
 	static	char	nuid[11];
 	static	char	ngid[11];
 
-	f = tarf == stdout ? stderr : stdout;
+	f = vpr;
 	if (verbose) {
 		tp = (time_t *) (acctime ? &info->f_atime :
 				(Ctime ? &info->f_ctime : &info->f_mtime));
@@ -224,7 +225,7 @@ vprint(info)
 	char	*mode;
 
 	if (verbose || interactive) {
-		f = tarf == stdout ? stderr : stdout;
+		f = vpr;
 
 		if (cflag)
 			mode = "a ";

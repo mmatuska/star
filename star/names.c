@@ -1,7 +1,7 @@
-/* @(#)names.c	1.5 96/06/26 Copyright 1993 J. Schilling */
+/* @(#)names.c	1.6 97/05/29 Copyright 1993 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)names.c	1.5 96/06/26 Copyright 1993 J. Schilling";
+	"@(#)names.c	1.6 97/05/29 Copyright 1993 J. Schilling";
 #endif
 /*
  *	Handle user/group names for archive hheader
@@ -68,10 +68,11 @@ nameuid(name, namelen, uid)
 
 		if ((pw = getpwuid(uid)) != NULL) {
 			strncpy(lastuname, pw->pw_name, TUNMLEN);
+			lastuname[namelen-1] = 0;
 		}
 		uvalid = 1;	/* force not to look again for invalid uid */
 	}
-	strncpy(name, lastuname, namelen>TUNMLEN?TUNMLEN:namelen);
+	strcpy(name, lastuname);
 	return (name[0] != '\0');
 }
 
@@ -128,10 +129,11 @@ namegid(name, namelen, gid)
 
 		if ((gr = getgrgid(gid)) != NULL) {
 			strncpy(lastgname, gr->gr_name, TGNMLEN);
+			lastgname[namelen-1] = 0;
 		}
 		gvalid = TRUE;	/* force not to look again for invalid gid */
 	}
-	strncpy(name, lastgname, namelen>TGNMLEN?TGNMLEN:namelen);
+	strcpy(name, lastgname);
 	return (name[0] != '\0');
 }
 

@@ -1,7 +1,7 @@
-/* @(#)diff.c	1.19 96/06/26 Copyright 1993 J. Schilling */
+/* @(#)diff.c	1.24 97/06/15 Copyright 1993 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)diff.c	1.19 96/06/26 Copyright 1993 J. Schilling";
+	"@(#)diff.c	1.24 97/06/15 Copyright 1993 J. Schilling";
 #endif
 /*
  *	List differences between a (tape) archive and
@@ -52,10 +52,12 @@ extern	int	bigsize;
 extern	char	*bigptr;
 
 extern	int	npat;
+extern	long	hdrtype;
 extern	BOOL	debug;
 extern	BOOL	no_stats;
 extern	BOOL	abs_path;
 extern	BOOL	verbose;
+extern	BOOL	tpath;
 extern	BOOL	interactive;
 
 EXPORT	void	diff		__PR((void));
@@ -162,10 +164,18 @@ diff_tcb(info)
 			diffs |= D_GNAME;
 	}
 
-/*XXX hier kann es bei ustar/cpio inkompatibel werden! */
+	/*
+	 * XXX hier kann es bei ustar/cpio inkompatibel werden!
+	 *
+	 * Z.Zt. hat nur das STAR Format auch bei Hardlinks den Filetype.
+	 *       Soll man die teilweise bei fehlerhaften USTAR
+	 *       Implementierungen vorhandenen Filetype Bits verwenden?
+	 */
 	if ((diffopts & D_TYPE) && (info->f_filetype != finfo.f_filetype ||
-			(is_special(info) && info->f_type != finfo.f_type))) {
-		if (debug || verbose)
+			(is_special(info) && info->f_type != finfo.f_type)) &&
+			 (!is_link(info) || H_TYPE(hdrtype) == H_STAR)) {
+
+		if (debug)
 			fprintf(f, "%s: different filetype  %lo != %lo\n",
 				info->f_name, info->f_type, finfo.f_type);
 		diffs |= D_TYPE;
@@ -186,14 +196,14 @@ diff_tcb(info)
 			errmsg("Cannot stat '%s'.\n", info->f_lname);
 			linfo.f_ino = 0;
 		}
-		if (finfo.f_ino != linfo.f_ino) {
+		if ((finfo.f_ino != linfo.f_ino) ||
+		    (finfo.f_dev != linfo.f_dev)) {
 			if (debug || verbose)
 				fprintf(f, "%s: not linked to %s\n",
 					info->f_name, info->f_lname);
 
 			diffs |= D_HLINK;
 		}
-		
 	}
 #ifdef	S_IFLNK
 	if (((diffopts & D_SLINK) || verbose) && is_symlink(&finfo)) {
@@ -210,7 +220,12 @@ diff_tcb(info)
 					&& info->f_size != finfo.f_size) {
 		diffs |= D_SIZE;
 	}
-	if ((diffopts & D_RDEV) && is_special(info) && is_special(&finfo)
+	/*
+	 * Rdev makes only sense with char & blk devices.
+	 * Rdev is usually 0 for other special file types but at least
+	 * the SunOS/Solaris 'tmpfs' has random values in rdev.
+	 */
+	if ((diffopts & D_RDEV) && is_dev(info) && is_dev(&finfo)
 					&& info->f_rdev != finfo.f_rdev) {
 		diffs |= D_RDEV;
 	}
@@ -227,8 +242,12 @@ diff_tcb(info)
 	}
 	
 	if (diffs) {
-		fprintf(f, "%s: ", info->f_name);
-		prdiffopts(f, "different ", diffs);
+		if (tpath) {
+			fprintf(f, "%s\n", info->f_name);
+		} else {
+			fprintf(f, "%s: ", info->f_name);
+			prdiffopts(f, "different ", diffs);
+		}
 	}
 
 	if (verbose && diffs) {
@@ -255,7 +274,7 @@ cmp_func(cmp, p, amount)
 	if (cmp->cmp_diffs)
 		return (amount);
 
-	cnt = fileread(cmp->cmp_file, cmp->cmp_buf, amount);
+	cnt = ffileread(cmp->cmp_file, cmp->cmp_buf, amount);
 	if (cnt != amount)
 		cmp->cmp_diffs++;
 

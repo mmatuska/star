@@ -1,6 +1,6 @@
 #!/bin/sh
 ###########################################################################
-#ident "@(#)MKLINKS	1.7 97/04/19 "
+#ident "@(#)MKLINKS	1.8 97/05/02 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -13,7 +13,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -42,6 +42,12 @@ ln -s	sun4-sunos5-cc.rul	sun4m-sunos5-cc.rul
 ln -s	sun4-sunos5-gcc.rul	sun4m-sunos5-gcc.rul
 ln -s	sun4-sunos5-cc.rul	sun4u-sunos5-cc.rul
 ln -s	sun4-sunos5-gcc.rul	sun4u-sunos5-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4d-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4d-sunos5-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4e-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4e-sunos5-gcc.rul
+ln -s	sun4-sunos5-cc.rul	sun4L-sunos5-cc.rul
+ln -s	sun4-sunos5-gcc.rul	sun4L-sunos5-gcc.rul
 #
 ln -s	mk-smake.id		mk-build.id
 ln -s	r-smake.c4x		r-build.c4x

@@ -4,6 +4,7 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 		fileopen.c \
 		fileread.c fileseek.c  \
 		filewrite.c flag.c flush.c  \
+		fpipe.c \
 		niread.c openfd.c
 
 #
@@ -14,7 +15,7 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 CFILES_REST=	astoi.c \
 		comerr.c cmpbytes.c \
 		error.c \
-		fconv.c fillbytes.c \
+		fconv.c fexec.c fillbytes.c \
 		format.c \
 		getfp.c \
 		getargs.c getav0.c geterrno.c \

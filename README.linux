@@ -11,4 +11,8 @@ Then compile the system by calling:
 /usr/bin/Gmake
 or ./Gmake.linux
 
+NOTES for S.u.S.E distributions: you must unset an environment variable
+called PROMPT_COMMAND
+It contains illegal values for a make file system.
+
 Joerg

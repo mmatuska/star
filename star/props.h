@@ -1,4 +1,4 @@
-/* @(#)props.h	1.5 97/04/28 Copyright 1994 J. Schilling */
+/* @(#)props.h	1.7 97/05/09 Copyright 1994 J. Schilling */
 /*
  *	Properties definitions to handle different
  *	archive types
@@ -21,12 +21,21 @@
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+/*
+ * Properties to describe the different archive formats.
+ *
+ * if pr_maxnamelen id == pr_maxsname, we cannot have long names
+ * besides file name splitting.
+ */
 struct properties {
 	int	pr_flags;		/* gerneral flags */
+	char	pr_fillc;		/* fill prefix for numbers in TCB */
 	long	pr_diffmask;		/* diffopts not supported */
 	int	pr_nflags;		/* name related flags */
 	int	pr_maxnamelen;		/* max length for filename */
 	int	pr_maxlnamelen;		/* max length for linkname */
+	int	pr_maxsname;		/* max length for short filename */
+	int	pr_maxslname;		/* max length for short linkname */
 	int	pr_maxprefix;		/* max length of prefix if splitting */
 	int	pr_sparse_in_hdr;	/* # of sparse entries in header */
 };

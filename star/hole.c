@@ -1,8 +1,8 @@
 /*#define	DEBUG*/
-/* @(#)hole.c	1.8 97/04/28 Copyright 1990 J. Schilling */
+/* @(#)hole.c	1.11 97/06/05 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)hole.c	1.8 97/04/28 Copyright 1990 J. Schilling";
+	"@(#)hole.c	1.11 97/06/05 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
@@ -44,6 +44,7 @@ extern	int	bigcnt;
 extern	char	*bigptr;
 
 extern	BOOL	debug;
+extern	BOOL	nullout;
 
 char	zeroblk[TBLOCK];
 
@@ -91,7 +92,7 @@ force_hole_func(fh, p, amount)
 		fh->fh_size -= amount;
 		return (amount);
 	}
-	cnt = filewrite(fh->fh_file, p, amount);
+	cnt = ffilewrite(fh->fh_file, p, amount);
 	fh->fh_size -= amount;
 	return (cnt);
 }
@@ -138,7 +139,7 @@ get_sparse_func(fh, p, amount)
 	}
 	EDEBUG(("write %d at: %d\n", amount, fh->fh_newpos));
 
-	cnt = filewrite(fh->fh_file, p, amount);
+	cnt = ffilewrite(fh->fh_file, p, amount);
 	fh->fh_size -= cnt;
 	fh->fh_newpos += cnt;
 
@@ -191,7 +192,7 @@ cmp_sparse_func(fh, p, amount)
 				fh->fh_sparse[fh->fh_spindex].sp_offset -
 				fh->fh_newpos);
 
-			cnt = fileread(fh->fh_file, cmp_buf, amt);
+			cnt = ffileread(fh->fh_file, cmp_buf, amt);
 			if (cnt != amt)
 				fh->fh_diffs++;
 
@@ -206,7 +207,7 @@ cmp_sparse_func(fh, p, amount)
 	}
 	EDEBUG(("read %d at: %d\n", amount, fh->fh_newpos));
 
-	cnt = fileread(fh->fh_file, cmp_buf, amount);
+	cnt = ffileread(fh->fh_file, cmp_buf, amount);
 	if (cnt != amount)
 		fh->fh_diffs++;
 
@@ -262,7 +263,13 @@ put_sparse_func(fh, p, amount)
 	}
 	EDEBUG(("read %d at: %d\n", amount, fh->fh_newpos));
 
-	cnt = fileread(fh->fh_file, p, amount);
+	if (nullout) {
+		cnt = amount;
+		if (cnt > fh->fh_size)
+			cnt = fh->fh_size;
+	} else {
+		cnt = ffileread(fh->fh_file, p, amount);
+	}
 	fh->fh_size -= cnt;
 	fh->fh_newpos += cnt;
 /*	if (cnt < TBLOCK)*/
@@ -369,6 +376,8 @@ get_sp_list(info)
 	else
 		extended = ptb->xstar_in_dbuf.t_isextended;
 
+	extended |= sparse_in_hdr == 0;
+
 	EDEBUG(("isextended: %d\n", extended));
 
 	ptb = &tb;	/* don't destroy orig TCB */
@@ -414,7 +423,7 @@ get_sp_list(info)
 		if (sparse[i].sp_numbytes == 0)
 			break;
 	}
-	EDEBUG("rsize: %d\n" , info->f_rsize);
+	EDEBUG(("rsize: %d\n" , info->f_rsize));
 #endif
 	return (sparse);
 }
@@ -440,7 +449,7 @@ mk_sp_list(f, info, spp)
 		errmsg("Cannot alloc sparse buf.\n");
 		return (i);
 	}
-	while ((amount = fileread(f, rbuf, TBLOCK)) != 0) {
+	while ((amount = ffileread(f, rbuf, TBLOCK)) != 0) {
 		if (cmpbytes(rbuf, zeroblk, amount) >= amount) {
 			if (data) {
 				sparse[i].sp_numbytes =
@@ -601,6 +610,7 @@ put_sp_list(info, sparse, nsparse)
 	register int	i;
 	register int	sparse_in_hdr = props.pr_sparse_in_hdr;
 	register char	*p;
+		 TCB	tb;
 		 TCB	*ptb = info->f_tcb;
 /*XXX*/extern int hdrtype;
 
@@ -644,6 +654,7 @@ put_sp_list(info, sparse, nsparse)
 
 	nsparse -= sparse_in_hdr;
 	sparse += sparse_in_hdr;
+	ptb = &tb;
 	while (nsparse > 0) {
 		fillbytes((char *)ptb, TBLOCK, '\0');
 		p = (char *)ptb;

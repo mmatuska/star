@@ -1,7 +1,7 @@
-/* @(#)buffer.c	1.22 97/04/27 Copyright 1985, 1995 J. Schilling */
+/* @(#)buffer.c	1.26 97/06/14 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.22 97/04/27 Copyright 1985, 1995 J. Schilling";
+	"@(#)buffer.c	1.26 97/06/14 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
@@ -64,6 +64,7 @@ LOCAL	char	host[64];
 
 extern	FILE	*tarf;
 extern	FILE	*tty;
+extern	FILE	*vpr;
 extern	char	*tarfile;
 extern	BOOL	use_fifo;
 extern	int	swapflg;
@@ -72,9 +73,11 @@ extern	BOOL	showtime;
 extern	BOOL	no_stats;
 extern	BOOL	do_fifostats;
 extern	BOOL	cflag;
+extern	BOOL	zflag;
 extern	BOOL	multblk;
 extern	BOOL	partial;
 extern	BOOL	wready;
+extern	BOOL	nullout;
 
 extern	int	intr;
 
@@ -89,6 +92,8 @@ EXPORT	int	readblock	__PR((char* buf));
 LOCAL	int	readtblock	__PR((char* buf, int amount));
 LOCAL	void	readbuf		__PR((void));
 EXPORT	int	readtape	__PR((char* buf, int amount));
+EXPORT	void	*get_block	__PR((void));
+EXPORT	void	put_block	__PR((void));
 EXPORT	void	writeblock	__PR((char* buf));
 EXPORT	int	writetape	__PR((char* buf, int amount));
 LOCAL	void	writebuf	__PR((void));
@@ -107,6 +112,7 @@ EXPORT	void	prstats		__PR((void));
 EXPORT	void	exprstats	__PR((int ret));
 EXPORT	void	excomerrno	__PR((int err, char* fmt, ...));
 EXPORT	void	excomerr	__PR((char* fmt, ...));
+LOCAL	void	compressopen	__PR((void));
 
 EXPORT BOOL
 openremote()
@@ -114,7 +120,7 @@ openremote()
 	register char *hp;
 	register char *fp;
 
-	if (strchr(tarfile, ':')) {
+	if (!nullout && strchr(tarfile, ':')) {
 
 		isremote = TRUE;
 		remfn = strchr(tarfile, ':');
@@ -138,7 +144,10 @@ opentape()
 {
 	int	n = 0;
 
-	if (streql(tarfile, "-")){
+	if (nullout) {
+		tarfile = "null";
+		tarf = (FILE *)NULL;
+	} else if (streql(tarfile, "-")) {
 		if (cflag) {
 			tarfile = "stdout";
 			tarf = stdout;
@@ -163,8 +172,23 @@ opentape()
 		else
 			sleep(10);
 	}
-	if (!isremote)
+	if (!isremote) {
 		file_raise(tarf, FALSE);
+		checkarch(tarf);
+	}
+	vpr = tarf == stdout ? stderr : stdout;
+
+	if (zflag) {
+		extern	long	tape_dev;
+		extern	long	tape_ino;
+
+		if (isremote)
+			comerrno(EX_BAD, "Cannot compress remote archives (yet).\n");
+		if (tape_dev || tape_ino)
+			compressopen();
+		else
+			comerrno(EX_BAD, "Can only compress files.\n");
+	}
 
 #ifdef	BSD4_2
 	if (showtime && gettimeofday(&starttime, (struct timezone *)0) < 0)
@@ -357,6 +381,19 @@ void swabbytes(bp, cnt)
 }
 #endif
 
+EXPORT void *
+get_block()
+{
+	buf_wait(TBLOCK);
+	return ((void *)bigptr);
+}
+
+EXPORT void
+put_block()
+{
+	buf_wake(TBLOCK);
+}
+
 EXPORT void
 writeblock(buf)
 	char	*buf;
@@ -375,7 +412,9 @@ writetape(buf, amount)
 					/* hartes oder weiches EOF ??? */
 					/* d.h. < 0 oder <= 0          */
 	stats->reading = FALSE;
-	if (isremote) {
+	if (nullout) {
+		cnt = amount;
+	} else if (isremote) {
 		if ((cnt = rmtwrite(remfd, buf, amount)) <= 0)
 			excomerr("Error writing '%s'.\n", tarfile);
 	} else {
@@ -697,4 +736,54 @@ excomerr(fmt, va_alist)
 	va_end(args);
 	exprstats(err);
 	/* NOTREACHED */
+}
+
+/*
+ * Quick hack to implement a -z flag. May be changed soon.
+ */
+#include <signal.h>
+#if	defined(SIGDEFER) || defined(SVR4)
+#define	signal	sigset
+#endif
+LOCAL void
+compressopen()
+{
+	FILE	*pp[2];
+	int	mypid;
+
+	multblk = TRUE;
+
+	if (fpipe(pp) == 0)
+		comerr("Compress pipe failed\n");
+	mypid = fork();
+	if (mypid < 0)
+		comerr("Compress fork failed\n");
+	if (mypid == 0) {
+		FILE	*null;
+		char	*flg = getenv("STAR_COMPRESS_FLAG"); /* Temporary ? */
+
+		signal(SIGQUIT, SIG_IGN);
+		if (cflag)
+			fclose(pp[1]);
+		else
+			fclose(pp[0]);
+
+		/* We don't want to see errors */
+		null = fileopen("/dev/null", "rw");
+
+		if (cflag)
+			fexecl("gzip", pp[0], tarf, null, "gzip", flg, NULL);
+		else
+			fexecl("gzip", tarf, pp[1], null, "gzip", "-d", NULL);
+		errmsg("Compress exec failed\n");
+		_exit(-1);
+	}
+	fclose(tarf);
+	if (cflag) {
+		tarf = pp[1];
+		fclose(pp[0]);
+	} else {
+		tarf = pp[0];
+		fclose(pp[1]);
+	}
 }

@@ -5,4 +5,4 @@ export MAKEPROG
 
 # gmake is called 'make' on Linux
 
-exec make $@
+exec make "$@"

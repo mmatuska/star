@@ -24,26 +24,17 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 
 -	Change match code to allow more than 128 characters in pattern.
 
--	GNUtar and OLDtar support only 99 chars in filename. Add support on props.c & 
-	longnames.c 
-	Some "Posix tar's" like tar on Solaris does not like 100 char names too.
-	These implementations are lost: they must be fixed.
-
 -	Sockets (not supported in ANSI) should not be dumped.
-
--	-diff cannot compare hard links to devices
 
 -	Command chain:
 	limit filesize xxxx
 	star -c f=ccc . 
 	Sync pipe read error or
-	mwith option -no_fifo Condition not caught: file_write_error
+	with option -no_fifo Condition not caught: file_write_error
 
 -	Linkcount below zero with the command: star -c /usr/bin /usr/bin
 
 -	Add Option to both (verbose print & errors) appear on stderr.
-
--	Better doc for fs= & bs=
 
 -	From my point of view, HP-UX is not Posix 1003.1 compliant.
 	Posix 1003.1 wants major/minor device numbers to be represented
@@ -59,32 +50,13 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 	minor device number representation.
 
 -	When creating ansi tar archives (-Hustar/-Hxstar),
-	shift all octal strings one position to the right.
+	shift all (8 byte) octal strings one position to the right.
 	This gives 3 bits more precision.
 
 -	Expand some of the fundamental types to 64 bits to be 
 	able to handle files > 2GB.
 
--	Big file strategy:
-
-	1)	Use unsigned 33 bit values conforming to Posix
-		to allow 8 GB Filesize.
-
-	2)	Use 'x' or 'h' prefix and hex digits instead
-		of octal digits to allow 40 bit values which 
-		will give 1 TB Filesize.
-		This will give 24 bits for the minor device number too.
-
-	3)	Use a new prefix and base 64 'digits' to allow
-		60 bit values. This will allow 1000000 TB Filesize,
-		or 1000 PB in other words.
-		This will give 36 bits for the minor device number.
-
-	Files in type 2) and 3) will not be extractable with
-	other tar implementations. Any files 'behind' such a file
-	cannot be accessed.
-
-	Files of type 1) may be extractable with other implementations.
+-	Big file strategy: see README.largefiles
 
 -	Add support for access control lists.
 	Is the method used with Solaris tar the right way??
@@ -92,3 +64,6 @@ NOTE: Before blaming star for something found in this list, look at your favorit
 -	Add support for 4.4BSD filesystem flags and Linux ext2 filesystem flags.
 
 -	malloc path buffers and 'chdir' to be able to deal with pathnames > 1024 bytes.
+
+-	add an option to reduce primary file name length to 99 chars
+	for all formats to enhance the portability of the archives.

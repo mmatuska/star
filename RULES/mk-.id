@@ -1,4 +1,4 @@
-#ident "@(#)mk-.id	1.4 97/02/07 "
+#ident "@(#)mk-.id	1.5 97/05/05 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -45,5 +45,5 @@ _M_ARCH=	$(_UNIQ)$(XM_ARCH)
 __M_ARCH=	$(_M_ARCH:$(_UNIQ)=$(K_ARCH))
 M_ARCH=		$(__M_ARCH:$(_UNIQ)%=%)
 
-OSNAME:sh=	uname -s | tr '[A-Z] /\\' '[a-z]---'
-OSREL:sh=	uname -r | tr '[A-Z] /\\' '[a-z]---'
+OSNAME:sh=	uname -s | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'
+OSREL:sh=	uname -r | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---'

@@ -1,8 +1,8 @@
-*** create.c	Mon Apr 28 01:13:37 1997
---- create_dgux.c	Mon Jan 27 18:56:09 1997
+*** create.c.orig	Sat Jun 14 15:53:45 1997
+--- create.c	Sun Jun 15 18:38:08 1997
 ***************
-*** 21,26 ****
---- 21,87 ----
+*** 35,40 ****
+--- 35,101 ----
   #include <strdefs.h>
   #include "starsubs.h"
   
@@ -71,22 +71,30 @@
   	struct	links	*l_next;
   		long	l_ino;
 ***************
-*** 165,171 ****
---- 226,236 ----
+*** 227,232 ****
+--- 288,296 ----
   	else if (is_symlink(info) && !read_symlink(name, info, ptb))
   		;
-  	else if (is_file(info) &&
+  	else if (is_file(info) && info->f_size != 0 && !nullout &&
 + #if defined(DGUX) && !defined(NO_DG_FILEREAD)
-+ 			(f = dg_fileopen(info)) == (FILE *)NULL &&
++ 				(f = dg_fileopen(info)) == (FILE *)NULL) {
 + #else
-  			(f = fileopen(name,"ru")) == (FILE *)NULL &&
-+ #endif
-  							info->f_size != 0)
-  		errmsg("Cannot open '%s'.\n", name);
-  	else {
+  #ifdef	OLD_OPEN
+  				(f = fileopen(name,"ru")) == (FILE *)NULL) {
+  #else
 ***************
-*** 205,211 ****
---- 270,280 ----
+*** 236,241 ****
+--- 300,306 ----
+  				 */
+  				(f = fileopen(name,"r")) == (FILE *)NULL) {
+  #endif
++ #endif
+  		errmsg("Cannot open '%s'.\n", name);
+  	} else {
+  		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
+***************
+*** 280,286 ****
+--- 345,355 ----
   		if (acctime && f != NULL)
   			rs_acctime(f, info);
   		if (f)
@@ -99,19 +107,18 @@
   }
   
 ***************
-*** 327,335 ****
---- 396,409 ----
-  	register FILE	*f;
-  	register FINFO	*info;
-  {
+*** 421,428 ****
+--- 490,502 ----
+  		cr_file(info, (int(*)__PR((void *, char *, int)))nullread,
+  							f, 0, "reading");
+  	} else {
 + #if defined(DGUX) && !defined(NO_DG_FILEREAD)
-+ 	cr_file(info, (int(*)__PR((void *, char *, int)))dg_fileread, f, 0,
-+ 								"reading");
++ 		cr_file(info, (int(*)__PR((void *, char *, int)))dg_fileread,
++ 							f, 0, "reading");
 + #else
-  	file_raise(f, FALSE);
-  	cr_file(info, (int(*)__PR((void *, char *, int)))fileread, f, 0,
-  								"reading");
+  		cr_file(info, (int(*)__PR((void *, char *, int)))ffileread,
+  							f, 0, "reading");
 + #endif
+  	}
   }
   
-  EXPORT void

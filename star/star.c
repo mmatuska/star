@@ -1,7 +1,7 @@
-/* @(#)star.c	1.49 97/04/27 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.c	1.54 97/06/15 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star.c	1.49 97/04/27 Copyright 1985, 1995 J. Schilling";
+	"@(#)star.c	1.54 97/06/15 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
@@ -32,10 +32,15 @@ static	char sccsid[] =
 #include "diff.h"
 #include <waitdefs.h>
 #include <standard.h>
+#include <patmatch.h>
 #include <device.h>
 #include "starsubs.h"
 
 EXPORT	int	main		__PR((int ac, char** av));
+LOCAL	void	getdir		__PR((int *acp, char *const **avp,
+						const char **dirp));
+LOCAL	char	*dogetwdir	__PR((void));
+LOCAL	BOOL	dochdir		__PR((const char *dir, BOOL doexit));
 LOCAL	void	openlist	__PR((void));
 LOCAL	void	usage		__PR((int ret));
 LOCAL	void	xusage		__PR((int ret));
@@ -46,6 +51,8 @@ LOCAL	long	number		__PR((char* arg, int* retp));
 LOCAL	int	getnum		__PR((char* arg, long* valp));
 EXPORT	BOOL	match		__PR((const char* name));
 LOCAL	int	addpattern	__PR((const char* pattern));
+LOCAL	void	closepattern	__PR((void));
+LOCAL	void	printpattern	__PR((void));
 LOCAL	int	add_diffopt	__PR((char* optstr, long* flagp));
 LOCAL	int	gethdr		__PR((char* optstr, long* typep));
 LOCAL	void	exsig		__PR((int sig));
@@ -71,23 +78,29 @@ LOCAL	void	getstamp	__PR((void));
 #define YEAR		(365 * DAY)
 #define LEAPYEAR	(366 * DAY)
 
-#define	NPAT	10
-#define	MAXPAT	100
+struct star_stats	xstats;
+
+#define	NPAT	100
 
 	int		npat	= 0;
-	int		aux[NPAT][MAXPAT];
+	int		*aux[NPAT];
 	int		alt[NPAT];
 const	unsigned char	*pat[NPAT];
+const		char	*dirs[NPAT];
 
 FILE	*tarf;
 FILE	*listf;
 FILE	*tty;
+FILE	*vpr;
 char	*tarfile;
 char	*listfile;
 char	*stampfile;
-char	*currdir;
-char	*dir_flags = NULL;
+const	char	*wdir;
+const	char	*currdir;
+const	char	*dir_flags = NULL;
 char	*volhdr;
+long	tape_dev;
+long	tape_ino;
 #ifdef	FIFO
 BOOL	use_fifo = TRUE;
 #else
@@ -100,7 +113,7 @@ int	nblocks = 20;
 int	uid;
 Ulong	curfs;
 long	hdrtype	= H_XSTAR;	/* default header format */
-long	chdrtype= H_UNDEF;
+long	chdrtype= H_UNDEF;	/* command line hdrtype	 */
 int	version	= 0;
 int	swapflg	= -1;
 BOOL	debug	= FALSE;
@@ -117,6 +130,7 @@ BOOL	xflag	= FALSE;
 BOOL	tflag	= FALSE;
 BOOL	nflag	= FALSE;
 BOOL	diff_flag = FALSE;
+BOOL	zflag	= FALSE;
 BOOL	multblk	= FALSE;
 BOOL	ignoreerr = FALSE;
 BOOL	nodir	= FALSE;
@@ -133,6 +147,7 @@ BOOL	signedcksum = FALSE;
 BOOL	partial	= FALSE;
 BOOL	nospec	= FALSE;
 BOOL	uncond	= FALSE;
+BOOL	xdir	= FALSE;
 BOOL	keep_old= FALSE;
 BOOL	abs_path= FALSE;
 BOOL	notpat	= FALSE;
@@ -140,6 +155,11 @@ BOOL	force_hole = FALSE;
 BOOL	sparse	= FALSE;
 BOOL	to_stdout = FALSE;
 BOOL	wready = FALSE;
+BOOL	force_remove = FALSE;
+BOOL	ask_remove = FALSE;
+BOOL	remove_first = FALSE;
+BOOL	remove_recursive = FALSE;
+BOOL	nullout = FALSE;
 
 Ulong	maxsize	= 0L;
 Ulong	Newer	= 0L;
@@ -152,7 +172,7 @@ BOOL	listnewf= FALSE;
 
 int	intr	= 0;
 
-char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";
+char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";
 
 EXPORT int
 main(ac, av)
@@ -174,6 +194,8 @@ main(ac, av)
 		(void) signal(SIGINT, sigintr);
 	if (signal(SIGQUIT, SIG_IGN) != SIG_IGN)
 		(void) signal(SIGQUIT, sigquit);
+
+	file_raise((FILE *)NULL, FALSE);
 
 	initbuf(nblocks);
 
@@ -204,15 +226,38 @@ main(ac, av)
 		runfifo();
 #endif
 
-	if (xflag) {
+	if (dir_flags)
+		wdir = dogetwdir();
+
+	if (xflag || tflag || diff_flag) {
 		if (listfile) {
 			openlist();
 			hash_build(listf, 1000);
 		} else {
-			for (;getfiles(&cac, &cav, opts);--cac,cav++)
+			for (;;--cac,cav++) {
+				if (dir_flags)
+					getdir(&cac, &cav, &currdir);
+				if (getfiles(&cac, &cav, opts) == 0)
+					break;
 				addpattern(cav[0]);
+			}
+			closepattern();
 		}
-		extract();
+		if (tflag) {
+			list();
+		} else {
+			/*
+			 * xflag || diff_flag
+			 * First change dir to the one or last -C arg
+			 * in case there is no pattern in list.
+			 */
+			if((currdir = dir_flags) != NULL)
+				dochdir(currdir, TRUE);
+			if (xflag)
+				extract();
+			else
+				diff();
+		}
 	}
 	if (uflag || rflag) {
 		skipall();
@@ -224,26 +269,18 @@ main(ac, av)
 			openlist();
 			createlist();
 		} else {
-			if (dir_flags) {
-				/*
-				 * Skip all other flags.
-				 */
-				getfiles(&cac, &cav, &opts[3]);
-				errmsgno(BAD, "Flag/File: '%s'.\n", cav[0]);
-			}
+			const char	*cdir = NULL;
+
 			for (;;--cac,cav++) {
 				if (dir_flags)
-				if (getargs(&cac, &cav, "C*", &currdir) < 0) {
-					errmsgno(BAD,
-						"Badly placed Option: %s.\n",
-								cav[0]);
-					usage(BAD);
+					getdir(&cac, &cav, &currdir);
+				if (currdir && cdir != currdir) {
+					if (!(dochdir(wdir, FALSE) &&
+					      dochdir(currdir, FALSE)))
+						break;
+					cdir = currdir;
 				}
-				if (currdir) {
-					if (chdir(currdir) < 0)
-						errmsg("Cannot change directory to '%s'.\n", currdir);
-					currdir = NULL;
-				}
+
 				if (getfiles(&cac, &cav, opts) == 0)
 					break;
 				if (intr)
@@ -255,34 +292,97 @@ main(ac, av)
 		weof();
 		buf_drain();
 	}
-	if (tflag) {
-		if (listfile) {
-			openlist();
-			hash_build(listf, 1000);
-		} else {
-			for (;getfiles(&cac, &cav, opts);--cac,cav++)
-				addpattern(cav[0]);
-		}
-		list();
-	}
-	if (diff_flag) {
-		if (listfile) {
-			openlist();
-			hash_build(listf, 1000);
-		} else {
-			for (;getfiles(&cac, &cav, opts);--cac,cav++)
-				addpattern(cav[0]);
-		}
-		diff();
-	}
 
 	if (!nolinkerr)
 		checklinks();
-wait(0);
+	if (!use_fifo)
+		closetape();
+
+	while (wait(0) >= 0)
+		;
 	prstats();
 	exit(0);
 	/* NOTREACHED */
 	return(0);	/* keep lint happy */
+}
+
+LOCAL void
+getdir(acp, avp, dirp)
+	int		*acp;
+	char *const	**avp;
+	const char	**dirp;
+{
+	/*
+	 * Skip all other flags.
+	 */
+	getfiles(acp, avp, &opts[3]);
+
+	if (debug) /* temporary */
+		errmsgno(BAD, "Flag/File: '%s'.\n", *avp[0]);
+
+	if (getargs(acp, avp, "C*", dirp) < 0) {
+		/*
+		 * Skip all other flags.
+		 */
+		if (getfiles(acp, avp, &opts[3]) < 0) {
+			errmsgno(BAD, "Badly placed Option: %s.\n", *avp[0]);
+			usage(BAD);
+		}
+	}
+	if (debug) /* temporary */
+		errmsgno(BAD, "Dir: '%s'.\n", *dirp);
+}
+
+#ifdef JOS
+	extern char	*gwd();
+#else
+#	if defined(SVR4) || defined(hpux)
+#		define	gwd(b)		getcwd(b, (PATH_MAX - 1))
+#	elif	defined(BSD4_2)
+#		define	gwd(b)		getwd(b)
+#	else
+#		define	gwd(b)		getcwd(b, (PATH_MAX - 1))
+#	endif
+#endif
+
+LOCAL char *
+dogetwdir()
+{
+	char	dir[PATH_MAX+1];
+	char	*ndir;
+
+	if (gwd(dir) == NULL)
+		comerr("Cannot get working directory\n");
+	ndir = malloc(strlen(dir)+1);
+	if (ndir == NULL)
+		comerr("Cannot alloc space for working dir.\n");
+	strcpy(ndir, dir);
+	return (ndir);
+}
+
+LOCAL BOOL
+dochdir(dir, doexit)
+	const char	*dir;
+	BOOL		doexit;
+{
+	if (debug) /* temporary */
+		error("dochdir(%s) = ", dir);
+
+	if (chdir(dir) < 0) {
+		int	ex = geterrno();
+
+		if (debug) /* temporary */
+			error("%d\n", ex);
+
+		errmsg("Cannot change directory to '%s'.\n", dir);
+		if (doexit)
+			exit(ex);
+		return (FALSE);
+	}
+	if (debug) /* temporary */
+		error("%d\n", 0);
+
+	return (TRUE);
 }
 
 LOCAL void
@@ -320,6 +420,7 @@ usage(ret)
 	error("\t-tpath\t\tuse with -t to list path names only\n");
 	error("\tH=header\tgenerate 'header' type archive (see H=help)\n");
 	error("\tC=dir\t\tperform a chdir to 'dir' before storing next file\n");
+	error("\t-z\t\tpipe input/output through gzip, does not work on tapes\n");
 	error("\t-B\t\tperform multiple reads (needed on pipes)\n");
 	error("\t-i\t\tignore checksum errors\n");
 	error("\t-d\t\tdo not store/create directories\n");
@@ -331,7 +432,7 @@ usage(ret)
 	error("\t-L\t\tfollow symbolic links as if they were files\n");
 	error("\t-D\t\tdo not descend directories\n");
 	error("\t-M\t\tdo not descend mounting points\n");
-	error("\t-I\t\tdo interactive renaming\n");
+	error("\t-I\t\tdo interactive creation/extraction/renaming\n");
 	error("\t-O\t\tbe compatible to old tar (except for checksum bug)\n");
 	error("\t-P\t\tlast record may be partial (useful on cartridge tapes)\n");
 	error("\t-S\t\tdo not store/create special files\n");
@@ -349,6 +450,7 @@ xusage(ret)
 	error("\tdiffopts=optlst\tcomma separated list of diffopts (see diffopts=help)\n");
 	error("\t-not,-V\t\tuse those files which do not match pattern\n");
 	error("\tVOLHDR=name\tuse name to generate a volume header\n");
+	error("\t-xdir\t\textract dir even if the current is never\n");
 	error("\t-keep_old_files,-k\tkeep existing files\n");
 	error("\t-/\t\tdon't strip leading '/'s from file names\n");
 	error("\tlist=name\tread filenames from named file\n");
@@ -372,7 +474,9 @@ xusage(ret)
 	error("\t-nowarn\t\tdo not print warning messages\n");
 	error("\t-time\t\tprint timing info\n");
 	error("\t-no_statistics\tdo not print statistics\n");
+#ifdef	FIFO
 	error("\t-fifostats\tprint fifo statistics\n");
+#endif
 	error("\t-numeric\tdon't use user/group name from tape\n");
 	error("\t-newest\t\tfind newest file on tape\n");
 	error("\t-newest_file\tfind newest regular file on tape\n");
@@ -381,6 +485,11 @@ xusage(ret)
 	error("\t-force_hole\ttry to extract all files with holes\n");
 	error("\t-to_stdout\textract files to stdout\n");
 	error("\t-wready\t\twait for tape drive to become ready\n");
+	error("\t-force_remove\tforce to remove non writable files on extraction\n");
+	error("\t-ask_remove\task to remove non writable files on extraction\n");
+	error("\t-remove_first\tremove files before extraction\n");
+	error("\t-remove_recursive\tremove files recursive\n");
+	error("\t-nullout\tsimulate creating an achive to compute the size\n");
 	exit(ret);
 	/* NOTREACHED */
 }
@@ -442,8 +551,14 @@ gargs(ac, av)
 	BOOL	qic120	= FALSE;
 	BOOL	qic150	= FALSE;
 	BOOL	qic250	= FALSE;
+	char	*p;
 
-/*char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";*/
+/*char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";*/
+
+	if ((p = strchr(av[0], '/')) == NULL)
+		p = av[0];
+	if (streql(p, "ustar"))
+		chdrtype = H_USTAR;
 
 	--ac,++av;  
 	if (getallargs(&ac, &av, opts,
@@ -461,6 +576,9 @@ gargs(ac, av)
 				&diff_flag, add_diffopt, &diffopts,
 				gethdr, &chdrtype,
 				&force_hole, &sparse, &to_stdout, &wready,
+				&force_remove, &ask_remove,
+				&remove_first, &remove_recursive,
+				&nullout,
 				&use_fifo, &no_fifo, &shmflag,
 				getnum, &fs,
 				&volhdr,
@@ -469,7 +587,7 @@ gargs(ac, av)
 				&usetape,
 				getnum, &bs,
 				&nblocks, &nblocks,
-				&multblk,
+				&zflag, &multblk,
 				addpattern, NULL,
 				addpattern, NULL,
 				&ignoreerr,
@@ -485,7 +603,7 @@ gargs(ac, av)
 				&oldtar, &signedcksum,
 				&partial,
 				&nospec,
-				&uncond,
+				&uncond, &xdir,
 				&keep_old, &keep_old,
 				&abs_path,
 				&notpat, &notpat,
@@ -523,7 +641,7 @@ gargs(ac, av)
 			usage(BAD);
 		cflag = TRUE;
 	}
-	if (no_fifo)
+	if (no_fifo || nullout)
 		use_fifo = FALSE;
 #ifndef	FIFO
 	if (use_fifo) {
@@ -554,6 +672,15 @@ gargs(ac, av)
 	} else if (diffopts != 0) {
 		errmsgno(BAD, "diffopts= only makes sense with -diff\n");
 		usage(BAD);
+	}
+	if (fs == 0L) {
+		char	*ep = getenv("STAR_FIFO_SIZE");
+
+		if (ep) {
+			if (getnum(ep, &fs) != 1)
+				comerr("Bad fifo size environment '%s'.\n",
+									ep);
+		}
 	}
 	if (bs % TBLOCK) {
 		errmsgno(BAD, "Invalid blocksize %ld.\n", bs);
@@ -587,7 +714,7 @@ gargs(ac, av)
 		if (!tarfile)
 			tarfile = "-";
 	}
-	if (interactive || tsize > 0) {
+	if (interactive || ask_remove || tsize > 0) {
 #ifdef	JOS
 		tty = stderr;
 #else
@@ -603,6 +730,8 @@ gargs(ac, av)
 	if (to_stdout) {
 		force_hole = FALSE;
 	}
+	if (remove_recursive)
+		comerrno(EX_BAD, "-remove_recursive not implemented\n");
 }
 
 LOCAL long
@@ -666,8 +795,16 @@ match(name)
 		if (ret != NULL && *ret == '\0')
 			break;
 	}
-	if (notpat ^ (ret != NULL && *ret == '\0'))
+	if (notpat ^ (ret != NULL && *ret == '\0')) {
+		if (!(xflag || diff_flag))	/* Chdir only on -x or -diff */
+			return (TRUE);
+		if (dirs[i] != NULL && currdir != dirs[i]) {
+			currdir = dirs[i];
+			dochdir(wdir, TRUE);
+			dochdir(currdir, TRUE);
+		}
 		return TRUE;
+	}
 	return FALSE;
 }
 
@@ -678,17 +815,52 @@ addpattern(pattern)
 	int	plen;
 
 	if (npat >= NPAT)
-		comerrno(BAD, "Too many patterns.\n");
+		comerrno(BAD, "Too many patterns (max is %d).\n", NPAT);
 	plen = strlen(pattern);
 	pat[npat] = (const unsigned char *)pattern;
 	if (plen > MAXPAT)
 		comerrno(BAD, "Pattern too long: %d, max is %d.\n",
 			plen, MAXPAT);
+	if ((aux[npat] = malloc(MAXPAT*sizeof(int))) == NULL)
+		comerr("Cannot alloc space for compiled pattern.\n");
 	if ((alt[npat] = patcompile((const unsigned char *)pattern,
 							plen, aux[npat])) == 0)
 		comerrno(BAD, "Bad pattern: '%s'.\n", pattern);
+	dirs[npat] = currdir;
 	npat++;
 	return (TRUE);
+}
+
+/*
+ * Close pattern list: insert useful default directories.
+ */
+LOCAL void
+closepattern()
+{
+	register int	i;
+
+	if (debug) /* temporary */
+		printpattern();
+
+	for (i=0; i < npat; i++) {
+		if (dirs[i] != NULL)
+			break;
+	}
+	while (--i >= 0)
+		dirs[i] = wdir;
+
+	if (debug) /* temporary */
+		printpattern();
+}
+
+LOCAL void
+printpattern()
+{
+	register int	i;
+
+	for (i=0; i < npat; i++) {
+		error("pat %s dir %s\n", pat[i], dirs[i]);
+	}
 }
 
 LOCAL int

@@ -1,8 +1,9 @@
-/* @(#)io.h	2.5 96/05/09 Copyright 1986, 1995 J. Schilling */
+/* @(#)io.h	2.8 97/06/03 Copyright 1986, 1995 J. Schilling */
 /*
  *	Copyright (c) 1986, 1995 J. Schilling
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -11,10 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <mconfig.h>
@@ -25,6 +26,17 @@
 #ifdef	HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
+
+#ifdef	NO_USG_STDIO
+#	ifdef	HAVE_USG_STDIO
+#		undef	HAVE_USG_STDIO
+#	endif
+#endif
+
+/*
+ * speed things up...
+ */
+#define	_openfd(name, omode)	(open(name, omode, 0666))
 
 #define	DO_MYFLAG		/* use local flags */
 
@@ -60,6 +72,7 @@ struct _io_flags {
 
 typedef	struct _io_flags _io_fl;
 
+extern	int	_io_glflag;	/* global default flag */
 extern	_io_fl	*_io_myfl;	/* array of structs to hold my flags */
 extern	int	_fl_max;	/* max fd currently in _io_myfl */
 

@@ -1,10 +1,11 @@
-/* @(#)error.c	1.8 96/02/04 Copyright 1985 J. Schilling */
+/* @(#)error.c	1.9 97/06/01 Copyright 1985 J. Schilling */
 /*
  *	fprintf() on standard error stdio stream
  *
  *	Copyright (c) 1985 J. Schilling
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -13,12 +14,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <mconfig.h>
 #include <stdio.h>
 #include <standard.h>
 #ifdef	HAVE_STDARG_H

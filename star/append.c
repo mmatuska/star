@@ -1,7 +1,7 @@
-/* @(#)append.c	1.8 96/06/26 Copyright 1992 J. Schilling */
+/* @(#)append.c	1.9 97/06/01 Copyright 1992 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)append.c	1.8 96/06/26 Copyright 1992 J. Schilling";
+	"@(#)append.c	1.9 97/06/01 Copyright 1992 J. Schilling";
 #endif
 /*
  *	Routines used to append files to an existing 
@@ -25,6 +25,7 @@ static	char sccsid[] =
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <mconfig.h>
 #include <stdio.h>
 #include <standard.h>
 #include "star.h"

@@ -1,8 +1,8 @@
 #ifdef	FIFO
-/* @(#)fifo.c	1.9 97/04/28 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.10 97/06/14 Copyright 1989 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.9 97/04/28 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.10 97/06/14 Copyright 1989 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -135,12 +135,13 @@ initfifo()
 		buf = mkshm(buflen);
 	else
 		buf = mkshare(buflen);
-#endif
+#else
 #if	defined(USE_MMAP)
 	buf = mkshare(buflen);
 #endif
 #if	defined(USE_SHM)
-		buf = mkshm(buflen);
+	buf = mkshm(buflen);
+#endif
 #endif
 	mp = (m_head *)buf;
 	fillbytes((char *)mp, sizeof(*mp), '\0');

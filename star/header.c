@@ -1,7 +1,7 @@
-/* @(#)header.c	1.17 96/06/26 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.23 97/06/15 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.17 96/06/26 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.23 97/06/15 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -74,6 +74,7 @@ extern	BOOL	xflag;
 extern	BOOL	nflag;
 extern	BOOL	ignoreerr;
 extern	BOOL	signedcksum;
+extern	BOOL	nullout;
 
 extern	Ulong	tsize;
 
@@ -118,6 +119,13 @@ EXPORT	void	otoa		__PR((char* s, Ulong  l, int fieldw));
  * XXX Hier sollte eine tar/bar universelle Checksummenfunktion sein!
  */
 #define	CHECKS	sizeof(ptb->ustar_dbuf.t_chksum)
+/*
+ * We know, that sizeof(TCP) is 512 and therefore has no
+ * reminder when dividing by 8
+ *
+ * CHECKS is known to be 8 too, use loop unrolling.
+ */
+#define	DO8(a)	a;a;a;a;a;a;a;a;
 
 LOCAL Ulong
 checksum(ptb)
@@ -131,23 +139,25 @@ checksum(ptb)
 		register	char	*ss;
 
 		ss = (char *)ptb;
-		for (i=sizeof(*ptb); --i >= 0;)
-			sum += *ss++;
+		for (i=sizeof(*ptb)/8; --i >= 0;) {
+			DO8(sum += *ss++);
+		}
 		if (sum == 0L)		/* Block containing 512 nul's */
 			return(sum);
 
-		for (i=CHECKS, ss=(char *)ptb->ustar_dbuf.t_chksum; --i >= 0;)
-			sum -= *ss++;
+		ss=(char *)ptb->ustar_dbuf.t_chksum;
+		DO8(sum -= *ss++);
 		sum += CHECKS*' ';
 	} else {
 		us = (Uchar *)ptb;
-		for (i=sizeof(*ptb); --i >= 0;)
-			sum += *us++;
+		for (i=sizeof(*ptb)/8; --i >= 0;) {
+			DO8(sum += *us++);
+		}
 		if (sum == 0L)		/* Block containing 512 nul's */
 			return(sum);
 
-		for (i=CHECKS, us=(Uchar *)ptb->ustar_dbuf.t_chksum; --i >= 0;)
-			sum -= *us++;
+		us=(Uchar *)ptb->ustar_dbuf.t_chksum;
+		DO8(sum -= *us++);
 		sum += CHECKS*' ';
 	}
 	return sum;
@@ -375,8 +385,10 @@ get_tcb(ptb)
 		 * fehlerhaft als EOF Block erkannt !
 		 * wenn nicht t_magic gesetzt ist.
 		 */
-		if (readblock((char *)ptb) == EOF)
+		if (readblock((char *)ptb) == EOF) {
+			errmsgno(BAD, "Hard EOF on input, first EOF block is missing.\n");
 			return (EOF);
+		}
 		/*
 		 * First tar control block
 		 */
@@ -489,6 +501,7 @@ put_tcb(ptb, info)
 	TCB	*ptb;
 	register FINFO	*info;
 {
+	TCB	tb;
 	int	x1 = 0;
 	int	x2 = 0;
 
@@ -496,9 +509,10 @@ put_tcb(ptb, info)
 		x1++;
 
 /*XXX start alter code und Test */
-	if ((info->f_namelen > NAMSIZ &&
+	if (( (info->f_flags & F_ADDSLASH) ? 1:0 +
+	    info->f_namelen > props.pr_maxsname &&
 	    (ptb->dbuf.t_prefix[0] == '\0' || H_TYPE(hdrtype) == H_GNUTAR)) ||
-		    info->f_lnamelen > NAMSIZ)
+		    info->f_lnamelen > props.pr_maxslname)
 		x2++;
 
 	if (x1 != x2) {
@@ -509,8 +523,14 @@ info->f_namelen, ptb->dbuf.t_prefix, info->f_lnamelen);
 	}
 /*XXX ende alter code und Test */
 
-	if (x1 || x2)
+	if (x1 || x2) {
+		if ((info->f_flags & F_TCB_BUF) != 0) {	/* TCB is on buffer */
+			movebytes(ptb, &tb, TBLOCK);
+			ptb = &tb;
+			info->f_flags &= ~F_TCB_BUF;
+		}
 		write_longnames(info);
+	}
 	write_tcb(ptb, info);
 }
 
@@ -520,6 +540,7 @@ write_tcb(ptb, info)
 	register FINFO	*info;
 {
 	if (tsize > 0) {
+		TCB	tb;
 		long	left;
 		Ulong	size = info->f_rsize;
 
@@ -528,11 +549,21 @@ write_tcb(ptb, info)
 		if (is_link(info))
 			size = 0L;
 						/* file + tcb + EOF */
-		if (left < (long)(tarblocks(size)+1+2))
+		if (left < (long)(tarblocks(size)+1+2)) {
+			if ((info->f_flags & F_TCB_BUF) != 0) {
+				movebytes(ptb, &tb, TBLOCK);
+				ptb = &tb;
+				info->f_flags &= ~F_TCB_BUF;
+			}
 			nexttape();
+		}
 	}
-	otoa(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 6); /* 17 Bit !!! */
-	writeblock((char *)ptb);
+	if (!nullout)				/* 17 Bit !!! */
+		otoa(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 6);
+	if ((info->f_flags & F_TCB_BUF) != 0)	/* TCB is on buffer */
+		put_block();
+	else
+		writeblock((char *)ptb);
 }
 
 EXPORT void
@@ -578,6 +609,9 @@ info_to_tcb(info, ptb)
 	register FINFO	*info;
 	register TCB	*ptb;
 {
+	if (nullout)
+		return;
+
 	otoa(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 6);
 	otoa(ptb->dbuf.t_uid, info->f_uid & 0xFFFF, 6);
 	otoa(ptb->dbuf.t_gid, info->f_gid & 0xFFFF, 6);
@@ -609,7 +643,10 @@ info_to_star(info, ptb)
 
 	otoa(ptb->dbuf.t_atime, info->f_atime, 11);
 	otoa(ptb->dbuf.t_ctime, info->f_ctime, 11);
-	strcpy(ptb->dbuf.t_magic, stmagic);
+/*	strcpy(ptb->dbuf.t_magic, stmagic);*/
+	ptb->dbuf.t_magic[0] = 't';
+	ptb->dbuf.t_magic[1] = 'a';
+	ptb->dbuf.t_magic[2] = 'r';
 	nameuid(ptb->dbuf.t_uname, STUNMLEN, info->f_uid);
 	namegid(ptb->dbuf.t_gname, STGNMLEN, info->f_gid);
 	if (*ptb->dbuf.t_uname) {
@@ -633,8 +670,18 @@ info_to_ustar(info, ptb)
 /*XXX solaris hat illegalerweise mehr als 12 Bit in t_mode !!!
  *	otoa(ptb->dbuf.t_mode, info->f_mode|info->f_type & 0xFFFF, 6);
 */
-	strcpy(ptb->ustar_dbuf.t_magic, magic);
-	strncpy(ptb->ustar_dbuf.t_version, TVERSION, TVERSLEN);
+/*	strcpy(ptb->ustar_dbuf.t_magic, magic);*/
+	ptb->ustar_dbuf.t_magic[0] = 'u';
+	ptb->ustar_dbuf.t_magic[1] = 's';
+	ptb->ustar_dbuf.t_magic[2] = 't';
+	ptb->ustar_dbuf.t_magic[3] = 'a';
+	ptb->ustar_dbuf.t_magic[4] = 'r';
+/*	strncpy(ptb->ustar_dbuf.t_version, TVERSION, TVERSLEN);*/
+	/*
+	 * strncpy is slow: use handcrafted replacement.
+	 */
+	ptb->ustar_dbuf.t_version[0] = '0';
+	ptb->ustar_dbuf.t_version[1] = '0';
 
 	nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
 	namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
@@ -658,7 +705,10 @@ info_to_xstar(info, ptb)
 	info_to_ustar(info, ptb);
 	otoa(ptb->xstar_dbuf.t_atime, info->f_atime, 11);
 	otoa(ptb->xstar_dbuf.t_ctime, info->f_ctime, 11);
-	strcpy(ptb->xstar_dbuf.t_xmagic, stmagic);
+/*	strcpy(ptb->xstar_dbuf.t_xmagic, stmagic);*/
+	ptb->xstar_dbuf.t_xmagic[0] = 't';
+	ptb->xstar_dbuf.t_xmagic[1] = 'a';
+	ptb->xstar_dbuf.t_xmagic[2] = 'r';
 
 	if (is_sparse(info))
 		otoa(ptb->xstar_in_dbuf.t_realsize, info->f_size, 11);
@@ -681,9 +731,14 @@ info_to_gnutar(info, ptb)
 		info->f_gname = ptb->ustar_dbuf.t_gname;
 		info->f_gmaxlen = TGNMLEN;
 	}
-	otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 6);
-	otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 6);
+	if (info->f_xftype == XT_CHR || info->f_xftype == XT_BLK) {
+		otoa(ptb->ustar_dbuf.t_devmajor, info->f_rdevmaj, 6);
+		otoa(ptb->ustar_dbuf.t_devminor, info->f_rdevmin, 6);
+	}
 
+	/*
+	 * XXX GNU tar only fill this if doing a gnudump.
+	 */
 	otoa(ptb->gnu_dbuf.t_atime, info->f_atime, 11);
 	otoa(ptb->gnu_dbuf.t_ctime, info->f_ctime, 11);
 
@@ -1022,8 +1077,8 @@ checkeof(ptb)
 		errmsgno(BAD, "First  EOF Block OK\n");
 
 	if (readblock((char *)ptb) == EOF) {
-		errmsgno(BAD, "Incorrect EOF.\n");
-		return (FALSE);
+		errmsgno(BAD, "Incorrect EOF, second EOF block is missing.\n");
+		return (TRUE);
 	}
 	if (!eofblock(ptb))
 		return (FALSE);
@@ -1103,11 +1158,7 @@ otoa(s, l, fieldw)
 	register int	fieldw;
 {
 	register char	*p	= &s[fieldw+1];
-	register char	blank	= ' ';
-	register char	fill	= '0';
-
-	if ((props.pr_flags & PR_POSIX_OCTAL) == 0)
-		fill = blank;
+	register char	fill	= props.pr_fillc;
 
 	/*
 	 * Bei 12 Byte Feldern würde hier das Nächste Feld überschrieben, wenn
@@ -1116,7 +1167,7 @@ otoa(s, l, fieldw)
 	 * das bei 8 Bytes Feldern notwendige Nullbyte wegzulassen.
 	 */
 /*XXX	*p = '\0';*/
-	*--p = blank;
+	*--p = ' ';
 	do {
 		*--p = (l%8) + '0';	/* Compiler optimiert */
 		fieldw--;

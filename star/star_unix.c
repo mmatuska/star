@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.12 96/06/26 Copyright 1985, 1995 J. Schilling */
+/* @(#)star_unix.c	1.13 97/06/15 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.12 96/06/26 Copyright 1985, 1995 J. Schilling";
+	"@(#)star_unix.c	1.13 97/06/15 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -37,6 +37,7 @@ static	char sccsid[] =
 #include <device.h>
 #include "dirtime.h"
 #include "xutimes.h"
+#include "starsubs.h"
 
 #ifndef	S_IFLNK
 #define	lstat	stat
@@ -55,6 +56,7 @@ extern	BOOL	dirmode;
 extern	BOOL	follow;
 
 EXPORT	BOOL	getinfo		__PR((char* name, FINFO * info));
+EXPORT	void	checkarch	__PR((FILE *f));
 EXPORT	void	setmodes	__PR((FINFO * info));
 LOCAL	int	sutimes		__PR((char* name, FINFO *info));
 EXPORT	int	sxsymlink	__PR((FINFO *info));
@@ -129,6 +131,30 @@ getinfo(name, info)
 		info->f_flags |= F_SPARSE;
 #endif	/* BSD4_2 */
 	return (TRUE);
+}
+
+EXPORT void
+checkarch(f)
+	FILE	*f;
+{
+	struct stat	stbuf;
+	extern	long	tape_dev;
+	extern	long	tape_ino;
+
+	if (fstat(fdown(f), &stbuf) < 0)
+		return;
+	
+	if ((stbuf.st_mode & S_IFMT) == S_IFREG) {
+		tape_dev = stbuf.st_dev;
+		tape_ino = stbuf.st_ino;
+	} else if (((stbuf.st_mode & S_IFMT) == 0) ||
+			((stbuf.st_mode & S_IFMT) == S_IFIFO) ||
+			((stbuf.st_mode & S_IFMT) == S_IFSOCK)) {
+		/*
+		 * This is a pipe or similar on different UNIX implementations.
+		 */
+		tape_dev = tape_ino = -1;
+	}
 }
 
 EXPORT void
