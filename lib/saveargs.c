@@ -1,6 +1,7 @@
-/* @(#)saveargs.c	1.5 96/06/16 Copyright 1995 J. Schilling */
+/* @(#)saveargs.c	1.7 98/05/31 Copyright 1995 J. Schilling */
 /* save argc, argv for command error printing routines */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -9,18 +10,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <mconfig.h>
 #include <standard.h>
 #include <strdefs.h>
 #include <stdxlib.h>
+#include <avoffset.h>
 
-#ifndef	HAVE_GETAV0
+#if	!defined(AV_OFFSET) || !defined(FP_INDIR)
 #	ifdef	HAVE_SCANSTACK
 #	undef	HAVE_SCANSTACK
 #	endif

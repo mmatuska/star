@@ -1,4 +1,4 @@
-/* @(#)comerr.c	1.17 97/05/03 Copyright 1985 J. Schilling */
+/* @(#)comerr.c	1.18 98/02/15 Copyright 1985 J. Schilling */
 /*
  *	Routines for printing command errors
  *
@@ -38,7 +38,7 @@ extern	char	*sys_errlist[];
 extern	int	sys_nerr;
 #endif
 
-local	int	_comerr __PR((int, int, const char *, va_list));
+LOCAL	int	_comerr __PR((int, int, const char *, va_list));
 
 /* VARARGS1 */
 #ifdef	PROTOTYPES
@@ -128,7 +128,7 @@ int errmsgno(err, msg, va_alist)
 	return (ret);
 }
 
-local int _comerr(exflg, err, msg, args)
+LOCAL int _comerr(exflg, err, msg, args)
 	int		exflg;
 	int		err;
 	const char	*msg;

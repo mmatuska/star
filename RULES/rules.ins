@@ -1,4 +1,4 @@
-#ident @(#)rules.ins	1.6 97/05/26 
+#ident @(#)rules.ins	1.7 97/06/20 
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -31,6 +31,12 @@ $(INS_BASE)/$(INSDIR)/$(TARGET):	$(PTARGET)
 $(SRCROOT)/bins/$(OARCH)/$(TARGET):	$(PTARGET)
 			$(INSTALL) $(PTARGET) $@
 
+PHARDLINKS=	$(HARDLINKS:%=$(INS_BASE)/$(INSDIR)/%)
+hardlinks:	$(PHARDLINKS)
+
+dummy $(PHARDLINKS):	$(INS_BASE)/$(INSDIR)/$(TARGET)
+	@echo "	==> INSTALLING link \"$@\""; $(LN) $(INS_BASE)/$(INSDIR)/$(TARGET) $@
+
 xinstall:
 	@if [ ".$(XMK_FILE)" != . ] ; then				\
 		for XMK_F in $(XMK_FILE) XxZzY-- ; do			\
@@ -49,6 +55,7 @@ xinstall:
 
 install:	all	$(INS_BASE)/$(INSDIR) \
 			$(INS_BASE)/$(INSDIR)/$(TARGET) \
+			hardlinks \
 			xinstall
 
 ibins:		all	$(SRCROOT)/bins/$(OARCH) \

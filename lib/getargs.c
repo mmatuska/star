@@ -1,7 +1,7 @@
-/* @(#)getargs.c	2.18 96/11/30 Copyright 1985, 1988, 1995 J. Schilling */
+/* @(#)getargs.c	2.23 98/03/31 Copyright 1985, 1988, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)getargs.c	2.18 96/11/30 Copyright 1985, 1988, 1995 J. Schilling";
+	"@(#)getargs.c	2.23 98/03/31 Copyright 1985, 1988, 1995 J. Schilling";
 #endif
 #define	NEW
 /*
@@ -19,7 +19,8 @@ static	char sccsid[] =
  *		'&'	call function
  *		'+'	inctype		+++ NEU +++
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -28,25 +29,18 @@ static	char sccsid[] =
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 /* LINTLIBRARY */
+#include <mconfig.h>
 #include <standard.h>
 #include <getargs.h>
 #include <ctype.h>
-#ifdef	HAVE_STDARG_H
-#	include <stdarg.h>
-#else
-#	include <varargs.h>
-#endif
-#ifdef	HAVE_STRING_H
-#include <string.h>
-#else
-extern	char	*strchr __PR((const char *, int));
-#endif
+#include <vadefs.h>
+#include <strdefs.h>
 
 #define	NOARGS		  0	/* No more args			*/
 #define	NOTAFLAG	  1	/* Not a flag type argument	*/
@@ -65,6 +59,7 @@ LOCAL	int	checkfmt __PR((const char *));
 LOCAL	int	checkeql __PR((const char *));
 
 LOCAL	va_list	va_dummy;
+
 LOCAL	char	fmtspecs[] = "#?*&+"; 
 
 #define	isfmtspec(c)		(strchr(fmtspecs, c) != NULL)
@@ -123,9 +118,10 @@ int getallargs(pac, pav, fmt, va_alist)
 #else
 	va_start(args);
 #endif
-	for (;; (*pac)--, (*pav)++)
+	for (;; (*pac)--, (*pav)++) {
 		if ((ret = _getargs(pac, pav, fmt, TRUE, args)) != NOTAFLAG)
 			break;
+	}
 	va_end(args);
 	return (ret);
 }
@@ -250,16 +246,17 @@ LOCAL int dofile(pac, pav, pargp)
 |	if a match is found store the result a la scanf in one of the
 |	arguments pointed to in the va_list
 |
-|	if the va_list is a NULL pointer only check arguments for getfiles()
+|	If setargs is FALSE, only check arguments for getfiles()
+|	in this case, va_list may be a dummy arg.
 |
 +---------------------------------------------------------------------------*/
-LOCAL int doflag(pac, pav, argp, fmt, setargs, args)
+LOCAL int doflag(pac, pav, argp, fmt, setargs, oargs)
 		int		*pac;
 		char	*const	**pav;
 	register const char	*argp;
 	register const char	*fmt;
 		BOOL		setargs;
-		va_list		args;
+		va_list		oargs;
 {
 	long	val;
 	int	singlecharflag	= 0;
@@ -267,10 +264,26 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, args)
 	BOOL	haseql		= checkeql(argp);
 	const char	*sargp	= argp;
 	const char	*sfmt	= fmt;
-	va_list	sargs		= args;
+	va_list	args;
 	char	*const	*spav	= *pav;
 	int		spac	= *pac;
 	void		*curarg	= (void *)0;
+
+	/*
+	 * Initialize 'args' to the start of the argument list.
+	 * I don't know any portable way to copy an arbitrary
+	 * C object so I use a system-specific routine
+	 * (probably a macro) from stdarg.h.  (Remember that
+	 * if va_list is an array, 'args' will be a pointer
+	 * and '&args' won't be what I would need for memcpy.)
+	 * It is a system requirement for SVr4 compatibility
+	 * to be able to do this assgignement. If your system
+	 * defines va_list to be an array but does not define
+	 * va_copy() you are lost.
+	 * This is needed to make sure, that 'oargs' will not
+	 * be clobbered.
+	 */
+	va_copy(args, oargs);
 
 	if (setargs)
 		curarg = va_arg(args, void *);
@@ -389,7 +402,7 @@ LOCAL int doflag(pac, pav, argp, fmt, setargs, args)
 			 * Boolean type has been tested before.
 			 */
 			if (singlecharflag && 
-			   (val = dosflags(sargp, sfmt, setargs, sargs)) !=
+			   (val = dosflags(sargp, sfmt, setargs, oargs)) !=
 								BADFLAG)
 				return (val);
 
@@ -548,19 +561,36 @@ typedef struct {
 	char	type;
 } sflags;
 
-LOCAL int dosflags(argp, fmt, setargs, args)
+LOCAL int dosflags(argp, fmt, setargs, oargs)
 	register const char	*argp;
 	register const char	*fmt;
 		BOOL		setargs;
-		va_list		args;
+		va_list		oargs;
 {
 #define	MAXSF	32
 		 sflags	sf[MAXSF];
+		 va_list args;
 	register sflags	*rsf	= sf;
 	register int	nsf	= 0;
 	register const char *p	= argp;
 	register int	i;
 	register void	*curarg = (void *)0;
+
+	/*
+	 * Initialize 'args' to the start of the argument list.
+	 * I don't know any portable way to copy an arbitrary
+	 * C object so I use a system-specific routine
+	 * (probably a macro) from stdarg.h.  (Remember that
+	 * if va_list is an array, 'args' will be a pointer
+	 * and '&args' won't be what I would need for memcpy.)
+	 * It is a system requirement for SVr4 compatibility
+	 * to be able to do this assgignement. If your system
+	 * defines va_list to be an array but does not define
+	 * va_copy() you are lost.
+	 * This is needed to make sure, that 'oargs' will not
+	 * be clobbered.
+	 */
+	va_copy(args, oargs);
 
 	if (setargs)
 		curarg = va_arg(args, void *);
@@ -576,7 +606,7 @@ LOCAL int dosflags(argp, fmt, setargs, args)
 			rsf[i].curarg = (void *)0;
 			rsf[i].count = 0;
 			rsf[i].c = *p;
-			rsf[i].type = -1;
+			rsf[i].type = (char)-1;
 			nsf++;
 		}
 		rsf[i].count++;
@@ -618,7 +648,7 @@ LOCAL int dosflags(argp, fmt, setargs, args)
 			curarg = va_arg(args, void *);
 	}
 	for (i=0; i < nsf; i++) {
-		if (rsf[i].type < 0)
+		if (rsf[i].type == (char)-1)
 			return (BADFLAG);
 		if (rsf[i].curarg) {
 			if (rsf[i].type == ',' || rsf[i].type == '\0') {
@@ -670,9 +700,10 @@ LOCAL int checkfmt(fmt)
 static int checkeql(str)
 	register const char *str;
 {
-	register char c;
+	register unsigned char c;
 
-	for (c = *str; isalnum(c) || c == '_' || c == '-'; c = *str++)
+	for (c = (unsigned char)*str;
+				isalnum(c) || c == '_' || c == '-'; c = *str++)
 		;
 	return (c == '=');
 }

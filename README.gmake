@@ -8,5 +8,5 @@ tons of debug messages. Less than 1% of these debug messages are
 useful. Important things are missing in these debug messages.
 
 Gmake has bug with the VPATH= option. Some of the macros are
-not correctly expanded. I had to remove all occurrences of
+not expanded correctly. I had to remove all occurrences of
 $@ $* and $^ on some places for this reason.

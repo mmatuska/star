@@ -1,8 +1,8 @@
 /*#define	DEBUG*/
-/* @(#)hole.c	1.11 97/06/05 Copyright 1990 J. Schilling */
+/* @(#)hole.c	1.12 98/06/23 Copyright 1990 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)hole.c	1.11 97/06/05 Copyright 1990 J. Schilling";
+	"@(#)hole.c	1.12 98/06/23 Copyright 1990 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
@@ -33,6 +33,17 @@ static	char sccsid[] =
 #include "props.h"
 #include "table.h"
 #include "starsubs.h"
+#ifdef	sun
+#	include <unixstd.h>
+#	include <sys/types.h>
+#	include <sys/filio.h>
+#	if	_FIOAI == _FIOOBSOLETE67
+#	undef	_FIOAI
+#	endif
+#	ifdef	_FIOAI
+#	include <sys/fs/ufs_filio.h>
+#	endif
+#endif	/* sun */
 
 #ifdef DEBUG
 #define	EDEBUG(a)	if (debug) error a
@@ -437,10 +448,28 @@ mk_sp_list(f, info, spp)
 	char	rbuf[TBLOCK];
 	sp_t	*sparse;
 	int	nsparse = 25;
-	register int	amount;
+	register int	amount = 0;
 	register long	pos = 0;
 	register int	i = 0;
 	register BOOL	data = FALSE;
+	register BOOL	use_ai = FALSE;
+	register BOOL	is_hole = FALSE;
+#ifdef	_FIOAI
+		int	fai_idx;
+	struct fioai	fai;
+	struct fioai	*faip;
+#	define	NFAI	1024
+	daddr_t		fai_arr[NFAI];
+#endif	/* _FIOAI */
+
+#ifdef	_FIOAI
+	fai.fai_off = 0;
+	fai.fai_size = 512;
+	fai.fai_num = 1;
+	fai.fai_daddr = fai_arr;
+	use_ai = ioctl(fdown(f), _FIOAI, &fai) >= 0;	/* Use if operational*/
+	fai_idx = 0;
+#endif	/* _FIOAI */
 
 	*spp = (sp_t *)0;
 	info->f_rsize = 0;
@@ -449,8 +478,28 @@ mk_sp_list(f, info, spp)
 		errmsg("Cannot alloc sparse buf.\n");
 		return (i);
 	}
-	while ((amount = ffileread(f, rbuf, TBLOCK)) != 0) {
-		if (cmpbytes(rbuf, zeroblk, amount) >= amount) {
+	for (;;) {
+		if (use_ai) {
+#ifdef	_FIOAI
+			if (fai_idx >= fai.fai_num) {
+				fai.fai_off = pos;
+				fai.fai_size = 512 * NFAI;
+				fai.fai_num = NFAI;
+				ioctl(fdown(f), _FIOAI, &fai);
+				if (fai.fai_num == 0)
+					break;
+				fai_idx = 0;
+			}
+			is_hole = fai.fai_daddr[fai_idx++] == _FIOAI_HOLE;
+			amount = 512;
+#endif	/* _FIOAI */
+		} else {
+			if ((amount = ffileread(f, rbuf, TBLOCK)) == 0)
+				break;
+			is_hole = cmpbytes(rbuf, zeroblk, amount) >= amount;
+		}
+
+		if (is_hole) {
 			if (data) {
 				sparse[i].sp_numbytes =
 						pos - sparse[i].sp_offset;

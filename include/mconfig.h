@@ -1,4 +1,4 @@
-/* @(#)mconfig.h	1.15 97/06/03 Copyright 1995 J. Schilling */
+/* @(#)mconfig.h	1.18 97/11/06 Copyright 1995 J. Schilling */
 /*
  *	definitions for machine configuration
  *
@@ -319,6 +319,8 @@ extern "C" {
  */
 #if	defined(_IBMR2) || defined(_AIX)
 #	define	IS_UNIX		/* ??? really ??? */
+#	define	NO_FLOATINGPOINT/* XXX until isinf()/isnan() is solved*/
+#	define	USE_FLOATINGARGS/* Use up args from floatingpoint format */
 #ifndef	PROTOTYPES
 #	define	PROTOTYPES
 #endif
@@ -340,7 +342,7 @@ extern "C" {
 #	define	MAJOR_IN_SYSMACROS
 /*#	define	HAVE_USG_STDIO*/
 #	define	HAVE_STRERROR
-/*#	define	HAVE_MEMMOVE*/
+#	define	HAVE_MEMMOVE
 #	define	HAVE_MMAP
 #	define	HAVE_SMMAP
 #	define	HAVE_USGSHM
@@ -704,10 +706,11 @@ extern "C" {
 #endif
 
 /*
- * Prototype for FreeBSD and NetBSD
+ * Prototype for FreeBSD / NetBSD / OpenBSD
  */
-#if defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
 #	define	NO_FLOATINGPOINT/* No support for nonstd floatingpoint */
+#	define	USE_FLOATINGARGS/* Use up args from floatingpoint format */
 #	define	PROTOTYPES
 #	define	HAVE_AOUT
 #	define	HAVE_STDARG_H

@@ -1,7 +1,7 @@
-/* @(#)star.c	1.54 97/06/15 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.c	1.56 97/11/09 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star.c	1.54 97/06/15 Copyright 1985, 1995 J. Schilling";
+	"@(#)star.c	1.56 97/11/09 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
@@ -172,7 +172,7 @@ BOOL	listnewf= FALSE;
 
 int	intr	= 0;
 
-char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";
+char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";
 
 EXPORT int
 main(ac, av)
@@ -233,6 +233,8 @@ main(ac, av)
 		if (listfile) {
 			openlist();
 			hash_build(listf, 1000);
+			if((currdir = dir_flags) != NULL)
+				dochdir(currdir, TRUE);
 		} else {
 			for (;;--cac,cav++) {
 				if (dir_flags)
@@ -267,6 +269,8 @@ main(ac, av)
 		put_volhdr(volhdr);
 		if (listfile) {
 			openlist();
+			if((currdir = dir_flags) != NULL)
+				dochdir(currdir, TRUE);
 			createlist();
 		} else {
 			const char	*cdir = NULL;
@@ -454,6 +458,7 @@ xusage(ret)
 	error("\t-keep_old_files,-k\tkeep existing files\n");
 	error("\t-/\t\tdon't strip leading '/'s from file names\n");
 	error("\tlist=name\tread filenames from named file\n");
+	error("\t-dodesc\t\tdo descend directories found in a list= file\n");
 	error("\tpattern=p,pat=p\tset matching pattern\n");
 	error("\tmaxsize=#\tdo not store file if it is bigger than # kBytes\n");
 	error("\tnewer=name\tstore only files which are newer than 'name'\n");
@@ -547,13 +552,14 @@ gargs(ac, av)
 	BOOL	oldtar	= FALSE;
 	BOOL	no_fifo	= FALSE;
 	BOOL	usetape	= FALSE;
+	BOOL	dodesc	= FALSE;
 	BOOL	qic24	= FALSE;
 	BOOL	qic120	= FALSE;
 	BOOL	qic150	= FALSE;
 	BOOL	qic250	= FALSE;
 	char	*p;
 
-/*char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";*/
+/*char	*opts = "C*,help,h,xhelp,debug,time,no_statistics,fifostats,numeric,v,tpath,c,u,r,x,t,n,diff,diffopts&,H&,force_hole,sparse,to_stdout,wready,force_remove,ask_remove,remove_first,remove_recursive,nullout,fifo,no_fifo,shm,fs&,VOLHDR*,list*,file*,f*,T,bs&,blocks#,b#,z,B,pattern&,pat&,i,d,m,nochown,a,atime,p,l,L,D,dodesc,M,I,O,signed_checksum,P,S,U,xdir,k,keep_old_files,/,not,V,maxsize#L,newer*,ctime,tsize#L,qic24,qic120,qic150,qic250,nowarn,newest_file,newest";*/
 
 	if ((p = strchr(av[0], '/')) == NULL)
 		p = av[0];
@@ -598,6 +604,7 @@ gargs(ac, av)
 				&nolinkerr,
 				&follow,
 				&nodesc,
+				&dodesc,
 				&nomount,
 				&interactive,
 				&oldtar, &signedcksum,
@@ -703,7 +710,7 @@ gargs(ac, av)
 		if (qic150) tsize = QIC_150_TSIZE;
 		if (qic250) tsize = QIC_250_TSIZE;
 	}
-	if (listfile != NULL)
+	if (listfile != NULL && !dodesc)
 		nodesc = TRUE;
 	if (oldtar)
 		nospec = TRUE;

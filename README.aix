@@ -3,4 +3,16 @@ on AIX. To go around this problem do:
 
 setenv COPTX -DNO_FLOATINGPOINT
 
-before making star.
+before calling the make program.
+
+NOTE:	AIX seems to have a kernel bug in the mmap() part
+	that may cause kernel panics.
+
+If you observe this kernel panic, try to add a line:
+
+COPTS += -DUSE_SHM
+
+to the file cdrecord/Makefile
+
+It seems that SVrx style shared memory does not have this bug
+

@@ -1,4 +1,4 @@
-. \" @(#)star.1	1.9 97/06/15 Copyr 1982-1995 J. Schilling
+. \" %Z%%M%	%I% %E% Copyr 1982-1995 J. Schilling
 . \"  Manual Seite fuer star
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -631,6 +631,15 @@ Normally,
 .B star 
 descends the whole tree if it encounters a directory in 
 in its file parameters.
+This option is in effect if the 
+.BI list= file
+option is used.
+.TP
+.B \-dodesc
+Force 
+.B star
+to descend directories found in a
+.BI list= file.
 .TP
 .B \-M
 Do not descend mount points.
@@ -845,7 +854,14 @@ Read filenames for store/create/list command from
 The file
 .I filename
 must contain a list of filenames, each on a separate line.
-This option implies the \-D option.
+This option implies the 
+.B \-D 
+option.
+To force
+.B star
+to descend directories, use the
+.B \-dodesc
+option in this case.
 .TP
 .BR VOLHDR= name
 Use
@@ -1003,6 +1019,9 @@ zeroes.
 .TP
 .B \-sparse
 Handle files with holes effectively on store/create.
+On Solaris 2.x there may be a special ioctl() called 
+.I _FIOAI
+that allows root to get the allocation info more efficiently.
 .TP
 .B \-force_hole
 Try to extract all files with holes. This even works with files that 
@@ -1457,11 +1476,6 @@ garbage sizes in the tar archive header. The current version of
 does not implement this. This implies that tape archives that use 
 this feature may not be processed by 
 .BR star .
-.PP
-On Solaris systems, 
-.B star 
-should use the _FIOAI file ioctl to examine 
-sparse files.
 .SH HISTORY
 .B Star
 was first created in 1982 to extract tapes on a UNIX clone that had no tar command.

@@ -1,4 +1,5 @@
-Newsgroups: comp.unix.admin,comp.unix.misc,alt.os.linux,alt.sys.sun,bln.comp.sun,bln.comp.unix,comp.os.linux.development.apps,comp.os.linux.misc,comp.sys.hp.apps,comp.sys.hp.misc,comp.sys.sgi.admin,comp.sys.sgi.apps,comp.sys.sgi.misc,comp.sys.sun.admin,comp.sys.sun.apps,comp.sys.sun.misc,comp.unix.aix,comp.unix.bsd.freebsd.misc,comp.unix.netbsd.misc,comp.unix.solaris,de.comp.os.linux.misc,de.comp.os.unix,linux.dev.admin,linux.dev.apps,maus.os.linux,maus.os.linux68k,maus.os.unix,uk.comp.os.linux
+Newsgroups: comp.unix.admin,comp.unix.misc,alt.os.linux,alt.sys.sun,bln.comp.sun,bln.comp.unix,comp.os.linux.development.apps,comp.os.linux.misc,comp.sys.hp.apps,comp.sys.hp.misc,comp.sys.sgi.admin,comp.sys.sgi.apps,comp.sys.sgi.misc,comp.sys.sun.admin,comp.sys.sun.apps,comp.sys.sun.misc,comp.unix.aix,comp.unix.bsd.freebsd.misc,comp.unix.bsd.netbsd.misc,comp.unix.solaris,de.comp.os.linux.misc,de.comp.os.unix,linux.dev.admin,linux.dev.apps,maus.os.linux,maus.os.linux68k,maus.os.unix,uk.comp.os.linux
+Subject: Star-1.2 source has been released
 
 Star is the fastest tar archiver for UNIX
 
@@ -10,24 +11,24 @@ Star is located on:
 
 ftp://ftp.fokus.gmd.de/pub/unix/star
 
-Changes since star-1.0:
-	Better manual, better examples in the manual.
-	Add a -xdir flag to force extraction of directories regardless of time stamp.
-	Changed max number of patterns from 10 to 100.
-	First implementation of the -z flag.
-	Don't dump archive if it is a file.
-	Finally implement -C option even working in extract mode.
-	Star now defaults to 100% ansi if it is called as 'ustar'
-		(add ustar hardlink to star)
-	Fifo size may be controlled by STAR_FIFO_SIZE environment
-	Diff behaviour optimized to give less misleading output
-	EOF error messages better for better understanding of GNU tar EOF bug
-	Limit name length for old tar & GNU tar to 99 chars
-	New options -force_remove -ask_remove -remove_first -remove_recursive
-	New option -nullout to get the size of the archive as fast as possible
-	Many speed enhancements: Now using 40% less user CPU time.
-	Bug fix for -sparse (star & xstar format)
-	Compiles again on AIX (use setenv COPTX -DNO_FLOATINGPOINT before)
+This release is mostly a bugfix release and now gives a 
+new stable base release in preparation of future changes.
+
+Changes since star-1.1:
+
+	Fixed some problems with the -z option
+	Fixed some oddities with the -listnew option
+	Fixed a bug that caused a coredump with -nullout
+	Added support for the different behavior of the chown() syscall
+		in Linux that caused problems with extracting 
+		suid root files on Linux
+	Allow the -C option to work with the listfile= option too
+	New option -dodesc
+	Added the code to use the _FIOAI ioctl on Solaris to speed up
+		archiving sparse files > 200 times. You need a hacked
+		ufs filesystem in order to use this on Solaris 2.6
+		ftp://ftp.fokus.gmd.de/pub/unix/kernel/ufs
+
 
 Revision history (short)
 

@@ -1,7 +1,7 @@
-/* @(#)buffer.c	1.26 97/06/14 Copyright 1985, 1995 J. Schilling */
+/* @(#)buffer.c	1.28 97/12/06 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)buffer.c	1.26 97/06/14 Copyright 1985, 1995 J. Schilling";
+	"@(#)buffer.c	1.28 97/12/06 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
@@ -172,7 +172,7 @@ opentape()
 		else
 			sleep(10);
 	}
-	if (!isremote) {
+	if (!isremote && !nullout) {
 		file_raise(tarf, FALSE);
 		checkarch(tarf);
 	}
@@ -203,7 +203,8 @@ closetape()
 		if (rmtclose(remfd) < 0)
 			errmsg("Remote close failed.\n");
 	} else {
-		fclose(tarf);
+		if (tarf)
+			fclose(tarf);
 	}
 }
 

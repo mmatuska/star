@@ -1,10 +1,11 @@
-/* @(#)fexec.c	1.14 96/06/26 Copyright 1985 J. Schilling */
+/* @(#)fexec.c	1.15 98/06/02 Copyright 1985 J. Schilling */
 /*
  *	Execute a program with stdio redirection
  *
  *	Copyright (c) 1985 J. Schilling
  */
-/* This program is free software; you can redistribute it and/or modify
+/*
+ * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
@@ -13,10 +14,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA. 
+ * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <mconfig.h>
@@ -264,7 +265,7 @@ int fexecve(name, in, out, err, av, env)
 	if (ferr != 2) {
 		f[2] = fcntl(2, F_GETFD, 0);
 		o[2] = dup(2);
-		fcntl(o[0], F_SETFD, 1);
+		fcntl(o[2], F_SETFD, 1);
 		fdcopy(ferr, 2);
 	}
 	if (fin != 0)

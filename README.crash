@@ -11,7 +11,7 @@ actions by using star. Simply follow the following steps:
 	and some/all recent files remain intact.
 
 2)	Run star -xp  from the most recent backup you have.
-	This will only extract all files that have beed 
+	This will only extract all files that have been
 	deleted on the fsck -y run.
 
 3)	Rewind the tape and run:

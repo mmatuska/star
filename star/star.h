@@ -1,4 +1,4 @@
-/* @(#)star.h	1.23 97/06/15 Copyright 1985, 1995 J. Schilling */
+/* @(#)star.h	1.24 98/06/23 Copyright 1985, 1995 J. Schilling */
 /*
  *	Copyright (c) 1985, 1995 J. Schilling
  */
@@ -366,13 +366,13 @@ typedef	struct	{
 	Ulong	f_spare3;
 } FINFO;
 
-#define	F_LONGNAME	0x01	/* Langer Name passt nicht in Header	*/
-#define	F_LONGLINK	0x02	/* Langer Linkname passt nicht in Header*/
-#define	F_SPLIT_NAME	0x04	/* Langer Name wurde gesplitted		*/
-#define	F_HAS_NAME	0x08	/* Langer Name in f_name soll bleiben	*/
-#define	F_SPARSE	0x10	/* Datei enthält Löcher			*/
-#define	F_TCB_BUF	0x20	/* TCB ist/war vom Buffer alloziert	*/
-#define	F_ADDSLASH	0x40	/* Langer Name benötigt Slash am Ende	*/
+#define	F_LONGNAME	0x01	/* Langer Name passt nicht in Header	     */
+#define	F_LONGLINK	0x02	/* Langer Linkname passt nicht in Header     */
+#define	F_SPLIT_NAME	0x04	/* Langer Name wurde gesplitted		     */
+#define	F_HAS_NAME	0x08	/* Langer Name in f_name/f_lname soll bleiben*/
+#define	F_SPARSE	0x10	/* Datei enthält Löcher			     */
+#define	F_TCB_BUF	0x20	/* TCB ist/war vom Buffer alloziert	     */
+#define	F_ADDSLASH	0x40	/* Langer Name benötigt Slash am Ende	     */
 
 #define	F_SPEC	0
 #define	F_FILE	1

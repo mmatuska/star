@@ -1,0 +1,5 @@
+#!/bin/sh
+rm -rf */OBJ */*/OBJ libs/*
+rm -f core */core */*/core
+rm -f .EDT* */.EDT* */*/.EDT*
+rm -f .vedt* */.vedt* */*/.vedt*

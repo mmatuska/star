@@ -1,7 +1,7 @@
-/* @(#)list.c	1.20 97/06/14 Copyright 1985, 1995 J. Schilling */
+/* @(#)list.c	1.21 98/06/23 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)list.c	1.20 97/06/14 Copyright 1985, 1995 J. Schilling";
+	"@(#)list.c	1.21 98/06/23 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	List the content of an archive
@@ -67,6 +67,7 @@ list()
 		TCB	newtb;
 		char	name[PATH_MAX+1];
 		char	newname[PATH_MAX+1];
+		char	newlname[PATH_MAX+1];
 	register TCB 	*ptb = &tb;
 
 	fillbytes((char *)&finfo, sizeof(finfo), '\0');
@@ -86,6 +87,10 @@ list()
 				movebytes(&tb, &newtb, sizeof(tb));
 				strcpy(newname, name);
 				newinfo.f_name = newname;
+				if (newinfo.f_lname[0] != '\0') {
+					strcpy(newlname, newinfo.f_lname);
+					newinfo.f_lname = newlname;
+				}
 				newinfo.f_flags |= F_HAS_NAME;
 			}
 		} else if (listfile) {
@@ -96,7 +101,7 @@ list()
 
 		void_file(&finfo);
 	}
-	if (listnew || listnewf) {
+	if ((listnew || listnewf) && newinfo.f_mtime != 0L) {
 		/* XXX
 		 * XXX Achtung!!! tcb_to_info zerstört t_name[NAMSIZ]
 		 * XXX und t_linkname[NAMSIZ].

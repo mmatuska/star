@@ -1,0 +1,103 @@
+Porting FAQ for SING (Schily Is Not Gnu) utilities.
+
+-	The base for porting is the makefile system.
+	Always look into:
+		ftp://ftp.fokus.gmd.de/pub/unix/makefiles
+	for the newest version.
+
+	Then read the man pages located in man/man4/*
+
+		to convert a manpage troff->postscript:
+			gtroff -man file.tr | grops > file.ps
+		to convert a manpage troff->Terminal:
+			nroff -man file.tr | more -s
+
+
+-	To be able to use the makefile system, you need a
+	make program that meets the minimum requirements 
+	for a make program (see makerules(4) man page)
+	Currently, the following make programs meet this
+	minimum requirements: Smake (my program), SunPro Make and Gmake
+
+
+-	To be able to use the makefile system with gmake,
+	the operating system must have a command named 'uname'.
+	If not, you have to provide it as a shell script.
+
+
+1)	First step for adding a new architecture is creating
+	the appropriate rule files in the RULES directory:
+
+		RULES/os-{newos}.id	For OS identification
+		RULES/os-{newos}.def	For OS definition (man style)
+		RULES/{newarch}-{newos}-cc.rul
+		RULES/{newarch}-{newos}-gcc.rul
+
+	And create a file:
+
+		DEFAULTS/Defaults.{newos}
+
+	Have a look in similar files for a template.
+
+2)	All porting control is located in include/mconfig.h
+	There is a checklist with comment at the beginning
+	of the file and a template for a new system at the end of
+	the file.
+
+	Read the manuals of your operating system and have a look
+	into the OS-supplied files in /usr/include to create 
+	a new entry for your architecture.
+
+	If some time, GNU autoconf will deal with all I need,
+	this file will be created by autoconf.
+
+	NOTE: in cdrecord-1.4 is a bug in mconfig.h
+	the define HAVE_SYS_TIME_H is not included in the
+	checklist and not included in the template.
+	It may be important however.
+
+3)	Everything should compile now.
+	If not, try to hack the files and mail me your problems.
+
+Notice for porting tools, that use the SCSI library:
+
+I)	Cdrecord should compile at this moment if you are using
+	a new architecture. The SCSI transport however will not work.
+	Check this!
+
+
+II)	Implementing a SCSI Transport Layer for your architecture:
+
+	You need to add a new block into scsihack.c that will add
+	support for your OS. Copy the block:
+
+	#ifdef  __NEW_ARCHITECTURE
+	#define SCSI_IMPL               /* We have a SCSI implementation for XXX */
+	/*
+	 * Add new hacks here
+	 */
+	#include "scsi-new-arch.c"
+	#endif
+
+	and rename __NEW_ARCHITECTURE to reflect your new architecture.
+
+	Add a new file that will be called scsi-{newarch}.c
+	Have a look into scsi-linux-sg.c for a template how to do this.
+
+
+4)	Test your ported program.
+
+5)	You may check other programs from me to see if everything compiles
+	and works.
+
+6)	Send me your changes
+
+Joerg Schilling
+
+schilling@fokus.gmd.de
+joerg@schily.isdn.cs.tu-berlin.de
+js@cs.tu-berlin.de
+
+
+
+

@@ -1,0 +1,145 @@
+Short overview for those who don't read manuals:
+
+	You **need** either my "smake" program, the SunPRO make 
+	from /usr/bin/make (SunOS 4.x) or /usr/ccs/bin/make (SunOS 5.x)
+	or GNU make to compile this program.
+
+	All other make programs are either not smart enough or have bugs.
+
+	My "smake" is (in binary form) in the makefiles distribution 
+
+	on: ftp://ftp.fokus.gmd.de/pub/unix/makefiles
+
+	If you have the choice between all three make programs, the
+	preference would be 
+
+		1)	smake		(preferred)
+		2)	SunPRO make
+		3)	GNU make	(this is the last resort)
+
+	Important notice: "smake" that comes with SGI/IRIX will not work!!!
+
+	Please read the README's for your operating system too.
+
+			WARNING
+	Do not use 'mc' to extract the tar file!
+	All mc versions before 4.0.14 cannot extract symbolic links correctly.
+
+
+Here comes the long form:
+
+This program uses a new makefile system. The makefile system is optimized 
+for a program called 'smake' Copyright 1985 by Jörg Schilling,
+but SunPro make (the make program that comes with SunOS >= 4.0 and Solaris)
+as well as newer versions of GNU make will work also.
+BSDmake could be make working, if it supports pattern matching rules
+correctly.
+
+The makefile system allows simultaneous compilation on a wide
+variety of target systems if the source tree is accessible via NFS.
+
+To allow this, all binaries and results of a 'compilation' in any form
+are placed in sub-directories. This includes automatically generated
+include files. Results in general will be placed into
+a directory named OBJ/<arch-name>/ in the current projects leaf directory,
+libraries will be placed into a directory called libs/<arch-name>/ 
+that is located in the source tree root directory.
+
+<arch-name> will be something like 'sparc-sunos5-cc'
+
+To compile a system or sub-system, simply enter smake, make or Gmake.
+Compilation may be initialized at any point of the source tree of a
+system. If compilation is started in a sub tree, all objects
+in that sub tree will be made.
+To install the product of a compilation in your system, call:
+
+smake install
+
+at top level. The binaries will usually be installed in /opt/schily/bin.
+If you want to change this, edit the appropriate (system dependent) files
+in the DEFAULTS directory.
+The default C-compiler can be modified in the DEFAULT files too.
+
+If you want to have a different compiler for one compilation,
+call:
+
+make CCOM=gcc
+or
+make CCOM=cc
+
+For a list of targets call:
+
+make .help
+
+The man page makefiles.4 located in man/man4/makefiles.4 contains
+the documentation on general use and for leaf makefiles.
+
+The man page makerules.4 located in man/man4/makerules.4 contains
+the documentation for system programmers who want to modify
+the make rules of the makefile system.
+
+
+Hints for compilation:
+
+The makefile system is optimized for 'smake'. Smake will give the
+fastest processing and best debugging output.
+
+SunPro make will work as is. GNU make need some special preparation.
+
+To use GNU make create a file called 'Gmake' in you search path
+that contains:
+
+#!/bin/sh
+MAKEPROG=gmake
+export MAKEPROG
+exec gmake "$@"
+
+and call 'Gmake' instead of gmake.
+
+If you like to use 'smake', you may obtain a copy of the makefile
+system. Various newer releases contain precompiled versions of 'smake'.
+The packages are located on:
+
+ftp://ftp.fokus.gmd.de/pub/unix/makefiles/
+
+Precompiled binaries of 'smake' are located in bins/<arch-name>/smake
+(e.g. bin/sparc-sunos5-cc/smake) of each package.
+
+Smake has a -D flag to see the actual makefile source used
+and a -d flag that gives easy to read debugging. Use smake -xM
+to get a makefile dependency list. Try smake -help
+
+The defaults found in the directory DEFAULTS are configured to
+give minimum warnings. This is made because many people will
+be irritated by warning messages and because the GNU c-compiler
+will give warnings that are perfectly correct and portable c-code.
+
+If you want to port code to new platforms or do engeneering
+on the code, you should use the alternate set of defaults found
+in the directory DEFAULTS_ENG.
+You may do this permanently by renaming the directories or
+for one compilation by calling:
+
+make DEFAULTSDIR=DEFAULTS_ENG
+
+If you want to see an example, please have a look at the "star"
+source. It may be found on:
+
+ftp://ftp.fokus.gmd.de/pub/unix/star
+
+Have a look at the manual page, it is included in the distribution.
+Install the manual page with 
+
+make install first and include /opt/schily/man in your MANPATH
+
+Author:
+
+Joerg Schilling
+Seestr. 110
+D-13353 Berlin
+Germany
+
+Email: 	joerg@schily.isdn.cs.tu-berlin.de, js@cs.tu-berlin.de
+	schilling@fokus.gmd.de
+
+Please mail bugs and suggestions to me.

@@ -1,3 +1,6 @@
+WARNING: Do not use 'mc' to extract the tar file!
+All mc versions before 4.0.14 cannot extract symbolic links correctly.
+
 Linux includes the gnu make program by default but it is called 'make' on linux.
 You will definitely need the shell script Gmake.linux to use gmake
 on a linux system.
@@ -14,5 +17,29 @@ or ./Gmake.linux
 NOTES for S.u.S.E distributions: you must unset an environment variable
 called PROMPT_COMMAND
 It contains illegal values for a make file system.
+
+Linux SCSI hints:
+
+If you want to use the user SCSI library on a target that is connected
+to a SCSI hostadapter which is not the first, you need to apply a patch
+to your Linux kernel code. This patch is located in the file 
+
+Linux.scsi-patch
+
+Please chdir to /usr/src, call
+patch  < Linux.scsi-patch
+and re-compile and re-install your kernel.
+
+Linux kernels past 2.0.30 will probably already have this patch included.
+
+IMPORTANT:
+
+-	In some architectures (at least on sparc / alpha / ppc) kernels prior
+	to 2.0.32 are not usable because the call to mlockall() kills cdrecord.
+
+-       You may need to edit /usr/src/linux/asm*/shmparam.h to allow at least 
+        4 MB of shared memory for your architecture by modifying SHMMAX
+	and re-compile/re-install Linux !
+	(note that Linux for Intel by default allows 16 MB) 
 
 Joerg

@@ -1,6 +1,6 @@
 #!/bin/sh
 ###########################################################################
-#ident "@(#)MKLINKS	1.8 97/05/02 "
+#ident "@(#)MKLINKS	1.14 98/06/17 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -22,6 +22,16 @@ ln -s	mk-.id			mk-make.id
 ln -s	r-make.c4x		r-gmake.c4x
 ln -s	r-make.c4x-dep		r-gmake.c4x-dep
 ln -s	r-make.obj		r-gmake.obj
+ln -s	9000-725-hp-ux-cc.rul	9000-710-hp-ux-cc.rul
+ln -s	9000-725-hp-ux-cc.rul	9000-735-hp-ux-cc.rul
+ln -s	9000-725-hp-ux-cc.rul	9000-755-hp-ux-cc.rul
+ln -s	9000-725-hp-ux-gcc.rul	9000-710-hp-ux-gcc.rul
+ln -s	9000-725-hp-ux-gcc.rul	9000-735-hp-ux-gcc.rul
+ln -s	9000-725-hp-ux-gcc.rul	9000-755-hp-ux-gcc.rul
+ln -s	ip22-irix-cc.rul	ip30-irix-cc.rul
+ln -s	ip22-irix-cc.rul	ip32-irix-cc.rul
+ln -s	i386-netbsd-cc.rul	sparc-netbsd-cc.rul
+ln -s	i386-netbsd-gcc.rul	sparc-netbsd-gcc.rul
 ln -s	i586-linux-cc.rul	i386-linux-cc.rul
 ln -s	i586-linux-cc.rul	i486-linux-cc.rul
 ln -s	i586-linux-cc.rul	i686-linux-cc.rul
@@ -32,6 +42,10 @@ ln -s	i586-linux-cc.rul	sparc-linux-cc.rul
 ln -s	i586-linux-gcc.rul	sparc-linux-gcc.rul
 ln -s	i586-linux-cc.rul	alpha-linux-cc.rul
 ln -s	i586-linux-gcc.rul	alpha-linux-gcc.rul
+ln -s	i586-linux-cc.rul	ppc-linux-cc.rul
+ln -s	i586-linux-gcc.rul	ppc-linux-gcc.rul
+ln -s	i586-linux-cc.rul	m68k-linux-cc.rul
+ln -s	i586-linux-gcc.rul	m68k-linux-gcc.rul
 ln -s	sun4-sunos4-cc.rul	sun4c-sunos4-cc.rul
 ln -s	sun4-sunos4-gcc.rul	sun4c-sunos4-gcc.rul
 ln -s	sun4-sunos5-cc.rul	sun4c-sunos5-cc.rul

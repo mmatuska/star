@@ -1,7 +1,7 @@
-/* @(#)header.c	1.23 97/06/15 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.24 98/06/23 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.23 97/06/15 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.24 98/06/23 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
@@ -753,7 +753,13 @@ tcb_to_info(ptb, info)
 {
 	int	ret = 0;
 
-	info->f_lname = ptb->dbuf.t_linkname;
+	/*
+	 * F_HAS_NAME is only used from list.c when the -listnew option is
+	 * present. Keep f_lname and f_name, don't read LF_LONGLINK/LF_LONGNAME
+	 * in this case.
+	 */
+	if ((info->f_flags & F_HAS_NAME) == 0)
+		info->f_lname = ptb->dbuf.t_linkname;
 	info->f_uname = info->f_gname = NULL;
 	info->f_umaxlen = info->f_gmaxlen = 0L;
 	info->f_xftype = 0;
@@ -769,7 +775,8 @@ tcb_to_info(ptb, info)
 	/*
 	 * Handle very long names
 	 */
-	if (props.pr_nflags & PR_LONG_NAMES) {
+	if ((info->f_flags & F_HAS_NAME) == 0 &&
+					props.pr_nflags & PR_LONG_NAMES) {
 		while (ptb->dbuf.t_linkflag == LF_LONGLINK ||
 				    ptb->dbuf.t_linkflag == LF_LONGNAME)
 			ret = tcb_to_longname(ptb, info);

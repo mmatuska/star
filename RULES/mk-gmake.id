@@ -1,4 +1,4 @@
-#ident "@(#)mk-gmake.id	1.4 97/02/07 "
+#ident "@(#)mk-gmake.id	1.5 97/06/22 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING.  If not, write to
 # the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
@@ -28,12 +28,21 @@ MAKEPROG=	gmake
 # standard (automatic) machine identification
 #
 ###########################################################################
+#
+# XP_ARCH = uname -p	= mach	  # Processor (sparc/mc68020)
+# XK_ARCH = uname -m	= arch -k # Kernel (sun3/sun4c/sun4m)
+# XM_ARCH = arch	~ arch -k # Machine (sun3/sun4)
+#
+###########################################################################
 
 ifndef		ARCH_DONE
 
-XP_ARCH:=	$(shell mach 2> /dev/null)
-XK_ARCH:=	$(shell uname -m | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
-XM_ARCH:=	$(shell arch 2> /dev/null)
+_MACHCMD=	(mach || uname -p || true) 2> /dev/null
+_ARCHCMD=	(arch || true)             2> /dev/null
+
+XP_ARCH:=	$(shell $(_MACHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
+XK_ARCH:=	$(shell uname -m    | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
+XM_ARCH:=	$(shell $(_ARCHCMD) | tr '[A-Z]' '[a-z]' | tr ', /\\' ',---')
 
 P_ARCH=		$(XP_ARCH)
 K_ARCH=		$(XK_ARCH)

@@ -1,4 +1,4 @@
-/* @(#)format.c	1.23 97/04/27 Copyright 1985 J. Schilling */
+/* @(#)format.c	1.29 98/03/31 Copyright 1985 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -18,33 +18,34 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; see the file COPYING.  If not, write to
  * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <mconfig.h>
-#ifdef	HAVE_STDARG_H
-#	include <stdarg.h>
-#else
-#	include <varargs.h>
-#endif
-#ifdef	HAVE_STRING_H
-#include <string.h>
-#endif
-#ifdef	HAVE_STDLIB_H
-#include <stdlib.h>
-#else
+#include <vadefs.h>
+#include <strdefs.h>
+#include <stdxlib.h>
+#ifndef	HAVE_STDLIB_H
 extern	char	*gcvt __PR((double, int, char *));
 #endif
 #include <standard.h>
 
-#ifdef	DO_MASK
-#define	CHARMASK	(0xFFL)
-#define	SHORTMASK	(0xFFFFL)
-#define	INTMASK		(0xFFFFFFFFL)
-#endif
+/*
+ * Some CPU's (e.g. PDP-11) cannot do logical shifts.
+ * They use rotate instead. Masking the low bits before,
+ * makes rotate work too.
+ */
+#define	allmask(t)	((unsigned t)~((unsigned t)0))
+#define	lowmask(t, x)	((unsigned t)~((unsigned t)((1 << (x))-1) ))
+#define	rshiftmask(t, s)((allmask(t) & lowmask(t, s)) >> (s))
+
+#define	CHARMASK	makemask(char)
+#define	SHORTMASK	makemask(short)
+#define	INTMASK		makemask(int)
+#define	LONGMASK	makemask(long)
 
 #ifdef	DIVLBYS
 extern	long	divlbys();
@@ -67,6 +68,9 @@ extern	long	modlbys();
 typedef unsigned int	Uint;
 typedef unsigned short	Ushort;
 typedef unsigned long	Ulong;
+#ifdef	HAVE_LONGLONG
+typedef unsigned long long	Ullong;
+#endif
 
 typedef struct f_args {
 	void	(*outf) __PR((char, long)); /* Func from format(fun, arg) */
@@ -88,11 +92,11 @@ typedef struct f_args {
 #define	SPACEFLG	4	/* ' ' flag */
 #define	HASHFLG		8	/* '#' flag */
 
-LOCAL	void	prmod  __PR((Ulong, unsigned, f_args *));
-LOCAL	void	prdmod __PR((Ulong, f_args *));
-LOCAL	void	promod __PR((Ulong, f_args *));
-LOCAL	void	prxmod __PR((Ulong, f_args *));
-LOCAL	void	prXmod __PR((Ulong, f_args *));
+LOCAL	void	prnum  __PR((Ulong, unsigned, f_args *));
+LOCAL	void	prdnum __PR((Ulong, f_args *));
+LOCAL	void	pronum __PR((Ulong, f_args *));
+LOCAL	void	prxnum __PR((Ulong, f_args *));
+LOCAL	void	prXnum __PR((Ulong, f_args *));
 LOCAL	int	prbuf  __PR((const char *, f_args *));
 LOCAL	int	prc    __PR((char, f_args *));
 LOCAL	int	prstring __PR((const char *, f_args *));
@@ -125,7 +129,6 @@ EXPORT int format(fun, farg, fmt, args)
 	double dval;
 	Ulong res;
 	char *rfmt;
-	va_list rargs;
 	f_args	fa;
 
 	fa.outf = fun;
@@ -268,9 +271,12 @@ EXPORT int format(fun, farg, fmt, args)
 				fmt--;
 				mode = 'D';
 			} else {
-				if ((mode = to_cap(*fmt)) == 'U')
+				mode = *fmt;
+				if (mode != 'x')
+					mode = to_cap(mode);
+				if (mode == 'U')
 					unsflag = TRUE;
-				if (mode == 'I')	/*XXX */
+				else if (mode == 'I')	/*XXX */
 					mode = 'D';
 			}
 			break;
@@ -336,12 +342,34 @@ EXPORT int format(fun, farg, fmt, args)
 			gcvt(dval, fa.signific, buf);
 			count += prbuf(buf, &fa);
 			continue;
+#else
+#	ifdef	USE_FLOATINGARGS
+		case 'e':
+		case 'f':
+		case 'g':
+			dval = va_arg(args, double);
+			continue;
+#	endif
 #endif
 
 		case 'r':			/* recursive printf */
+		case 'R':			/* recursive printf */
 			rfmt  = va_arg(args, char *);
-			rargs = va_arg(args, va_list);
-			count += format(fun, farg, rfmt, rargs);
+			/*
+			 * I don't know any portable way to get an arbitrary
+			 * C object from a var arg list so I use a
+			 * system-specific routine __va_arg_list() that knows
+			 * if 'va_list' is an array. You will not be able to
+			 * assign the value of __va_arg_list() but it works
+			 * to be used as an argument of a function.
+			 * It is a requirement for recursive printf to be able
+			 * to use this function argument. If your system
+			 * defines va_list to be an array you need to know this
+			 * via autoconf or another mechanism.
+			 * It would be nice to have something like
+			 * __va_arg_list() in stdarg.h
+			 */
+			count += format(fun, farg, rfmt, __va_arg_list(args));
 			continue;
 
 		case 'n':
@@ -352,7 +380,8 @@ EXPORT int format(fun, farg, fmt, args)
 			}
 			continue;
 
-		default:
+		default:			/* Unknown '%' format */
+			sfmt++;			/* Dont't print '%'   */
 			count += fmt - sfmt;
 			while (sfmt < fmt)
 				(*fun)(*(sfmt++), farg);
@@ -413,11 +442,17 @@ EXPORT int format(fun, farg, fmt, args)
 		 * mode is one of: 'O'ctal, 'D'ecimal, or he'X'
 		 * oder 'Z'weierdarstellung.
 		 */
+		fa.bufp = &buf[sizeof(buf)-1];
+		*--fa.bufp = '\0';
+
 		if (val == 0 && mode != 'D') {
 		printzero:
 			/*
 			 * Printing '0' with fieldwidth 0 results in no chars.
 			 */
+			fa.lzero = -1;
+			if (fa.signific >= 0)
+				fa.fillc = ' ';
 			count += prstring("0", &fa);
 			continue;
 		} else switch(mode) {
@@ -437,12 +472,8 @@ EXPORT int format(fun, farg, fmt, args)
 			if (val == 0)
 				goto printzero;
 		case 'U':
-
 			/* output a long unsigned decimal number */
-			if ((res = divlbys(((Ulong)val)>>1, (Uint)5)) != 0)
-				prdmod(res, &fa);
-			val = modlbys(val, (Uint)10);
-			prdmod(val < 0 ?-val:val, &fa);
+			prdnum(val, &fa);
 			break;
 		case 'O':
 			/* output a long octal number */
@@ -450,9 +481,9 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0";
 				fa.prefixlen = 1;
 			}
-			if ((res = (val>>3) & 0x1FFFFFFFL) != 0)
-				promod(res, &fa);
-			promod(val & 07, &fa);
+			pronum(val & 07, &fa);
+			if ((res = (val>>3) & rshiftmask(long, 3)) != 0)
+				pronum(res, &fa);
 			break;
 		case 'p':
 		case 'x':
@@ -461,10 +492,10 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0x";
 				fa.prefixlen = 2;
 			}
-			if ((res = (val>>4) & 0xFFFFFFFL) != 0)
-				prxmod(res, &fa);
-			prxmod(val & 0xF, &fa);
-			break ;
+			prxnum(val & 0xF, &fa);
+			if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
+				prxnum(res, &fa);
+			break;
 		case 'P':
 		case 'X':
 			/* output a hex long */
@@ -472,17 +503,16 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.prefix = "0X";
 				fa.prefixlen = 2;
 			}
-			if ((res = (val>>4) & 0xFFFFFFFL) != 0)
-				prXmod(res, &fa);
-			prXmod(val & 0xF, &fa);
-			break ;
+			prXnum(val & 0xF, &fa);
+			if ((res = (val>>4) & rshiftmask(long, 4)) != 0)
+				prXnum(res, &fa);
+			break;
 		case 'Z':
 			/* output a binary long */
-			if ((res = (val>>1) & 0x7FFFFFFFL) != 0)
-				prmod(res, 2, &fa);
-			prmod(val & 0x1, 2, &fa);
+			prnum(val & 0x1, 2, &fa);
+			if ((res = (val>>1) & rshiftmask(long, 1)) != 0)
+				prnum(res, 2, &fa);
 		}
-		*fa.bufp = '\0';
 		fa.lzero = -1;
 		/*
 		 * If a precision (fielwidth) is specified
@@ -490,7 +520,7 @@ EXPORT int format(fun, farg, fmt, args)
 		 */
 		if (fa.signific >= 0)
 			fa.fillc = ' ';
-		count += prbuf(fa.buf, &fa);
+		count += prbuf(fa.bufp, &fa);
 	}
 	return (count);
 }
@@ -501,50 +531,78 @@ EXPORT int format(fun, farg, fmt, args)
 LOCAL	unsigned char	dtab[]  = "0123456789abcdef";
 LOCAL	unsigned char	udtab[] = "0123456789ABCDEF";
 
-LOCAL void prmod(val, base, fa)
-	Ulong val;
-	unsigned base;
+LOCAL void prnum(val, base, fa)
+	register Ulong val;
+	register unsigned base;
 	f_args *fa;
 {
-	if (val >= base)
-		prmod(divlbys(val, base), base, fa);
-	*fa->bufp++ = dtab[modlbys(val, base)];
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[modlbys(val, base)];
+		val = divlbys(val, base);
+	} while (val > 0);
+
+	fa->bufp = p;
 }
 
-LOCAL void prdmod(val, fa)
-	Ulong val;
+LOCAL void prdnum(val, fa)
+	register Ulong val;
 	f_args *fa;
 {
-	if (val >= (unsigned)10)
-		prdmod(divlbys(val, (unsigned)10), fa);
-	*fa->bufp++ = dtab[modlbys(val, (unsigned)10)];
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[modlbys(val, (unsigned)10)];
+		val = divlbys(val, (unsigned)10);
+	} while (val > 0);
+
+	fa->bufp = p;
 }
 
-LOCAL void promod(val, fa)
-	Ulong val;
+/*
+ * We may need to use division here too (PDP-11, non two's complement ...)
+ */
+LOCAL void pronum(val, fa)
+	register Ulong val;
 	f_args *fa;
 {
-	if (val >= (unsigned)8)
-		promod(val>>3, fa);
-	*fa->bufp++ = dtab[val & 7];
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[val & 7];
+		val >>= 3;
+	} while (val > 0);
+
+	fa->bufp = p;
 }
 
-LOCAL void prxmod(val, fa)
-	Ulong val;
+LOCAL void prxnum(val, fa)
+	register Ulong val;
 	f_args *fa;
 {
-	if (val >= (unsigned)16)
-		prxmod(val>>4, fa);
-	*fa->bufp++ = dtab[val & 15];
+	register char *p = fa->bufp;
+
+	do {
+		*--p = dtab[val & 15];
+		val >>= 4;
+	} while (val > 0);
+
+	fa->bufp = p;
 }
 
-LOCAL void prXmod(val, fa)
-	Ulong val;
+LOCAL void prXnum(val, fa)
+	register Ulong val;
 	f_args *fa;
 {
-	if (val >= (unsigned)16)
-		prXmod(val>>4, fa);
-	*fa->bufp++ = udtab[val & 15];
+	register char *p = fa->bufp;
+
+	do {
+		*--p = udtab[val & 15];
+		val >>= 4;
+	} while (val > 0);
+
+	fa->bufp = p;
 }
 
 /*
@@ -647,6 +705,7 @@ LOCAL int prstring(s, fa)
 	f_args *fa;
 {
 	register char	*bp;
+	register int	signific;
 
 	if (s == NULL)
 		return (prbuf("(NULL POINTER)", fa));
@@ -655,8 +714,9 @@ LOCAL int prstring(s, fa)
 		return (prbuf(s, fa));
 
 	bp = fa->buf;
+	signific = fa->signific;
 
-	while (--fa->signific >= 0 && *s != '\0')
+	while (--signific >= 0 && *s != '\0')
 		*bp++ = *s++;
 	*bp = '\0';
 

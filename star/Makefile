@@ -7,8 +7,7 @@ include		$(SRCROOT)/$(RULESDIR)/rules.top
 
 INSDIR=		bin
 TARGET=		star
-#HARDLINKS=	ustar
-#HARDLINKS=	
+HARDLINKS=	ustar
 CPPOPTS +=	-DBSD4_2 -DSET_CTIME -DFIFO -DUSE_MMAP
 #CPPOPTS +=	-DBSD4_2 -DFIFO -DUSE_MMAP
 CFILES=		star.c header.c list.c extract.c create.c append.c diff.c \
@@ -20,7 +19,7 @@ CFILES=		star.c header.c list.c extract.c create.c append.c diff.c \
 HFILES=		star.h starsubs.h dirtime.h xutimes.h \
 		table.h props.h fifo.h diff.h dir.h
 LIBS=		-lschily $(LIB_SOCKET)
-#XMK_FILE=	Makefile.man
+XMK_FILE=	Makefile.man
 
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.cmd

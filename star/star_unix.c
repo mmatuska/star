@@ -1,7 +1,7 @@
-/* @(#)star_unix.c	1.13 97/06/15 Copyright 1985, 1995 J. Schilling */
+/* @(#)star_unix.c	1.14 98/04/05 Copyright 1985, 1995 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.13 97/06/15 Copyright 1985, 1995 J. Schilling";
+	"@(#)star_unix.c	1.14 98/04/05 Copyright 1985, 1995 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
@@ -165,8 +165,24 @@ setmodes(info)
 		if (chmod(info->f_name, (int)info->f_mode) < 0) {
 			;
 		}
-	if (!nochown && uid == ROOT_UID)
+	if (!nochown && uid == ROOT_UID) {
+		/*
+		 * Star will not allow non root users to give away files.
+		 */
 		lchown(info->f_name, (int)info->f_uid, (int)info->f_gid);
+
+		if ((!is_dir(info) || dirmode) && !is_symlink(info) &&
+				(info->f_mode & 07000) != 0) {
+			/*
+			 * On a few systems, seeting the owner of a file
+			 * destroys the suid and sgid bits.
+			 * We repeat the chmod() in this case.
+			 */
+			if (chmod(info->f_name, (int)info->f_mode) < 0) {
+				;
+			}
+		}
+	}
 	if (!nomtime && !is_symlink(info)) {
 		if (is_dir(info))
 			sdirtimes(info->f_name, info);

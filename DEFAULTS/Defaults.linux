@@ -18,7 +18,7 @@ DEFCCOM=	cc
 ###########################################################################
 CWARNOPTS=
 
-DEFINCDIRS=	$(SRCROOT)/include
+DEFINCDIRS=	$(SRCROOT)/include /usr/src/linux/include
 LDPATH=		-L/opt/schily/lib
 RUNPATH=	-R /opt/schily/lib -R $(OLIBSDIR)
 
