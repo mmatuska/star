@@ -1,30 +1,26 @@
-/* @(#)jssnprintf.c	1.7 01/10/29 Copyright 1985 J. Schilling */
+/* @(#)jssnprintf.c	1.11 06/09/13 Copyright 1985, 1995-2004 J. Schilling */
 /*
- *	Copyright (c) 1985 J. Schilling
+ *	Copyright (c) 1985, 1995-2004 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
-#include <unixstd.h>		/* include <sys/types.h> try to get size_t */
+#include <schily/mconfig.h>
+#include <schily/unistd.h>	/* include <sys/types.h> try to get size_t */
 #include <stdio.h>		/* Try again for size_t	*/
-#include <stdxlib.h>		/* Try again for size_t	*/
-#include <vadefs.h>
-#include <standard.h>
-#include <schily.h>
+#include <schily/stdlib.h>		/* Try again for size_t	*/
+#include <schily/varargs.h>
+#include <schily/standard.h>
+#include <schily/schily.h>
 
 EXPORT	int js_snprintf __PR((char *, size_t maxcnt, const char *, ...));
 
@@ -55,9 +51,11 @@ static void _cput(c, l)
 
 /* VARARGS2 */
 #ifdef	PROTOTYPES
-int js_snprintf(char *buf, size_t maxcnt, const char *form, ...)
+EXPORT int
+js_snprintf(char *buf, size_t maxcnt, const char *form, ...)
 #else
-int js_snprintf(buf, maxcnt, form, va_alist)
+EXPORT int
+js_snprintf(buf, maxcnt, form, va_alist)
 	char	*buf;
 	unsigned maxcnt;
 	char	*form;
@@ -78,8 +76,9 @@ int js_snprintf(buf, maxcnt, form, va_alist)
 #endif
 	cnt = format(_cput, (long)&bb, form,  args);
 	va_end(args);
-	*(bb.ptr) = '\0';
-	if (bb.count <= 0)
+	if (maxcnt > 0)
+		*(bb.ptr) = '\0';
+	if (bb.count < 0)
 		return (-1);
 
 	return (cnt);

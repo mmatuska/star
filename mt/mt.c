@@ -1,7 +1,7 @@
-/* @(#)mt.c	1.19 03/02/07 Copyright 2000 J. Schilling */
+/* @(#)mt.c	1.24 07/05/24 Copyright 2000 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)mt.c	1.19 03/02/07 Copyright 2000 J. Schilling";
+	"@(#)mt.c	1.24 07/05/24 Copyright 2000 J. Schilling";
 #endif
 /*
  *	Magnetic tape manipulation program
@@ -9,22 +9,18 @@ static	char sccsid[] =
  *	Copyright (c) 2000 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; see the file COPYING.  If not, write to the Free Software
- * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 
 /*
  * XXX Until we find a better way, the next definitions must be in sync
@@ -41,19 +37,19 @@ static	char sccsid[] =
 #endif
 
 #include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>
-#include <strdefs.h>
-#include <utypes.h>
-#include <fctldefs.h>
-#include <sys/ioctl.h>
-#include <errno.h>
+#include <schily/stdlib.h>
+#include <schily/unistd.h>
+#include <schily/string.h>
+#include <schily/utypes.h>
+#include <schily/fcntl.h>
+#include <schily/ioctl.h>
+#include <schily/errno.h>
 
-#include <schily.h>
-#include <standard.h>
+#include <schily/schily.h>
+#include <schily/standard.h>
 /*#undef	HAVE_SYS_MTIO_H*/
-#include <mtiodefs.h>
-#include <librmt.h>
+#include <schily/mtio.h>
+#include <schily/librmt.h>
 
 LOCAL BOOL	help;
 LOCAL BOOL	prvers;
@@ -83,6 +79,7 @@ LOCAL struct rmtget	mt_status;
 #define	MTC_RW		0	/* This command writes to the tape	*/
 #define	MTC_RDO		1	/* This command does not write		*/
 #define	MTC_CNT		2	/* This command uses the count arg	*/
+#define	MTC_NDEL	4	/* Open the tape drive with O_NDELAY	*/
 
 
 LOCAL struct mt_cmds {
@@ -134,7 +131,7 @@ LOCAL struct mt_cmds {
 #endif
 
 #ifdef	MTLOAD
-	{ "load",	"load tape",			MTLOAD,		MTC_RDO },
+	{ "load",	"load tape",			MTLOAD,		MTC_RDO|MTC_NDEL },
 #endif
 
 	{ NULL, 	NULL,				0,		MTC_NONE }
@@ -198,7 +195,7 @@ main(ac, av)
 	}
 	if (help) usage(0);
 	if (prvers) {
-		printf("mt %s (%s-%s-%s)\n\n", "1.19", HOST_CPU, HOST_VENDOR, HOST_OS);
+		printf("mt %s (%s-%s-%s)\n\n", "1.24", HOST_CPU, HOST_VENDOR, HOST_OS);
 		printf("Copyright (C) 2000 Jörg Schilling\n");
 		printf("This is free software; see the source for copying conditions.  There is NO\n");
 		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
@@ -279,8 +276,9 @@ main(ac, av)
 		if (geterrno() == EIO) {
 			comerrno(EX_BAD, "'%s': no tape loaded or drive offline.\n",
 				tape);
-		} else if (geterrno() == EACCES) {
-			comerrno(EX_BAD, "'%s': tape is write protected.\n", tape);
+		} else if ((cp->mtc_flags & MTC_RDO) == 0 &&
+			    geterrno() == EACCES) {
+			comerr("Cannot open '%s': tape may be write protected.\n", tape);
 		} else {
 			comerr("Cannot open '%s'.\n", tape); 
 		}
@@ -521,17 +519,24 @@ opentape(tape, cp)
 {
 	int	ret;
 	int	n = 0;
+	int	oflag;
+
+	oflag = (cp->mtc_flags & MTC_RDO) ? O_RDONLY : O_RDWR;
+#ifdef	O_NDELAY
+	if (cp->mtc_flags & MTC_NDEL)
+		oflag |= O_NDELAY;
+#endif
 
 retry:
 	ret = 0;
 	if (isremote) {
 #ifdef	USE_REMOTE
-		if (rmtopen(remfd, remfn, (cp->mtc_flags&MTC_RDO) ? O_RDONLY : O_RDWR) < 0)
+		if (rmtopen(remfd, remfn, oflag) < 0)
 			ret = -1;
 #else
 		comerrno(EX_BAD, "Remote tape support not present.\n");
 #endif
-	} else if ((mtfd = open(tape, (cp->mtc_flags&MTC_RDO) ? O_RDONLY : O_RDWR)) < 0) {
+	} else if ((mtfd = open(tape, oflag)) < 0) {
 			ret = -1;
 	}
 	if (wready && n++ < 120 && (geterrno() == EIO || geterrno() == EBUSY)) {

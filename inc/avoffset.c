@@ -1,7 +1,7 @@
-/* @(#)avoffset.c	1.15 00/05/07 Copyright 1987 J. Schilling */
+/* @(#)avoffset.c	1.28 08/03/18 Copyright 1987, 1995-2004 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)avoffset.c	1.15 00/05/07 Copyright 1987 J. Schilling";
+	"@(#)avoffset.c	1.28 08/03/18 Copyright 1987, 1995-2004 J. Schilling";
 #endif
 /*
  * This program is a tool to generate the file "avoffset.h".
@@ -12,43 +12,34 @@ static	char sccsid[] =
  *	FP_INDIR	- number of stack frames above main()
  *			  before encountering a NULL pointer.
  *
- *	Copyright (c) 1987 J. Schilling
+ *	Copyright (c) 1987, 1995-2004 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
-#include <standard.h>
-#include <schily.h>
-#include <stdxlib.h>
+#include <schily/standard.h>
+#include <schily/schily.h>
+#include <schily/stdlib.h>
 #include <signal.h>
 
-#ifdef	NO_SCANSTACK
-#	ifdef	HAVE_SCANSTACK
-#	undef	HAVE_SCANSTACK
-#	endif
-#endif
-
 #ifdef	HAVE_SCANSTACK
-#	include <stkframe.h>
+#	include <schily/stkframe.h>
 #endif
 
-LOCAL	RETSIGTYPE handler __PR((int signo));
-EXPORT	int	main	__PR((int ac, char** av));
+LOCAL	RETSIGTYPE	handler 	__PR((int signo));
+EXPORT	int		main		__PR((int ac, char **av));
+LOCAL	int		stack_direction	__PR((long *lp));
 
 LOCAL	RETSIGTYPE
 handler(signo)
@@ -59,17 +50,33 @@ handler(signo)
 }
 
 
-int main(ac, av)
+int
+main(ac, av)
 	int	ac;
 	char	**av;
 {
+	int		stdir;
 #ifdef	HAVE_SCANSTACK
-	register struct frame *fp = (struct frame *)getfp();
+	register struct frame *fp;
 	register int	i = 0;
+	register int	o = 0;
+
+	/*
+	 * As the SCO OpenServer C-Compiler has a bug that may cause
+	 * the first function call to getfp() been done before the
+	 * new stack frame is created, we call getfp() twice.
+	 */
+	(void) getfp();
+	fp = (struct frame *)getfp();
 #endif
 
+#ifdef	SIGBUS
 	signal(SIGBUS, handler);
+#endif
 	signal(SIGSEGV, handler);
+#ifdef	SIGILL
+	signal(SIGILL, handler);	/* For gcc -m64/sparc on FreeBSD */
+#endif
 
 	printf("/*\n");
 	printf(" * This file has been generated automatically\n");
@@ -87,13 +94,21 @@ int main(ac, av)
 	printf(" * If AV_OFFSET or FP_INDIR are missing in this file, all programs\n");
 	printf(" * which use the definitions are automatically disabled.\n");
 	printf(" */\n");
+	stdir = stack_direction(0);
+	printf("#define	STACK_DIRECTION	%d\n", stdir);
 	fflush(stdout);
 
 #ifdef	HAVE_SCANSTACK
+	/*
+	 * Note: Scanning the stack to look for argc/argv
+	 *	 works only in the main thread.
+	 */
 	while (fp->fr_savfp) {
-		fp = (struct frame *)fp->fr_savfp;
 		if (fp->fr_savpc == 0)
 			break;
+
+		fp = (struct frame *)fp->fr_savfp;
+
 		i++;
 	}
 	/*
@@ -101,9 +116,44 @@ int main(ac, av)
 	 * to abort without printing more than the comment above.
 	 */
 	fp = (struct frame *)getfp();
-	printf("#define	AV_OFFSET	%d\n", (int)(av-(char **)fp));
+	o = ((char *)av) - ((char *)fp);
+	if ((o % sizeof (char *)) != 0) {
+		fprintf(stderr, "AV_OFFSET value (%d) not a multiple of pointer size.\n", o);
+		fprintf(stderr, "Disabling scanning the stack.\n");
+		exit(0);
+	}
+	if (o < -1000 || o > 1000) {
+		fprintf(stderr, "AV_OFFSET value (%d) does not look reasonable.\n", o);
+		fprintf(stderr, "Disabling scanning the stack.\n");
+		exit(0);
+	}
+	printf("#define	AV_OFFSET	%d\n", o);
 	printf("#define	FP_INDIR	%d\n", i);
 #endif
 	exit(0);
 	return (0);	/* keep lint happy */
 }
+
+LOCAL int
+stack_direction(lp)
+	long	*lp;
+{
+	auto long	*dummy[4];
+	int		i;
+
+	for (i = 0; i < 4; i++)
+		dummy[i] = lp;
+
+	if (lp == 0) {
+		return (stack_direction((long *)dummy));
+	} else {
+		if ((long *)dummy == lp)
+			return (0);
+		return (((long *)dummy > lp) ? 1 : -1);
+	}
+}
+
+#ifdef	HAVE_SCANSTACK
+#define	IS_AVOFFSET
+#include "getfp.c"
+#endif

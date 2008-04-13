@@ -694,6 +694,7 @@ AC_LANG_C
 dnl By default always use an empty string as the executable
 dnl extension.  Only change it if the script calls AC_EXEEXT.
 ac_exeext=
+ac_xexeext=
 dnl By default assume that objects files use an extension of .o.  Only
 dnl change it if the script calls AC_OBJEXT.
 ac_objext=o
@@ -1514,7 +1515,7 @@ EOF
 if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext}; then
   [$2]=yes
   # If we can't run a trivial program, we are probably using a cross compiler.
-  if (./conftest; exit) 2>/dev/null; then
+  if (./conftest${ac_xexeext}; exit) 2>/dev/null; then
     [$3]=no
   else
     [$3]=yes
@@ -1672,7 +1673,8 @@ dnl that breaks under sh -x, which writes compile commands starting
 dnl with ` +' to stderr in eval and subshells.
 ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
 AC_TRY_EVAL(ac_try)
-ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+dnl ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ac_err=`tr -d '\015' < conftest.out | grep -v '^ *+' | grep -v "^conftest.${ac_ext}\$"`
 if test -z "$ac_err"; then
   ifelse([$2], , :, [rm -rf conftest*
   $2])
@@ -1826,7 +1828,7 @@ extern "C" void exit(int);
 ])dnl
 [$1]
 EOF
-if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+if AC_TRY_EVAL(ac_link) && test -s conftest${ac_exeext} && (./conftest${ac_xexeext}; exit) 2>/dev/null
 then
 dnl Don't remove the temporary files here, so they can be examined.
   ifelse([$2], , :, [$2])

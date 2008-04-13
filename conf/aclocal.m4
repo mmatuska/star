@@ -1,4 +1,4 @@
-dnl @(#)aclocal.m4	1.30 02/10/11 Copyright 1998 J. Schilling
+dnl @(#)aclocal.m4	1.61 08/02/20 Copyright 1998 J. Schilling
 
 dnl Set VARIABLE to VALUE in C-string form, verbatim, or 1.
 dnl AC_DEFINE_STRING(VARIABLE [, VALUE])
@@ -15,6 +15,90 @@ define(AC_DEFINE_UNQUOTED_STRING,
 EOF
 ])
 
+dnl ==== Check if we have  typedef
+
+dnl AC_HAVE_TYPE(INCLUDES, TYPE)
+AC_DEFUN(AC_HAVE_TYPE,
+[AC_REQUIRE([AC_HEADER_STDC])dnl
+AC_MSG_CHECKING(for $2)
+AC_CACHE_VAL(ac_cv_have_type_$2,
+[AC_EGREP_CPP(dnl
+changequote(<<,>>)dnl
+<<(^|[^a-zA-Z_0-9])$2[^a-zA-Z_0-9]>>dnl
+changequote([,]), [#include <sys/types.h>
+#if STDC_HEADERS
+#include <stdlib.h>
+#include <stddef.h>
+#endif
+$1], ac_cv_have_type_$2=yes, ac_cv_have_type_$2=no)])dnl
+AC_MSG_RESULT($ac_cv_have_type_$2)
+changequote(, )dnl
+  ac_tr_type=HAVE_TYPE_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
+changequote([, ])dnl
+if test $ac_cv_have_type_$2 = yes; then
+  AC_DEFINE_UNQUOTED($ac_tr_type)
+fi
+])
+
+dnl Checks if /bin/sh is bash
+dnl Defines SHELL_IS_BASH on success.
+AC_DEFUN([AC_SHELL_BASH],
+[AC_CACHE_CHECK([if /bin/sh is bash], ac_cv_shell_is_bash,
+                [
+ac_err=`< /dev/null sh -version 2> /dev/null | grep bash`
+if test -n "$ac_err"; then
+	ac_cv_shell_is_bash=yes
+else
+	ac_cv_shell_is_bash=no
+fi
+])
+if test $ac_cv_shell_is_bash = yes; then
+  AC_DEFINE(SHELL_IS_BASH)
+fi])
+
+dnl XXX this used to be:
+dnl #ifndef $2 
+dnl	char *p = (char *) $2; 
+dnl #endif
+dnl but we use this test un order to check whether we are able to get the
+dnl address of a function from this name, so we did replace this by:
+dnl  char *p = (char *) $2;
+dnl 
+dnl AC_CHECK_DECLARE(INCLUDES, SYMBOL)
+dnl Checks if symbol is declared
+dnl Defines HAVE_DECL_SYMBOL on success.
+AC_DEFUN([AC_CHECK_DECLARE],
+[AC_CACHE_CHECK([if $2 is declared], ac_cv_have_decl_$2,
+                [AC_TRY_COMPILE([$1],
+[ char *p = (char *) $2; ],
+		[ac_cv_have_decl_$2=yes],
+		[ac_cv_have_decl_$2=no])])
+changequote(, )dnl
+  ac_tr_decl=HAVE_DECL_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
+changequote([, ])dnl
+if test $ac_cv_have_decl_$2 = yes; then
+  AC_DEFINE_UNQUOTED($ac_tr_decl)
+fi])
+
+dnl AC_CHECK_DFUNC(INCLUDES, SYMBOL)
+dnl Checks if symbol is defined or a function
+dnl Defines HAVE_SYMBOL on success.
+AC_DEFUN([AC_CHECK_DFUNC],
+[AC_CACHE_CHECK([if $2 is defined or function], ac_cv_have_$2,
+                [AC_TRY_LINK([$1],
+[
+#ifndef $2
+	char *p = (char *) $2;
+#endif],
+		[ac_cv_have_$2=yes],
+		[ac_cv_have_$2=no])])
+changequote(, )dnl
+  ac_tr_dfunc=HAVE_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
+changequote([, ])dnl
+if test $ac_cv_have_$2 = yes; then
+  AC_DEFINE_UNQUOTED($ac_tr_dfunc)
+fi])
+
 dnl Checks if structure 'stat' have field 'st_spare1'.
 dnl Defines HAVE_ST_SPARE1 on success.
 AC_DEFUN([AC_STRUCT_ST_SPARE1],
@@ -26,6 +110,19 @@ AC_DEFUN([AC_STRUCT_ST_SPARE1],
                                 [ac_cv_struct_st_spare1=no])])
 if test $ac_cv_struct_st_spare1 = yes; then
   AC_DEFINE(HAVE_ST_SPARE1)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_atimensec'.
+dnl Defines HAVE_ST_ATIMENSEC on success.
+AC_DEFUN([AC_STRUCT_ST_ATIMENSEC],
+[AC_CACHE_CHECK([if struct stat contains st_atimensec], ac_cv_struct_st_atimensec,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_atimensec = 0;],
+                                [ac_cv_struct_st_atimensec=yes],
+                                [ac_cv_struct_st_atimensec=no])])
+if test $ac_cv_struct_st_atimensec = yes; then
+  AC_DEFINE(HAVE_ST_ATIMENSEC)
 fi])
 
 dnl Checks if structure 'stat' have field 'st_atim.tv_nsec'.
@@ -41,6 +138,32 @@ if test $ac_cv_struct_st_nsec = yes; then
   AC_DEFINE(HAVE_ST_NSEC)
 fi])
 
+dnl Checks if structure 'stat' have field 'st_atim.st__tim.tv_nsec'.
+dnl Defines HAVE_ST__TIM on success.
+AC_DEFUN([AC_STRUCT_ST__TIM],
+[AC_CACHE_CHECK([if struct stat contains st_atim.st__tim.tv_nsec], ac_cv_struct_st__tim,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_atim.st__tim.tv_nsec = 0;],
+                                [ac_cv_struct_st__tim=yes],
+                                [ac_cv_struct_st__tim=no])])
+if test $ac_cv_struct_st__tim = yes; then
+  AC_DEFINE(HAVE_ST__TIM)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_atimspec.tv_nsec'.
+dnl Defines HAVE_ST_ATIMESPEC on success.
+AC_DEFUN([AC_STRUCT_ST_ATIMESPEC],
+[AC_CACHE_CHECK([if struct stat contains st_atimespec.tv_nsec], ac_cv_struct_st_atimespec,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_atimespec.tv_nsec = 0;],
+                                [ac_cv_struct_st_atimespec=yes],
+                                [ac_cv_struct_st_atimespec=no])])
+if test $ac_cv_struct_st_atimespec = yes; then
+  AC_DEFINE(HAVE_ST_ATIMESPEC)
+fi])
+
 dnl Checks if structure 'stat' have field 'st_flags'.
 dnl Defines HAVE_ST_FLAGS on success.
 AC_DEFUN([AC_STRUCT_ST_FLAGS],
@@ -52,6 +175,80 @@ AC_DEFUN([AC_STRUCT_ST_FLAGS],
                                 [ac_cv_struct_st_flags=no])])
 if test $ac_cv_struct_st_flags = yes; then
   AC_DEFINE(HAVE_ST_FLAGS)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_fstype'.
+dnl Defines HAVE_ST_FSTYPE on success.
+AC_DEFUN([AC_STRUCT_ST_FSTYPE],
+[AC_CACHE_CHECK([if struct stat contains st_fstype], ac_cv_struct_st_fstype,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_fstype[0] = 0;],
+                                [ac_cv_struct_st_fstype=yes],
+                                [ac_cv_struct_st_fstype=no])])
+if test $ac_cv_struct_st_fstype = yes; then
+  AC_DEFINE(HAVE_ST_FSTYPE)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_aclcnt'.
+dnl Defines HAVE_ST_ACLCNT on success.
+AC_DEFUN([AC_STRUCT_ST_ACLCNT],
+[AC_CACHE_CHECK([if struct stat contains st_aclcnt], ac_cv_struct_st_aclcnt,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_aclcnt = 0;],
+                                [ac_cv_struct_st_aclcnt=yes],
+                                [ac_cv_struct_st_aclcnt=no])])
+if test $ac_cv_struct_st_aclcnt = yes; then
+  AC_DEFINE(HAVE_ST_ACLCNT)
+fi])
+
+dnl Checks if structure 'utsname' have field 'processor'.
+dnl Defines HAVE_UTSNAME_PROCESSOR on success.
+AC_DEFUN([AC_STRUCT_UTSNAME_PROCESSOR],
+[AC_CACHE_CHECK([if struct utsname contains processor], ac_cv_struct_utsname_processor,
+                [AC_TRY_COMPILE([#include <sys/utsname.h>],
+                                [struct  utsname u; u.processor[0] = 0;],
+                                [ac_cv_struct_utsname_processor=yes],
+                                [ac_cv_struct_utsname_processor=no])])
+if test $ac_cv_struct_utsname_processor = yes; then
+  AC_DEFINE(HAVE_UTSNAME_PROCESSOR)
+fi])
+
+dnl Checks if structure 'utsname' have field 'sysname_host'.
+dnl Defines HAVE_UTSNAME_SYSNAME_HOST on success.
+AC_DEFUN([AC_STRUCT_UTSNAME_SYSNAME_HOST],
+[AC_CACHE_CHECK([if struct utsname contains sysname_host], ac_cv_struct_utsname_sysname_host,
+                [AC_TRY_COMPILE([#include <sys/utsname.h>],
+                                [struct  utsname u; u.sysname_host[0] = 0;],
+                                [ac_cv_struct_utsname_sysname_host=yes],
+                                [ac_cv_struct_utsname_sysname_host=no])])
+if test $ac_cv_struct_utsname_sysname_host = yes; then
+  AC_DEFINE(HAVE_UTSNAME_SYSNAME_HOST)
+fi])
+
+dnl Checks if structure 'utsname' have field 'release_host'.
+dnl Defines HAVE_UTSNAME_RELEASE_HOST on success.
+AC_DEFUN([AC_STRUCT_UTSNAME_RELEASE_HOST],
+[AC_CACHE_CHECK([if struct utsname contains release_host], ac_cv_struct_utsname_release_host,
+                [AC_TRY_COMPILE([#include <sys/utsname.h>],
+                                [struct  utsname u; u.release_host[0] = 0;],
+                                [ac_cv_struct_utsname_release_host=yes],
+                                [ac_cv_struct_utsname_release_host=no])])
+if test $ac_cv_struct_utsname_release_host = yes; then
+  AC_DEFINE(HAVE_UTSNAME_RELEASE_HOST)
+fi])
+
+dnl Checks if structure 'utsname' have field 'version_host'.
+dnl Defines HAVE_UTSNAME_VERSION_HOST on success.
+AC_DEFUN([AC_STRUCT_UTSNAME_VERSION_HOST],
+[AC_CACHE_CHECK([if struct utsname contains version_host], ac_cv_struct_utsname_version_host,
+                [AC_TRY_COMPILE([#include <sys/utsname.h>],
+                                [struct  utsname u; u.version_host[0] = 0;],
+                                [ac_cv_struct_utsname_version_host=yes],
+                                [ac_cv_struct_utsname_version_host=no])])
+if test $ac_cv_struct_utsname_version_host = yes; then
+  AC_DEFINE(HAVE_UTSNAME_VERSION_HOST)
 fi])
 
 dnl Checks if structure 'mtget' have field 'mt_type'.
@@ -252,6 +449,76 @@ if test $ac_cv_struct_rusage = yes; then
   AC_DEFINE(HAVE_STRUCT_RUSAGE)
 fi])
 
+dnl Checks if structure 'siginfo' have field 'si_utime'.
+dnl Defines HAVE_SI_UTIME on success.
+AC_DEFUN([AC_STRUCT_SI_UTIME],
+[AC_CACHE_CHECK([if struct siginfo contains si_utime], ac_cv_struct_si_utime,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/siginfo.h>],
+                                [struct  siginfo si; si.si_utime = 0;],
+                                [ac_cv_struct_si_utime=yes],
+                                [ac_cv_struct_si_utime=no])])
+if test $ac_cv_struct_si_utime = yes; then
+  AC_DEFINE(HAVE_SI_UTIME)
+fi])
+
+
+dnl Checks if structure 'dirent' have field 'd_ino'.
+dnl Defines HAVE_DIRENT_D_INO on success.
+AC_DEFUN([AC_STRUCT_DIRENT_D_INO],
+[AC_CACHE_CHECK([if struct dirent contains d_ino], ac_cv_struct_dirent_d_ino,
+                [AC_TRY_COMPILE([
+/*
+ * This must be kept in sync with schily/dirdesf.h
+ */
+#ifdef	HAVE_SYS_TYPES_H
+#	include <sys/types.h>
+#endif
+#ifdef	HAVE_SYS_STAT_H
+#	include <sys/stat.h>
+#endif
+#	ifdef	HAVE_DIRENT_H		/* This a POSIX compliant system */
+#		include <dirent.h>
+#		define	_FOUND_DIR_
+#	else				/* This is a Pre POSIX system	 */
+
+#	define 	dirent	direct
+
+#	if	defined(HAVE_SYS_DIR_H)
+#		include <sys/dir.h>
+#		define	_FOUND_DIR_
+#	endif
+
+#	if	defined(HAVE_NDIR_H) && !defined(_FOUND_DIR_)
+#		include <ndir.h>
+#		define	_FOUND_DIR_
+#	endif
+
+#	if	defined(HAVE_SYS_NDIR_H) && !defined(_FOUND_DIR_)
+#		include <sys/ndir.h>
+#		define	_FOUND_DIR_
+#	endif
+#	endif	/* HAVE_DIRENT_H */
+				],
+                                [struct  dirent d; d.d_ino = 0;],
+                                [ac_cv_struct_dirent_d_ino=yes],
+                                [ac_cv_struct_dirent_d_ino=no])])
+if test $ac_cv_struct_dirent_d_ino = yes; then
+  AC_DEFINE(HAVE_DIRENT_D_INO)
+fi])
+
+dnl Checks if structure 'DIR' have field 'dd_fd'.
+dnl Defines HAVE_DIR_DD_FD on success.
+AC_DEFUN([AC_STRUCT_DIR_DD_FD],
+[AC_CACHE_CHECK([if DIR * contains dd_fd], ac_cv_struct_dir_dd_fd,
+                [AC_TRY_COMPILE([#include <dirent.h>],
+                                [DIR d; d.dd_fd = 0;],
+                                [ac_cv_struct_dir_dd_fd=yes],
+                                [ac_cv_struct_dir_dd_fd=no])])
+if test $ac_cv_struct_dir_dd_fd = yes; then
+  AC_DEFINE(HAVE_DIR_DD_FD)
+fi])
+
 dnl Checks wether major(), minor() and makedev() are defined in
 dnl 'sys/mkdev.h' or in 'sys/sysmacros.h. Defines MAJOR_IN_MKDEV or
 dnl MAJOR_IN_SYSMACROS or nothing.
@@ -373,6 +640,36 @@ if test $ac_cv_header_errno_def = yes; then
   AC_DEFINE(HAVE_ERRNO_DEF)
 fi])
 
+dnl Checks for sys_siglist definition in <signal.h>
+dnl Defines HAVE_SYS_SIGLIST_DEF on success.
+AC_DEFUN([AC_HEADER_SYS_SIGLIST_DEF],
+[AC_CACHE_CHECK([for sys_siglist definition in signal.h], ac_cv_header_sys_siglist_def,
+                [AC_TRY_COMPILE([#include <signal.h>],
+[char *cp = (char *)sys_siglist[0];],
+                [ac_cv_header_sys_siglist_def=yes],
+                [ac_cv_header_sys_siglist_def=no])])
+if test $ac_cv_header_sys_siglist_def = yes; then
+  AC_DEFINE(HAVE_SYS_SIGLIST_DEF)
+fi])
+
+dnl Checks if extern long timezone exists in libc
+dnl Defines HAVE_VAR_TIMEZONE on success.
+AC_DEFUN([AC_VAR_TIMEZONE],
+[AC_CACHE_CHECK([for working extern long timezone ], ac_cv_var_timezone,
+                [AC_TRY_RUN([
+extern	long	timezone;
+
+int
+main()
+{
+	exit(timezone != 0);
+}],
+                [ac_cv_var_timezone=yes],
+                [ac_cv_var_timezone=no])])
+if test $ac_cv_var_timezone = yes; then
+  AC_DEFINE(HAVE_VAR_TIMEZONE)
+fi])
+
 dnl Checks for UNIX-98 compliant <inttypes.h>
 dnl Defines HAVE_INTTYPES_H on success.
 AC_DEFUN([AC_HEADER_INTTYPES],
@@ -385,6 +682,52 @@ intptr_t ip; uintptr_t uip;],
                 [ac_cv_header_inttypes=no])])
 if test $ac_cv_header_inttypes = yes; then
   AC_DEFINE(HAVE_INTTYPES_H)
+fi])
+
+dnl Checks for struct timeval in time.h or sys/time.h
+dnl Defines HAVE_STRUCT_TIMEVAL on success.
+AC_DEFUN([AC_STRUCT_TIMEVAL],
+[AC_REQUIRE([AC_HEADER_TIME])dnl
+AC_CACHE_CHECK([for struct timeval in time.h or sys/time.h], ac_cv_struct_timeval,
+                [AC_TRY_COMPILE([
+#include <sys/types.h>
+#ifdef	TIME_WITH_SYS_TIME_H
+#	include <sys/time.h>
+#	include <time.h>
+#else
+#ifdef	HAVE_SYS_TIME_H
+#	include <sys/time.h>
+#else
+#	include <time.h>
+#endif
+#endif], [struct timeval tv;],
+                [ac_cv_struct_timeval=yes],
+                [ac_cv_struct_timeval=no])])
+if test $ac_cv_struct_timeval = yes; then
+  AC_DEFINE(HAVE_STRUCT_TIMEVAL)
+fi])
+
+dnl Checks for struct timezone in time.h or sys/time.h
+dnl Defines HAVE_STRUCT_TIMEZONE on success.
+AC_DEFUN([AC_STRUCT_TIMEZONE],
+[AC_REQUIRE([AC_HEADER_TIME])dnl
+AC_CACHE_CHECK([for struct timezone in time.h or sys/time.h], ac_cv_struct_timezone,
+                [AC_TRY_COMPILE([
+#include <sys/types.h>
+#ifdef	TIME_WITH_SYS_TIME_H
+#	include <sys/time.h>
+#	include <time.h>
+#else
+#ifdef	HAVE_SYS_TIME_H
+#	include <sys/time.h>
+#else
+#	include <time.h>
+#endif
+#endif], [struct timezone tz;],
+                [ac_cv_struct_timezone=yes],
+                [ac_cv_struct_timezone=no])])
+if test $ac_cv_struct_timezone = yes; then
+  AC_DEFINE(HAVE_STRUCT_TIMEZONE)
 fi])
 
 dnl Checks for type time_t
@@ -410,14 +753,81 @@ if test $ac_cv_type_time_t = no; then
   AC_DEFINE(time_t, long)
 fi])
 
+dnl AC_CHECK_SIZE_TIME([CROSS-SIZE])
+dnl This must be called past AC_CHECK_SIZEOF(long int)
+AC_DEFUN(AC_CHECK_SIZE_TIME_T,
+[changequote(<<, >>)dnl
+dnl The name to #define.
+define(<<AC_TYPE_NAME>>, translit(sizeof_time_t, [a-z *], [A-Z_P]))dnl
+dnl The cache variable name.
+define(<<AC_CV_NAME>>, translit(ac_cv_sizeof_time_t, [ *], [_p]))dnl
+changequote([, ])dnl
+AC_MSG_CHECKING(size of time_t)
+AC_CACHE_VAL(AC_CV_NAME,
+[AC_TRY_RUN([#include <stdio.h>
+#include <sys/types.h>
+#ifdef	TIME_WITH_SYS_TIME_H
+#	include <sys/time.h>
+#	include <time.h>
+#else
+#ifdef	HAVE_SYS_TIME_H
+#	include <sys/time.h>
+#else
+#	include <time.h>
+#endif
+#endif
+main()
+{
+  FILE *f=fopen("conftestval", "w");
+  if (!f) exit(1);
+  fprintf(f, "%d\n", sizeof(time_t));
+  exit(0);
+}], AC_CV_NAME=`cat conftestval`, AC_CV_NAME=SIZEOF_LONG_INT, ifelse([$1], , , AC_CV_NAME=$1))])dnl
+AC_MSG_RESULT($AC_CV_NAME)
+AC_DEFINE_UNQUOTED(AC_TYPE_NAME, $AC_CV_NAME)
+undefine([AC_TYPE_NAME])dnl
+undefine([AC_CV_NAME])dnl
+])
+
+
 dnl Checks for type clock_t
 dnl Defines clock_t to long on failure.
+dnl XXX we cannot check for AC_CHECK_HEADERS(sys/times.h)
 AC_DEFUN([AC_TYPE_CLOCK_T],
 [AC_REQUIRE([AC_HEADER_TIME])dnl
 AC_CACHE_CHECK([for clock_t], ac_cv_type_clock_t,
                 [AC_TRY_COMPILE([
 #include <sys/types.h>
-#include <sys/times.h>], [clock_t t;],
+/*
+ * time.h is needed because of a bug in Next Step.
+ * Next Step needs time.h for clock_t
+ */
+#ifdef	TIME_WITH_SYS_TIME
+#	ifndef	_INCL_SYS_TIME_H
+#	include <sys/time.h>
+#	define	_INCL_SYS_TIME_H
+#	endif
+#	ifndef	_INCL_TIME_H
+#	include <time.h>
+#	define	_INCL_TIME_H
+#	endif
+#else
+#ifdef	HAVE_SYS_TIME_H
+#	ifndef	_INCL_SYS_TIME_H
+#	include <sys/time.h>
+#	define	_INCL_SYS_TIME_H
+#	endif
+#else
+#	ifndef	_INCL_TIME_H
+#	include <time.h>
+#	define	_INCL_TIME_H
+#	endif
+#endif
+#endif
+#ifdef	HAVE_SYS_TIMES_H
+#include <sys/times.h>
+#endif
+		], [clock_t t;],
                 [ac_cv_type_clock_t=yes],
                 [ac_cv_type_clock_t=no])])
 if test $ac_cv_type_clock_t = no; then
@@ -444,6 +854,49 @@ if test $ac_cv_type_socklen_t = no; then
   AC_DEFINE(socklen_t, int)
 fi])
 
+dnl Checks for type stack_t
+dnl Defines HAVE_STACK_T on success.
+AC_DEFUN([AC_TYPE_STACK_T],
+[AC_CACHE_CHECK([if stack_t is declared in signal.h], ac_cv_stack_t,
+                [AC_TRY_COMPILE([#include <signal.h>],
+                                [stack_t ss; ss.ss_size = 0;],
+                                [ac_cv_stack_t=yes],
+                                [ac_cv_stack_t=no])])
+if test $ac_cv_stack_t = yes; then
+  AC_DEFINE(HAVE_STACK_T)
+fi])
+
+dnl Checks for type siginfo_t
+dnl Defines HAVE_SIGINFO_T on success.
+AC_DEFUN([AC_TYPE_SIGINFO_T],
+[AC_CACHE_CHECK([if siginfo_t is declared in signal.h], ac_cv_siginfo_t,
+                [AC_TRY_COMPILE([#include <signal.h>
+#ifdef	HAVE_SIGINFO_H
+#include <siginfo.h>
+#else
+#ifdef	HAVE_SYS_SIGINFO_H
+#include <sys/siginfo.h>
+#endif
+#endif],
+                                [siginfo_t si; si.si_signo = 0;],
+                                [ac_cv_siginfo_t=yes],
+                                [ac_cv_siginfo_t=no])])
+if test $ac_cv_siginfo_t = yes; then
+  AC_DEFINE(HAVE_SIGINFO_T)
+fi])
+
+dnl Checks for type struct sockaddr_storage
+dnl Defines HAVE_SOCKADDR_STORAGE on success.
+AC_DEFUN([AC_STRUCT_SOCKADDR_STORAGE],
+[AC_CACHE_CHECK([if struct sockaddr_storage is declared in socket.h], ac_cv_struct_sockaddr_storage,
+                [AC_TRY_COMPILE([#include <sys/socket.h>],
+                                [struct  sockaddr_storage ss; ss.ss_family = 0;],
+                                [ac_cv_struct_sockaddr_storage=yes],
+                                [ac_cv_struct_sockaddr_storage=no])])
+if test $ac_cv_struct_sockaddr_storage = yes; then
+  AC_DEFINE(HAVE_SOCKADDR_STORAGE)
+fi])
+
 dnl Checks for type long long
 dnl Defines HAVE_LONGLONG on success.
 AC_DEFUN([AC_TYPE_LONGLONG],
@@ -453,6 +906,17 @@ AC_DEFUN([AC_TYPE_LONGLONG],
                 [ac_cv_type_longlong=no])])
 if test $ac_cv_type_longlong = yes; then
   AC_DEFINE(HAVE_LONGLONG)
+fi])
+
+dnl Checks for type __int64
+dnl Defines HAVE___INT64 on success.
+AC_DEFUN([AC_TYPE___INT64],
+[AC_CACHE_CHECK([for type __int64], ac_cv_type___int64,
+                [AC_TRY_COMPILE([], [__int64 i;],
+                [ac_cv_type___int64=yes],
+                [ac_cv_type___int64=no])])
+if test $ac_cv_type___int64 = yes; then
+  AC_DEFINE(HAVE___INT64)
 fi])
 
 dnl Checks if C-compiler orders bitfields htol
@@ -499,7 +963,20 @@ dnl Checks for type size_t
 dnl Defines HAVE_SIZE_T_ on success.
 AC_DEFUN([AC_TYPE_SIZE_T_],
 [AC_CACHE_CHECK([for type size_t], ac_cv_type_size_t_,
-                [AC_TRY_COMPILE([#include <sys/types.h>], [size_t s;],
+                [AC_TRY_COMPILE([
+#ifdef	HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef	HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef	HAVE_STDDEF_H
+#include <stddef.h>
+#endif
+#ifdef	HAVE_STDIO_H
+#include <stdio.h>
+#endif
+		], [size_t s;],
                 [ac_cv_type_size_t_=yes],
                 [ac_cv_type_size_t_=no])])
 if test $ac_cv_type_size_t_ = yes; then
@@ -1249,10 +1726,14 @@ main()
 	int	m;
 	int	c = 0;
 	FILE	*f=fopen("conftestval", "w");
+	int	maxloop = 32;
+
+	if (sizeof (long) > 4)
+		maxloop = 64;
 
 	if (!f) exit(1);
 
-	for (i=1, m=0; i <= 32; i++, l<<=1) {
+	for (i=1, m=0; i <= maxloop; i++, l<<=1) {
 		if (minor(l) == 0 && c == 0)
 			c = m;
 		if (minor(l) != 0)
@@ -1309,8 +1790,12 @@ main()
 	int	i;
 	int	m;
 	int	c = 0;
+	int	maxloop = 32;
 
-	for (i=1, m=0; i <= 32; i++, l<<=1) {
+	if (sizeof (long) > 4)
+		maxloop = 64;
+
+	for (i=1, m=0; i <= maxloop; i++, l<<=1) {
 		if (minor(l) == 0 && c == 0)
 			c = m;
 		if (minor(l) != 0)
@@ -1402,6 +1887,38 @@ if test $ac_cv_func_bsd_setpgrp = yes; then
   AC_DEFINE(HAVE_BSD_SETPGRP)
 fi])
 
+dnl Checks if C99 compliant isinf() exists
+dnl Defines HAVE_C99_ISINF on success.
+AC_DEFUN([AC_FUNC_C99_ISINF],
+[AC_CACHE_CHECK([for C99 compliant isinf], ac_cv_func_c99_isinf,
+                [AC_TRY_LINK([#include <math.h>], [ double	d;
+#ifndef	isinf
+The isinf macro is not defined
+#endif
+return (isinf(d));
+],
+                [ac_cv_func_c99_isinf=yes],
+                [ac_cv_func_c99_isinf=no])])
+if test $ac_cv_func_c99_isinf = yes; then
+  AC_DEFINE(HAVE_C99_ISINF)
+fi])
+
+dnl Checks if C99 compliant isnan() exists
+dnl Defines HAVE_C99_ISNAN on success.
+AC_DEFUN([AC_FUNC_C99_ISNAN],
+[AC_CACHE_CHECK([for C99 compliant isnan], ac_cv_func_c99_isnan,
+                [AC_TRY_LINK([#include <math.h>], [ double	d;
+#ifndef	isnan
+The isnan macro is not defined
+#endif
+return (isnan(d));
+],
+                [ac_cv_func_c99_isnan=yes],
+                [ac_cv_func_c99_isnan=no])])
+if test $ac_cv_func_c99_isnan = yes; then
+  AC_DEFINE(HAVE_C99_ISNAN)
+fi])
+
 dnl Checks if select() needs more than sys/time.h & sys/types.h
 dnl Defines SELECT_NONSTD_HDR on success.
 AC_DEFUN([AC_HEADER_SELECT_NONSTD],
@@ -1465,6 +1982,172 @@ fcntl(0, F_SETLK, &fl);],
                 [ac_cv_func_fcntl_lock=no])])
 if test $ac_cv_func_fcntl_lock = yes; then
   AC_DEFINE(HAVE_FCNTL_LOCKF)
+fi])
+
+
+dnl Checks if sigsetjmp() is available
+dnl Defines HAVE_SIGSETJMP on success.
+AC_DEFUN([AC_FUNC_SIGSETJMP],
+[AC_CACHE_CHECK([for sigsetjmp], ac_cv_func_sigsetjmp,
+                [AC_TRY_LINK([
+#include <setjmp.h>],
+		[
+sigjmp_buf jb;
+sigsetjmp(jb, 1);],
+                [ac_cv_func_sigsetjmp=yes],
+                [ac_cv_func_sigsetjmp=no])])
+if test $ac_cv_func_sigsetjmp = yes; then
+  AC_DEFINE(HAVE_SIGSETJMP)
+fi])
+
+dnl Checks if siglongjmp() is available
+dnl Defines HAVE_SIGLONGJMP on success.
+AC_DEFUN([AC_FUNC_SIGLONGJMP],
+[AC_CACHE_CHECK([for siglongjmp], ac_cv_func_siglongjmp,
+                [AC_TRY_LINK([
+#include <setjmp.h>],
+		[
+sigjmp_buf jb;
+sigsetjmp(jb, 1);
+siglongjmp(jb, 1);],
+                [ac_cv_func_siglongjmp=yes],
+                [ac_cv_func_siglongjmp=no])])
+if test $ac_cv_func_siglongjmp = yes; then
+  AC_DEFINE(HAVE_SIGLONGJMP)
+fi])
+
+
+dnl Checks if link() allows hard links on symlinks
+dnl Defines HAVE_HARD_SYMLINKS on success.
+AC_DEFUN([AC_HARD_SYMLINKS],
+[AC_CACHE_CHECK([if link() allows hard links on symlinks], ac_cv_hard_symlinks,
+                [AC_TRY_RUN([
+main()
+{
+	int	ret = 0;
+
+	unlink("confdefs.f1");
+	unlink("confdefs.l1");
+	unlink("confdefs.h1");
+
+	if (symlink("confdefs.f1", "confdefs.l1") < 0)
+		ret = 1;
+	if (link("confdefs.l1", "confdefs.h1") < 0)
+		ret = 1;
+
+	unlink("confdefs.l1");
+	unlink("confdefs.h1");
+
+	exit(ret);
+}],
+                [ac_cv_hard_symlinks=yes],
+                [ac_cv_hard_symlinks=no])])
+if test $ac_cv_hard_symlinks = yes; then
+  AC_DEFINE(HAVE_HARD_SYMLINKS)
+fi])
+
+
+dnl Checks if link() does not follow symlinks
+dnl Defines HAVE_LINK_NOFOLLOW on success.
+AC_DEFUN([AC_LINK_NOFOLLOW],
+[AC_CACHE_CHECK([if link() does not folow symlinks], ac_cv_link_nofollow,
+                [AC_TRY_RUN([
+#include <sys/types.h>
+#include <sys/stat.h>
+
+main()
+{
+	int	ret = 0;
+	int	f;
+	struct stat sb;
+
+	unlink("confdefs.f1");
+	unlink("confdefs.l1");
+	unlink("confdefs.h1");
+
+	f = creat("confdefs.f1", 0666);
+	close(f);
+	if (symlink("confdefs.f1", "confdefs.l1") < 0)
+		ret = 1;
+	if (link("confdefs.l1", "confdefs.h1") < 0)
+		ret = 1;
+
+	stat("confdefs.f1", &sb);
+	if (sb.st_nlink == 2)
+		ret = 1;
+
+	unlink("confdefs.f1");
+	unlink("confdefs.l1");
+	unlink("confdefs.h1");
+
+	exit(ret);
+}],
+                [ac_cv_link_nofollow=yes],
+                [ac_cv_link_nofollow=no])])
+if test $ac_cv_link_nofollow = yes; then
+  AC_DEFINE(HAVE_LINK_NOFOLLOW)
+fi])
+
+dnl Checks if access() does implement E_OK (010) for effective UIDs
+dnl Defines HAVE_ACCESS_E_OK on success.
+AC_DEFUN([AC_ACCESS_E_OK],
+[AC_REQUIRE([AC_HEADER_ERRNO_DEF])dnl
+AC_CHECK_HEADERS(unistd.h)
+AC_CACHE_CHECK([if access() does implement E_OK], ac_cv_access_e_ok,
+                [AC_TRY_RUN([
+# ifdef HAVE_UNISTD_H
+#  include <unistd.h>
+# endif
+#ifndef	R_OK
+#define	R_OK	4	/* Test for Read permission */
+#define	W_OK	2	/* Test for Write permission */
+#define	X_OK	1	/* Test for eXecute permission */
+#define	F_OK	0	/* Test for existence of File */
+#endif
+
+#ifndef	E_OK
+#ifdef	EFF_ONLY_OK
+#define	E_OK	EFF_ONLY_OK /* Irix */
+#else
+#ifdef	EUID_OK
+#define	E_OK	EUID_OK	/* UNICOS (0400) */
+#else
+#define	E_OK	010	/* Test effective uids */
+#endif
+#endif
+#endif
+
+#include <errno.h>
+#ifndef	HAVE_ERRNO_DEF
+extern	int	errno;
+#endif
+
+main()
+{
+#ifdef	_MSC_VER
+/*
+ * If we use "cl" to compile and call access(".", E_OK|F_OK), the program will
+ * cause an exception that results in a popup window. For this reason, the test
+ * is disabled for "cl",  it would not work anyway.
+ */	
+	int	ret = 1;
+#else
+	int	ret = 0;
+
+	if (access(".", F_OK) != 0)
+		ret = 1;
+	else if (access(".", E_OK|F_OK) != 0)
+		ret = 1;
+	else if (access(".", (R_OK<<4)|F_OK) == 0)
+		ret = 1;
+#endif
+
+	exit(ret);
+}],
+                [ac_cv_access_e_ok=yes],
+                [ac_cv_access_e_ok=no])])
+if test $ac_cv_access_e_ok = yes; then
+  AC_DEFINE(HAVE_ACCESS_E_OK)
 fi])
 
 
@@ -1643,3 +2326,111 @@ if test $ac_cv_dyn_arrays = yes; then
   AC_DEFINE(HAVE_DYN_ARRAYS)
 fi])
 
+dnl Checks if Linux include file linux/ext2_fs.h is broken
+dnl Defines HAVE_BROKEN_LINUX_EXT2_FS_H on success.
+AC_DEFUN([AC_BROKEN_LINUX_EXT2_FS_H],
+[AC_CACHE_CHECK([if Linux include file linux/ext2_fs.h is broken], ac_cv_broken_linux_ext2_fs_h,
+                [AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <linux/ext2_fs.h>
+#endif],
+                                [],
+                                [ac_cv_broken_linux_ext2_fs_h=no],
+                                [ac_cv_broken_linux_ext2_fs_h=yes])])
+if test $ac_cv_broken_linux_ext2_fs_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_LINUX_EXT2_FS_H)
+fi])
+
+dnl Checks if Linux include file /usr/src/linux/include/linux/ext2_fs.h is broken
+dnl Defines HAVE_BROKEN_SRC_LINUX_EXT2_FS_H on success.
+AC_DEFUN([AC_BROKEN_SRC_LINUX_EXT2_FS_H],
+[AC_CACHE_CHECK([if Linux include file /usr/src/linux/include/linux/ext2_fs.h is broken], ac_cv_broken_src_linux_ext2_fs_h,
+                [___CPPFLAGS=$CPPFLAGS; CPPFLAGS="-I/usr/src/linux/include $CPPFLAGS"
+		AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <linux/ext2_fs.h>
+#endif],
+                                [],
+                                [ac_cv_broken_src_linux_ext2_fs_h=no],
+                                [ac_cv_broken_src_linux_ext2_fs_h=yes])])
+CPPFLAGS=$___CPPFLAGS
+if test $ac_cv_broken_src_linux_ext2_fs_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_SRC_LINUX_EXT2_FS_H)
+fi])
+
+dnl Checks if Linux include file scsi/scsi.h is broken
+dnl Defines HAVE_BROKEN_SCSI_SCSI_H on success.
+AC_DEFUN([AC_BROKEN_SCSI_SCSI_H],
+[AC_CACHE_CHECK([if Linux include file scsi/scsi.h is broken], ac_cv_broken_scsi_scsi_h,
+                [AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <scsi/scsi.h>
+#endif],
+                                [],
+                                [ac_cv_broken_scsi_scsi_h=no],
+                                [ac_cv_broken_scsi_scsi_h=yes])])
+if test $ac_cv_broken_scsi_scsi_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_SCSI_SCSI_H)
+fi])
+
+dnl Checks if Linux include file /usr/src/linux/include/scsi/scsi.h is broken
+dnl Defines HAVE_BROKEN_SRC_SCSI_SCSI_H on success.
+AC_DEFUN([AC_BROKEN_SRC_SCSI_SCSI_H],
+[AC_CACHE_CHECK([if Linux include file /usr/src/linux/include/scsi/scsi.h is broken], ac_cv_broken_src_scsi_scsi_h,
+                [___CPPFLAGS=$CPPFLAGS; CPPFLAGS="-I/usr/src/linux/include $CPPFLAGS"
+                AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <scsi/scsi.h>
+#endif],
+                                [],
+                                [ac_cv_broken_src_scsi_scsi_h=no],
+                                [ac_cv_broken_src_scsi_scsi_h=yes])])
+CPPFLAGS=$___CPPFLAGS
+if test $ac_cv_broken_src_scsi_scsi_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_SRC_SCSI_SCSI_H)
+fi])
+
+dnl Checks if Linux include file scsi/sg.h is broken
+dnl Defines HAVE_BROKEN_SCSI_SG_H on success.
+AC_DEFUN([AC_BROKEN_SCSI_SG_H],
+[AC_CACHE_CHECK([if Linux include file scsi/sg.h is broken], ac_cv_broken_scsi_sg_h,
+                [AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <sys/types.h>
+#include <scsi/sg.h>
+#endif],
+                                [],
+                                [ac_cv_broken_scsi_sg_h=no],
+                                [ac_cv_broken_scsi_sg_h=yes])])
+if test $ac_cv_broken_scsi_sg_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_SCSI_SG_H)
+fi])
+
+dnl Checks if Linux include file /usr/src/linux/include/scsi/sg.h is broken
+dnl Defines HAVE_BROKEN_SRC_SCSI_SG_H on success.
+AC_DEFUN([AC_BROKEN_SRC_SCSI_SG_H],
+[AC_CACHE_CHECK([if Linux include file /usr/src/linux/include/scsi/sg.h is broken], ac_cv_broken_src_scsi_sg_h,
+                [___CPPFLAGS=$CPPFLAGS; CPPFLAGS="-I/usr/src/linux/include $CPPFLAGS"
+                AC_TRY_COMPILE([
+#if defined(__linux__) || defined(__linux) || defined(linux)
+#include <sys/types.h>
+#include <scsi/sg.h>
+#endif],
+                                [],
+                                [ac_cv_broken_src_scsi_sg_h=no],
+                                [ac_cv_broken_src_scsi_sg_h=yes])])
+CPPFLAGS=$___CPPFLAGS
+if test $ac_cv_broken_src_scsi_sg_h = yes; then
+  AC_DEFINE(HAVE_BROKEN_SRC_SCSI_SG_H)
+fi])
+
+AC_DEFUN(AC_PROG_SHELL_BROKEN_E,
+[AC_CACHE_CHECK(whether handling of /bin/sh -ce 'command' is broken, ac_cv_prog_shell_broken_e,
+[if AC_TRY_COMMAND(/bin/sh -ce 'if false; true; then echo yes; else echo no; fi') | egrep yes >/dev/null 2>&1; then
+  ac_cv_prog_shell_broken_e=no
+else
+  ac_cv_prog_shell_broken_e=yes
+fi
+if test $ac_cv_prog_shell_broken_e = yes; then
+  AC_DEFINE(HAVE_PROG_SHELL_BROKEN_E)
+fi])])

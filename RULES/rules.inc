@@ -1,4 +1,4 @@
-#ident @(#)rules.inc	1.2 00/03/19 
+#ident @(#)rules.inc	1.8 07/05/06 
 ###########################################################################
 # Written 1999 by J. Schilling
 ###########################################################################
@@ -6,43 +6,51 @@
 # Rules for creating include files (usually found in .../incs/machdir)
 #
 ###########################################################################
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
-# any later version.
+# Copyright (c) J. Schilling
+###########################################################################
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# See the file CDDL.Schily.txt in this distribution for details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING.  If not, write to
-# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file CDDL.Schily.txt from this distribution.
+###########################################################################
+_EXEEXT=	$(EXEEXT)
+_XEXEEXT=	$(XEXEEXT)
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.obj
 ###########################################################################
 
 PTARGET=	$(OINCSDIR)/$(TARGET)
 PTARGETC=	$(ARCHDIR)/$(TARGETC)
+PTARGETCX=	$(ARCHDIR)/$(TARGETC)$(_EXEEXT)
 
 _INSMODEI=	$(_UNIQ)$(INSMODE)
 __INSMODEI=	$(_INSMODEI:$(_UNIQ)=$(INSMODEF))
 INSMODEI=	$(__INSMODEI:$(_UNIQ)%=%)
 
-all:		$(PTARGETC) $(PTARGET)
+__LD_OUTPUT_OPTION=	$(_UNIQ)$(LD_OUTPUT_OPTION)
+___LD_OUTPUT_OPTION=	$(__LD_OUTPUT_OPTION:$(_UNIQ)=-o $@)
+_LD_OUTPUT_OPTION=	$(___LD_OUTPUT_OPTION:$(_UNIQ)%=%)
 
-$(PTARGETC):	$(OFILES) $(SRCLIBS)
-		$(LDCC) -o $@ $(POFILES) $(LDFLAGS) $(LDLIBS)
+LIBS_PATH += $(LIBS_PATH_STATIC)
 
-$(PTARGET):	$(OINCSDIR) $(PTARGETC)
-		@echo "	==> GENERATING include file \"$@\""; $(PTARGETC) > $@
+all:		$(PTARGETCX) $(PTARGET)
+
+$(PTARGETCX):	$(OFILES) $(SRCLIBS)
+		$(LDCC) $(_LD_OUTPUT_OPTION) $(POFILES) $(LDFLAGS) $(LDLIBS)
+
+$(PTARGET):	$(OINCSDIR) $(PTARGETCX)
+		@echo "	==> GENERATING include file \"$@\""; $(PTARGETC)$(_XEXEEXT) > $@
 
 ###########################################################################
+include		$(SRCROOT)/$(RULESDIR)/sub.htm
 include		$(SRCROOT)/$(RULESDIR)/rules.clr
 include		$(SRCROOT)/$(RULESDIR)/rules.ins
 include		$(SRCROOT)/$(RULESDIR)/rules.tag
 include		$(SRCROOT)/$(RULESDIR)/rules.hlp
-include		$(SRCROOT)/$(RULESDIR)/rules.cnf
 include		$(SRCROOT)/$(RULESDIR)/rules.dep
 ###########################################################################

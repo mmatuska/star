@@ -1,24 +1,20 @@
-/* @(#)fileread.c	1.12 01/02/17 Copyright 1986 J. Schilling */
+/* @(#)fileread.c	1.15 07/04/03 Copyright 1986, 1995-2007 J. Schilling */
 /*
- *	Copyright (c) 1986 J. Schilling
+ *	Copyright (c) 1986, 1995-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include "io.h"
+#include "schilyio.h"
 
 static	char	_readerr[]	= "file_read_err";
 
@@ -35,37 +31,37 @@ fileread(f, buf, len)
 
 	down2(f, _IOREAD, _IORW);
 
-	if (f->_flag & _IONBF){
-		cnt = _niread (fileno(f), buf, len);
+	if (f->_flag & _IONBF) {
+		cnt = _niread(fileno(f), buf, len);
 		if (cnt < 0) {
 			f->_flag |= _IOERR;
-			if (!(my_flag(f) & _IONORAISE))
+			if (!(my_flag(f) & _JS_IONORAISE))
 				raisecond(_readerr, 0L);
 		}
 		if (cnt == 0 && len)
 			f->_flag |= _IOEOF;
-		return cnt;
+		return (cnt);
 	}
 	cnt = 0;
 	while (len > 0) {
-		if (f->_cnt <= 0){
+		if (f->_cnt <= 0) {
 			if (usg_filbuf(f) == EOF)
 				break;
 			f->_cnt++;
 			f->_ptr--;
 		}
 		n = f->_cnt >= len ? len : f->_cnt;
-		buf = (void *)movebytes (f->_ptr, buf, n);
+		buf = (void *)movebytes(f->_ptr, buf, n);
 		f->_ptr += n;
 		f->_cnt -= n;
 		cnt += n;
 		len -= n;
 	}
 	if (!ferror(f))
-		return cnt;
-	if (!(my_flag(f) & _IONORAISE))
+		return (cnt);
+	if (!(my_flag(f) & _JS_IONORAISE))
 		raisecond(_readerr, 0L);
-	return -1;
+	return (-1);
 }
 
 #else
@@ -80,15 +76,15 @@ fileread(f, buf, len)
 
 	down2(f, _IOREAD, _IORW);
 
-	if (my_flag(f) & _IOUNBUF)
-		return _niread(fileno(f), buf, len);
+	if (my_flag(f) & _JS_IOUNBUF)
+		return (_niread(fileno(f), buf, len));
 	cnt = fread(buf, 1, len, f);
 
 	if (!ferror(f))
-		return cnt;
-	if (!(my_flag(f) & _IONORAISE))
+		return (cnt);
+	if (!(my_flag(f) & _JS_IONORAISE))
 		raisecond(_readerr, 0L);
-	return -1;
+	return (-1);
 }
 
 #endif	/* HAVE_USG_STDIO */

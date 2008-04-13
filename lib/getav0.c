@@ -1,41 +1,32 @@
-/* @(#)getav0.c	1.10 00/05/07 Copyright 1985 J. Schilling */
+/* @(#)getav0.c	1.19 08/01/11 Copyright 1985, 1995-2004 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)getav0.c	1.10 00/05/07 Copyright 1985 J. Schilling";
+	"@(#)getav0.c	1.19 08/01/11 Copyright 1985, 1995-2004 J. Schilling";
 #endif
 /*
  *	Get arg vector by scanning the stack
  *
- *	Copyright (c) 1985 J. Schilling
+ *	Copyright (c) 1985, 1995-2004 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
-#include <sigblk.h>
-#include <avoffset.h>
-#include <standard.h>
-#include <schily.h>
+#include <schily/mconfig.h>
+#include <schily/sigblk.h>
+#include <schily/avoffset.h>
+#include <schily/standard.h>
+#include <schily/schily.h>
 
 #if	!defined(AV_OFFSET) || !defined(FP_INDIR)
-#	ifdef	HAVE_SCANSTACK
-#	undef	HAVE_SCANSTACK
-#	endif
-#endif
-#ifdef	NO_SCANSTACK
 #	ifdef	HAVE_SCANSTACK
 #	undef	HAVE_SCANSTACK
 #	endif
@@ -43,67 +34,123 @@ static	char sccsid[] =
 
 #ifdef	HAVE_SCANSTACK
 
-#include <stkframe.h>
+#include <schily/stkframe.h>
 
 #define	is_even(p)	((((long)(p)) & 1) == 0)
 #define	even(p)		(((long)(p)) & ~1L)
 #ifdef	__future__
-#define	even(p)		(((long)(p)) - 1)/* will this work with 64 bit ?? */
+#define	even(p)		(((long)(p)) - 1) /* will this work with 64 bit ?? */
 #endif
 
-char **getavp()
+EXPORT	char	**getmainfp	__PR((void));
+EXPORT	char	**getavp	__PR((void));
+EXPORT	char	*getav0		__PR((void));
+
+
+EXPORT char **
+getmainfp()
 {
 	register struct frame *fp;
-	register struct frame *ofp;
-		 char	**av;
+		char	**av;
 #if	FP_INDIR > 0
 	register int	i = 0;
 #endif
 
-	ofp = fp = (struct frame *)getfp();
-	while (fp) {
+	/*
+	 * As the SCO OpenServer C-Compiler has a bug that may cause
+	 * the first function call to getfp() been done before the
+	 * new stack frame is created, we call getfp() twice.
+	 */
+	(void) getfp();
+	fp = (struct frame *)getfp();
+	if (fp == NULL)
+		return (NULL);
+
+	while (fp->fr_savfp) {
+		if (fp->fr_savpc == NULL)
+			break;
+
+		if (!is_even(fp->fr_savfp)) {
+			fp = (struct frame *)even(fp->fr_savfp);
+			if (fp == NULL)
+				break;
+			fp = (struct frame *)((SIGBLK *)fp)->sb_savfp;
+			continue;
+		}
+		fp = (struct frame *)fp->fr_savfp;
 
 #if	FP_INDIR > 0
 		i++;
 #endif
-		ofp = fp;
-		if (!is_even(fp->fr_savfp)) {
-			fp = (struct frame *)even(fp->fr_savfp);
-			fp = (struct frame *)((SIGBLK *)fp)->sb_savfp;
-			continue;
-		}
-		fp = fp->fr_savfp;
 	}
 
 #if	FP_INDIR > 0
 	i -= FP_INDIR;
-        ofp = fp = (struct frame *)getfp();
-	while (fp) {
-		if (--i < 0)
+	fp = (struct frame *)getfp();
+	if (fp == NULL)
+		return (NULL);
+
+	while (fp->fr_savfp) {
+		if (fp->fr_savpc == NULL)
 			break;
-		ofp = fp;
+
 		if (!is_even(fp->fr_savfp)) {
 			fp = (struct frame *)even(fp->fr_savfp);
+			if (fp == NULL)
+				break;
 			fp = (struct frame *)((SIGBLK *)fp)->sb_savfp;
 			continue;
 		}
-		fp = fp->fr_savfp;
+		fp = (struct frame *)fp->fr_savfp;
+
+		if (--i <= 0)
+			break;
 	}
 #endif
 
-        av = (char **)ofp + AV_OFFSET;	/* aus avoffset.h */
-					/* (wird generiert mit av_offset) */
+	av = (char **)fp;
 	return (av);
 }
 
-char *getav0()
+EXPORT char **
+getavp()
+{
+	register struct frame *fp;
+		char	**av;
+
+	fp = (struct frame *)getmainfp();
+	if (fp == NULL)
+		return (NULL);
+
+	av = (char **)(((char *)fp) + AV_OFFSET);	/* aus avoffset.h */
+							/* -> avoffset.c  */
+	return (av);
+}
+
+EXPORT char *
+getav0()
 {
 	return (getavp()[0]);
 }
 
 #else
 
-char *getav0()
+EXPORT char **
+getmainfp()
+{
+	raisecond("getmainfp", 0);
+	return ((char **)0);
+}
+
+EXPORT char **
+getavp()
+{
+	raisecond("getavp", 0);
+	return ((char **)0);
+}
+
+EXPORT char *
+getav0()
 {
 	return ("???");
 }

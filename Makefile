@@ -1,14 +1,16 @@
 #ident %W% %E% %Q%
 ###########################################################################
+# Sample makefile for the source root
+###########################################################################
 SRCROOT=	.
 DIRNAME=	SRCROOT
 RULESDIR=	RULES
 include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
-#include		Targetdirs.$(M_ARCH)
-
-DIRS=	conf inc lib libdeflt librmt star mt rmt tartest man
+#
+# include Targetdirs no longer needed, we use SSPM
+#include		Targetdirs
 
 ###########################################################################
 # Due to a bug in SunPRO make we need special rules for the root makefile

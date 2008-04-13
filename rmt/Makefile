@@ -1,4 +1,4 @@
-#ident @(#)Makefile	1.2 01/07/20 
+#ident @(#)Makefile	1.4 07/06/13 
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
@@ -12,7 +12,7 @@ CPPOPTS +=	-DUSE_LARGEFILES
 CFILES=		rmt.c
 #HFILES=
 LIBS=		-ldeflt -lschily $(LIB_SOCKET)
-XMK_FILE=	Makefile.man
+XMK_FILE=	Makefile.man Makefile.dfl Makefile.doc
 
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.cmd

@@ -1,56 +1,48 @@
-/* @(#)star_unix.c	1.53 02/08/16 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)star_unix.c	1.92 07/12/27 Copyright 1985, 1995, 2001-2007 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)star_unix.c	1.53 02/08/16 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)star_unix.c	1.92 07/12/27 Copyright 1985, 1995, 2001-2007 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
  *	operating systems
  *
- *	Copyright (c) 1985, 1995, 2001 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #ifndef	HAVE_UTIMES
 #define	utimes	__nothing__	/* BeOS has no utimes() but wrong prototype */
 #endif
 #include <stdio.h>
-#include <errno.h>
+#include <schily/errno.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <standard.h>
-#include <unixstd.h>
-#include <dirdefs.h>
-#include <statdefs.h>
-#include <device.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/unistd.h>
+#include <schily/dirent.h>
+#include <schily/stat.h>
+#include <schily/device.h>
+#include <schily/schily.h>
 #include "dirtime.h"
 #include "xutimes.h"
-#ifdef	__linux__
-#include <fctldefs.h>
-#include <linux/ext2_fs.h>
-#include <sys/ioctl.h>
-#endif
 #ifndef	HAVE_UTIMES
 #undef	utimes
 #endif
 #include "starsubs.h"
+#include "checkerr.h"
 
 #ifndef	HAVE_LSTAT
 #define	lstat	stat
@@ -59,10 +51,10 @@ static	char sccsid[] =
 #define	lchown	chown
 #endif
 
-#if   S_ISUID == TSUID && S_ISGID == TSGID && S_ISVTX == TSVTX \
-   && S_IRUSR == TUREAD && S_IWUSR == TUWRITE && S_IXUSR == TUEXEC \
-   && S_IRGRP == TGREAD && S_IWGRP == TGWRITE && S_IXGRP == TGEXEC \
-   && S_IROTH == TOREAD && S_IWOTH == TOWRITE && S_IXOTH == TOEXEC
+#if	S_ISUID == TSUID && S_ISGID == TSGID && S_ISVTX == TSVTX && \
+	S_IRUSR == TUREAD && S_IWUSR == TUWRITE && S_IXUSR == TUEXEC && \
+	S_IRGRP == TGREAD && S_IWGRP == TGWRITE && S_IXGRP == TGEXEC && \
+	S_IROTH == TOREAD && S_IWOTH == TOWRITE && S_IXOTH == TOEXEC
 
 #define	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
 #endif
@@ -70,33 +62,49 @@ static	char sccsid[] =
 
 #define	ROOT_UID	0
 
-extern	int	uid;
+extern	uid_t	my_uid;
 extern	dev_t	curfs;
 extern	BOOL	nomtime;
 extern	BOOL	nochown;
 extern	BOOL	pflag;
 extern	BOOL	follow;
+extern	BOOL	paxfollow;
 extern	BOOL	nodump;
 extern	BOOL	doacl;
+extern	BOOL	doxattr;
 extern	BOOL	dofflags;
 
-EXPORT	BOOL	getinfo		__PR((char* name, FINFO * info));
+EXPORT	BOOL	_getinfo	__PR((char *name, FINFO *info));
+EXPORT	BOOL	getinfo		__PR((char *name, FINFO *info));
+EXPORT	BOOL	stat_to_info	__PR((struct stat *sp, FINFO *info));
+LOCAL	void	print_badnsec	__PR((FINFO *info, char *name, long val));
 EXPORT	void	checkarch	__PR((FILE *f));
-EXPORT	void	setmodes	__PR((FINFO * info));
-LOCAL	int	sutimes		__PR((char* name, FINFO *info));
-EXPORT	int	snulltimes	__PR((char* name, FINFO *info));
-EXPORT	int	sxsymlink	__PR((FINFO *info));
-EXPORT	int	rs_acctime	__PR((int fd, FINFO * info));
+EXPORT	BOOL	archisnull	__PR((const char *name));
+EXPORT	BOOL	samefile	__PR((FILE *fp1, FILE *fp2));
+EXPORT	void	setmodes	__PR((FINFO *info));
+LOCAL	int	sutimes		__PR((char *name, FINFO *info));
+EXPORT	int	snulltimes	__PR((char *name, FINFO *info));
+EXPORT	int	sxsymlink	__PR((char *name, FINFO *info));
+EXPORT	int	rs_acctime	__PR((int fd, FINFO *info));
 #ifndef	HAVE_UTIMES
 EXPORT	int	utimes		__PR((char *name, struct timeval *tp));
 #endif
+EXPORT	void	setdirmodes	__PR((char *name, mode_t mode));
 #ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
 #else
+EXPORT	mode_t	osmode		__PR((mode_t tarmode));
 LOCAL	int	dochmod		__PR((const char *name, mode_t tarmode));
 #define	chmod	dochmod
 #endif
 
 #ifdef	USE_ACL
+
+#ifdef	OWN_ACLTEXT
+#if	defined(UNIXWARE) && defined(HAVE_ACL)
+#	define	HAVE_SUN_ACL
+#	define	HAVE_ANY_ACL
+#endif
+#endif
 /*
  * HAVE_ANY_ACL currently includes HAVE_POSIX_ACL and HAVE_SUN_ACL.
  * This definition must be in sync with the definition in acl_unix.c
@@ -110,6 +118,26 @@ LOCAL	int	dochmod		__PR((const char *name, mode_t tarmode));
 #	endif
 #endif
 
+/*
+ * Simple getinfo() variant.
+ */
+EXPORT BOOL
+_getinfo(name, info)
+	char	*name;
+	register FINFO	*info;
+{
+	BOOL	ret;
+	BOOL	odoacl = doacl;
+	BOOL	odoxattr = doxattr;
+
+	doacl	= FALSE;
+	doxattr	= FALSE;
+	ret = getinfo(name, info);
+	doacl	= odoacl;
+	doxattr	= odoxattr;
+
+	return (ret);
+}
 
 EXPORT BOOL
 getinfo(name, info)
@@ -118,90 +146,119 @@ getinfo(name, info)
 {
 	struct stat	stbuf;
 
-	if (follow?stat(name, &stbuf):lstat(name, &stbuf) < 0)
+	info->f_filetype = -1;	/* Will be overwritten of stat() works */
+newstat:
+	if (paxfollow) {
+		if (stat(name, &stbuf) < 0) {
+			if (geterrno() == EINTR)
+				goto newstat;
+			if (geterrno() != ENOENT)
+				return (FALSE);
+
+			while (lstat(name, &stbuf) < 0) {
+				if (geterrno() != EINTR)
+					return (FALSE);
+			}
+		}
+	} else if (follow?stat(name, &stbuf):lstat(name, &stbuf) < 0) {
+		if (geterrno() == EINTR)
+			goto newstat;
 		return (FALSE);
-	info->f_name = name;
+	}
+	info->f_sname = info->f_name = name;
+	return (stat_to_info(&stbuf, info));
+}
+
+EXPORT BOOL
+stat_to_info(sp, info)
+	struct stat *sp;
+	FINFO	*info;
+{
+	BOOL		first = TRUE;
+
+again:
 	info->f_uname = info->f_gname = NULL;
 	info->f_umaxlen = info->f_gmaxlen = 0L;
-	info->f_dev	= stbuf.st_dev;
+	info->f_dev	= sp->st_dev;
 	if (curfs == NODEV)
 		curfs = info->f_dev;
-	info->f_ino	= stbuf.st_ino;
-	info->f_nlink	= stbuf.st_nlink;
+	info->f_ino	= sp->st_ino;
+	info->f_nlink	= sp->st_nlink;
 #ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
-	info->f_mode	= stbuf.st_mode & 07777;
+	info->f_mode	= sp->st_mode & 07777;
 #else
 	/*
 	 * The unexpected case when the S_I* OS mode bits do not match
 	 * the T* mode bits from tar.
 	 */
-	{ register mode_t m = stbuf.st_mode;
+	{ register mode_t m = sp->st_mode;
 
-	info->f_mode	= ((m & S_ISUID ? TSUID   : 0)
-			 | (m & S_ISGID ? TSGID   : 0)
-			 | (m & S_ISVTX ? TSVTX   : 0)
-			 | (m & S_IRUSR ? TUREAD  : 0)
-			 | (m & S_IWUSR ? TUWRITE : 0)
-			 | (m & S_IXUSR ? TUEXEC  : 0)
-			 | (m & S_IRGRP ? TGREAD  : 0)
-			 | (m & S_IWGRP ? TGWRITE : 0)
-			 | (m & S_IXGRP ? TGEXEC  : 0)
-			 | (m & S_IROTH ? TOREAD  : 0)
-			 | (m & S_IWOTH ? TOWRITE : 0)
-			 | (m & S_IXOTH ? TOEXEC  : 0));
+	info->f_mode	=    ((m & S_ISUID ? TSUID   : 0)
+			    | (m & S_ISGID ? TSGID   : 0)
+			    | (m & S_ISVTX ? TSVTX   : 0)
+			    | (m & S_IRUSR ? TUREAD  : 0)
+			    | (m & S_IWUSR ? TUWRITE : 0)
+			    | (m & S_IXUSR ? TUEXEC  : 0)
+			    | (m & S_IRGRP ? TGREAD  : 0)
+			    | (m & S_IWGRP ? TGWRITE : 0)
+			    | (m & S_IXGRP ? TGEXEC  : 0)
+			    | (m & S_IROTH ? TOREAD  : 0)
+			    | (m & S_IWOTH ? TOWRITE : 0)
+			    | (m & S_IXOTH ? TOEXEC  : 0));
 	}
 #endif
-	info->f_uid	= stbuf.st_uid;
-	info->f_gid	= stbuf.st_gid;
-	info->f_size	= (off_t)0;	/* Size of file */
-	info->f_rsize	= (off_t)0;	/* Size on tape */
-	info->f_flags	= 0L;
-	info->f_xflags	= props.pr_xdflags;
-	info->f_typeflag= 0;
-	info->f_type	= stbuf.st_mode & ~07777;
+	info->f_uid	 = sp->st_uid;
+	info->f_gid	 = sp->st_gid;
+	info->f_size	 = (off_t)0;	/* Size of file */
+	info->f_rsize	 = (off_t)0;	/* Size on tape */
+	info->f_flags	 = 0L;
+	info->f_xflags	 = props.pr_xhdflags;
+	info->f_typeflag = 0;
+	info->f_type	 = sp->st_mode & ~07777;
 
-	if (sizeof(stbuf.st_rdev) == sizeof(short)) {
-		info->f_rdev = (Ushort) stbuf.st_rdev;
-	} else if ((sizeof(int) != sizeof(long)) &&
-			(sizeof(stbuf.st_rdev) == sizeof(int))) {
-		info->f_rdev = (Uint) stbuf.st_rdev;
+	if (sizeof (sp->st_rdev) == sizeof (short)) {
+		info->f_rdev = (Ushort) sp->st_rdev;
+	} else if ((sizeof (int) != sizeof (long)) &&
+			(sizeof (sp->st_rdev) == sizeof (int))) {
+		info->f_rdev = (Uint) sp->st_rdev;
 	} else {
-		info->f_rdev = (Ulong) stbuf.st_rdev;
+		info->f_rdev = (Ulong) sp->st_rdev;
 	}
 	info->f_rdevmaj	= major(info->f_rdev);
 	info->f_rdevmin	= minor(info->f_rdev);
-	info->f_atime	= stbuf.st_atime;
-	info->f_mtime	= stbuf.st_mtime;
-	info->f_ctime	= stbuf.st_ctime;
-#ifdef	HAVE_ST_SPARE1		/* if struct stat contains st_spare1 (usecs) */
-	info->f_flags  |= F_NSECS;
-	info->f_ansec	= stbuf.st_spare1*1000;
-	info->f_mnsec	= stbuf.st_spare2*1000;
-	info->f_cnsec	= stbuf.st_spare3*1000;
-#else
+	info->f_atime	= sp->st_atime;
+	info->f_mtime	= sp->st_mtime;
+	info->f_ctime	= sp->st_ctime;
 
-#ifdef	HAVE_ST_NSEC		/* if struct stat contains st_atim.st_nsec (nanosecs */ 
-	info->f_flags  |= F_NSECS;
-	info->f_ansec	= stbuf.st_atim.tv_nsec;
-	info->f_mnsec	= stbuf.st_mtim.tv_nsec;
-	info->f_cnsec	= stbuf.st_ctim.tv_nsec;
-#else
-	info->f_ansec = info->f_mnsec = info->f_cnsec = 0L;
-#endif	/* HAVE_ST_NSEC */
-#endif	/* HAVE_ST_SPARE1 */
+	info->f_ansec	= stat_ansecs(sp);
+	info->f_mnsec	= stat_mnsecs(sp);
+	info->f_cnsec	= stat_cnsecs(sp);
+
+	if (info->f_ansec < 0 || info->f_ansec >= 1000000000L) {
+		print_badnsec(info, "atime", info->f_ansec);
+		info->f_ansec = 0;
+	}
+	if (info->f_mnsec < 0 || info->f_mnsec >= 1000000000L) {
+		print_badnsec(info, "mtime", info->f_mnsec);
+		info->f_mnsec = 0;
+	}
+	if (info->f_cnsec < 0 || info->f_cnsec >= 1000000000L) {
+		print_badnsec(info, "ctime", info->f_cnsec);
+		info->f_cnsec = 0;
+	}
 
 #ifdef	HAVE_ST_FLAGS
 	/*
 	 * The *BSD based method is easy to handle.
 	 */
 	if (dofflags)
-		info->f_fflags = stbuf.st_flags;
+		info->f_fflags = sp->st_flags;
 	else
 		info->f_fflags = 0L;
 	if (info->f_fflags != 0)
 		info->f_xflags |= XF_FFLAGS;
 #ifdef	UF_NODUMP				/* The *BSD 'nodump' flag */
-	if ((stbuf.st_flags & UF_NODUMP) != 0)
+	if ((sp->st_flags & UF_NODUMP) != 0)
 		info->f_flags |= F_NODUMP;	/* Convert it to star flag */
 #endif
 #else	/* !HAVE_ST_FLAGS */
@@ -209,7 +266,7 @@ getinfo(name, info)
 	 * The non *BSD case...
 	 */
 #ifdef	USE_FFLAGS
-	if ((nodump || dofflags) && !S_ISLNK(stbuf.st_mode)) {
+	if ((nodump || dofflags) && !S_ISLNK(sp->st_mode)) {
 		get_fflags(info);
 		if (!dofflags)
 			info->f_xflags &= ~XF_FFLAGS;
@@ -221,12 +278,16 @@ getinfo(name, info)
 #endif
 #endif
 
-	switch ((int)(stbuf.st_mode & S_IFMT)) {
+#ifdef	HAVE_ST_ACLCNT
+	info->f_aclcnt = sp->st_aclcnt;
+#endif
+
+	switch ((int)(sp->st_mode & S_IFMT)) {
 
 	case S_IFREG:	/* regular file */
 			info->f_filetype = F_FILE;
 			info->f_xftype = XT_FILE;
-			info->f_rsize = info->f_size = stbuf.st_size;
+			info->f_rsize = info->f_size = sp->st_size;
 			info->f_rdev = 0;
 			info->f_rdevmaj	= 0;
 			info->f_rdevmin	= 0;
@@ -235,7 +296,7 @@ getinfo(name, info)
 	case S_IFCNT:	/* contiguous file */
 			info->f_filetype = F_FILE;
 			info->f_xftype = XT_CONT;
-			info->f_rsize = info->f_size = stbuf.st_size;
+			info->f_rsize = info->f_size = sp->st_size;
 			info->f_rdev = 0;
 			info->f_rdevmaj	= 0;
 			info->f_rdevmin	= 0;
@@ -248,6 +309,9 @@ getinfo(name, info)
 			info->f_rdevmaj	= 0;
 			info->f_rdevmin	= 0;
 			info->f_dir = NULL;	/* No directory content known*/
+			info->f_dirinos = NULL;	/* No inode list known */
+			info->f_dirlen = 0;
+			info->f_dirents = 0;
 			break;
 #ifdef	S_IFLNK
 	case S_IFLNK:	/* symbolic link */
@@ -274,6 +338,9 @@ getinfo(name, info)
 	case S_IFIFO:	/* fifo */
 			info->f_filetype = F_SPEC;
 			info->f_xftype = XT_FIFO;
+			info->f_rdev = 0;
+			info->f_rdevmaj	= 0;
+			info->f_rdevmin	= 0;
 			break;
 #endif
 #ifdef	S_IFSOCK
@@ -289,9 +356,9 @@ getinfo(name, info)
 			/*
 			 * 'st_rdev' field is really the subtype
 			 * As S_INSEM & S_INSHD we may safely cast
-			 * stbuf.st_rdev to int.
+			 * sp->st_rdev to int.
 			 */
-			switch ((int)stbuf.st_rdev) {
+			switch ((int)sp->st_rdev) {
 			case S_INSEM:
 				info->f_xftype = XT_NSEM;
 				break;
@@ -330,7 +397,7 @@ getinfo(name, info)
 #endif
 
 	default:	/* any other unknown file type */
-			if ((stbuf.st_mode & S_IFMT) == 0) {
+			if ((sp->st_mode & S_IFMT) == 0) {
 				/*
 				 * If we come here, we either did not yet
 				 * realize that somebody created a new file
@@ -355,35 +422,61 @@ getinfo(name, info)
 	}
 	info->f_rxftype = info->f_xftype;
 
+	if (first && pr_unsuptype(info)) {
+		first = FALSE;
+		if (lstat(info->f_name, sp) < 0)
+			return (FALSE);
+		goto again;
+	}
+
 #ifdef	HAVE_ST_BLOCKS
 #if	defined(hpux) || defined(__hpux)
-	if (info->f_size > (stbuf.st_blocks * 1024 + 1024))
+	if (info->f_size > (sp->st_blocks * 1024 + 1024))
 #else
-	if (info->f_size > (stbuf.st_blocks * 512 + 512))
+	if (info->f_size > (sp->st_blocks * 512 + 512))
 #endif
 		info->f_flags |= F_SPARSE;
 #endif
 
-#ifdef	USE_ACL
 	/*
-	 * Only look for ACL's if extended headers are allowed with the current
-	 * archive format. Also don't include ACL's if we are creating a Sun
-	 * vendor unique variant of the extended headers. Sun's tar will not
-	 * grok access control lists.
+	 * Only look for ACL's and other properties that go into the POSIX
+	 * extended heaer if extended headers are allowed with the current
+	 * archive format. Also don't include ACL's and other properties if
+	 * we are creating a Sun vendor unique variant of the extended headers.
+	 * Sun's tar will not grok access control lists and other extensions.
 	 */
 	if ((props.pr_flags & PR_XHDR) == 0 || (props.pr_xc != 'x'))
 		return (TRUE);
-
+#ifdef	USE_ACL
 	/*
 	 * If we return (FALSE) here, the file would not be archived at all.
 	 * This is not what we want, so ignore return code from get_acls().
 	 */
-	if (doacl)
-		(void) get_acls(info);
+
+	/*
+	 * Note: ACL check/fetch has been moved to create.c::take_file()
+	 * for performance reasons.
+	 */
 #endif  /* USE_ACL */
+
+#ifdef	USE_XATTR
+	if (doxattr)
+		(void) get_xattr(info);
+#endif
 
 	return (TRUE);
 }
+
+LOCAL void
+print_badnsec(info, name, val)
+	FINFO	*info;
+	char	*name;
+	long	val;
+{
+	errmsgno(EX_BAD, "Bad '%s' nanosecond value %ld for '%s'.\n",
+		name, val, info->f_name);
+}
+
 
 EXPORT void
 checkarch(f)
@@ -400,7 +493,7 @@ checkarch(f)
 
 	if (fstat(fdown(f), &stbuf) < 0)
 		return;
-	
+
 	if (S_ISREG(stbuf.st_mode)) {
 		tape_dev = stbuf.st_dev;
 		tape_ino = stbuf.st_ino;
@@ -417,50 +510,108 @@ checkarch(f)
 	}
 }
 
+EXPORT BOOL
+archisnull(name)
+	const char	*name;
+{
+	struct stat	stbuf;
+	struct stat	stnull;
+
+	if (name == NULL)
+		return (FALSE);
+
+	if (streql(name, "-")) {
+		if (fstat(fdown(stdout), &stbuf) < 0)
+			return (FALSE);
+	} else {
+		if (stat(name, &stbuf) < 0)
+			return (FALSE);
+	}
+	if (stat("/dev/null", &stnull) < 0)
+		return (FALSE);
+
+	if (stbuf.st_dev == stnull.st_dev &&
+	    stbuf.st_ino == stnull.st_ino)
+		return (TRUE);
+	return (FALSE);
+}
+
+EXPORT BOOL
+samefile(fp1, fp2)
+	FILE	*fp1;
+	FILE	*fp2;
+{
+	struct stat	stbuf1;
+	struct stat	stbuf2;
+
+	if (fp1 == NULL || fp2 == NULL)
+		return (FALSE);
+
+	if (fstat(fdown(fp1), &stbuf1) < 0)
+
+	if (fstat(fdown(fp2), &stbuf2) < 0)
+		return (FALSE);
+
+	if (stbuf1.st_dev == stbuf2.st_dev &&
+	    stbuf1.st_ino == stbuf2.st_ino)
+		return (TRUE);
+	return (FALSE);
+}
+
 EXPORT void
 setmodes(info)
 	register FINFO	*info;
 {
 	BOOL	didutimes = FALSE;
+	BOOL	asymlink = is_symlink(info);
 
-	if (!nomtime && !is_symlink(info)) {
+	/*
+	 * If it does not seem to be a symbolic link, we need to check whether
+	 * this is an archive format that does not store the real file type.
+	 * We need to avoid to set time stamps or modes for hard links on
+	 * symbolic links.
+	 */
+	if (!asymlink &&
+	    fis_link(info)) {		/* Real file type unknown */
+		FINFO	finfo;
+
+		if (_getinfo(info->f_name, &finfo) && is_symlink(&finfo))
+			asymlink = TRUE;
+	}
+
+	if (!nomtime && !asymlink) {
 		/*
 		 * With Cygwin32,
 		 * DOS will not allow us to set file times on read-only files.
 		 * We set the time before we change the access modes to
 		 * overcode this problem.
+		 * XXX This will no longer work with the new -p flag handling
+		 * XXX as the files may be read only from the creation.
 		 */
 		if (!is_dir(info)) {
 			didutimes = TRUE;
-			if (sutimes(info->f_name, info) < 0)
-				xstats.s_settime++;
+			if (sutimes(info->f_name, info) < 0) {
+				if (!errhidden(E_SETTIME, info->f_name)) {
+					if (!errwarnonly(E_SETTIME, info->f_name))
+						xstats.s_settime++;
+					(void) errabort(E_SETTIME,
+							info->f_name, TRUE);
+				}
+			}
 		}
 	}
 
-#ifndef	NEW_P_FLAG
-	if ((!is_dir(info) || pflag) && !is_symlink(info)) {
-		if (chmod(info->f_name, (int)info->f_mode) < 0) {
-			xstats.s_setmodes++;
-		}
-	}
-#ifdef	USE_ACL
-	if (pflag && !is_symlink(info)) {
-		/*
-		 * If there are no additional ACLs, set_acls() will
-		 * simply do a fast return.
-		 */
-		if (doacl)
-			set_acls(info);
-	}
-#endif
-	if (dofflags && !is_symlink(info))
-		set_fflags(info);
-#else
-/* XXX Checken! macht die Aenderung des Verhaltens von -p Sinn? */
+	if (pflag && !asymlink) {
+		mode_t	mode = info->f_mode;
 
-	if (pflag && !is_symlink(info)) {
-		if (chmod(info->f_name, (int)info->f_mode) < 0) {
-			xstats.s_setmodes++;
+		if (is_dir(info))
+			mode |= TUWRITE;
+		if (chmod(info->f_name, mode) < 0) {
+			if (!errhidden(E_SETMODE, info->f_name)) {
+				if (!errwarnonly(E_SETMODE, info->f_name))
+					xstats.s_setmodes++;
+				(void) errabort(E_SETMODE, info->f_name, TRUE);
+			}
 		}
 #ifdef	USE_ACL
 		/*
@@ -471,10 +622,16 @@ setmodes(info)
 			set_acls(info);
 #endif
 	}
-	if (dofflags && !is_symlink(info))
+#ifdef	USE_XATTR
+	if (doxattr)
+		set_xattr(info);
+#endif
+#ifdef	USE_FFLAGS
+	if (dofflags && !asymlink)
 		set_fflags(info);
 #endif
-	if (!nochown && uid == ROOT_UID) {
+
+	if (!nochown && my_uid == ROOT_UID) {
 
 #if	defined(HAVE_CHOWN) || defined(HAVE_LCHOWN)
 		/*
@@ -483,19 +640,18 @@ setmodes(info)
 		lchown(info->f_name, (int)info->f_uid, (int)info->f_gid);
 #endif
 
-#ifndef	NEW_P_FLAG
-		if ((!is_dir(info) || pflag) && !is_symlink(info) &&
-#else
-/* XXX Checken! macht die Aenderung des Verhaltens von -p Sinn? */
-		if (pflag && !is_symlink(info) &&
-#endif
-				(info->f_mode & 07000) != 0) {
+		if (pflag && !asymlink &&
+			(info->f_mode & (TSUID | TSGID | TSVTX)) != 0) {
+			mode_t	mode = info->f_mode;
+
+			if (is_dir(info))
+				mode |= TUWRITE;
 			/*
 			 * On a few systems, seeting the owner of a file
 			 * destroys the suid and sgid bits.
 			 * We repeat the chmod() in this case.
 			 */
-			if (chmod(info->f_name, (int)info->f_mode) < 0) {
+			if (chmod(info->f_name, mode) < 0) {
 				/*
 				 * Do not increment chmod() errors here,
 				 * it did already fail above.
@@ -505,17 +661,20 @@ setmodes(info)
 			}
 		}
 	}
-	if (!nomtime && !is_symlink(info)) {
-		if (is_dir(info)) {
-			sdirtimes(info->f_name, info);
-		} else {
-			if (sutimes(info->f_name, info) < 0 && !didutimes)
-				xstats.s_settime++;
-		}
+	if (!nomtime && !is_dir(info) && !asymlink) {
+		if (sutimes(info->f_name, info) < 0 && !didutimes)
+			if (!errhidden(E_SETTIME, info->f_name)) {
+				if (!errwarnonly(E_SETTIME, info->f_name))
+					xstats.s_settime++;
+				(void) errabort(E_SETTIME, info->f_name, TRUE);
+			}
+	}
+	if (is_dir(info)) {
+		sdirtimes(info->f_name, info, !nomtime, pflag);
 	}
 }
 
-EXPORT	int	xutimes		__PR((char* name, struct timeval *tp));
+EXPORT	int	xutimes		__PR((char *name, struct timeval *tp));
 
 LOCAL int
 sutimes(name, info)
@@ -546,7 +705,7 @@ snulltimes(name, info)
 {
 	struct	timeval tp[3];
 
-	fillbytes((char *)tp, sizeof(tp), '\0');
+	fillbytes((char *)tp, sizeof (tp), '\0');
 	return (xutimes(name, tp));
 }
 
@@ -577,14 +736,10 @@ xutimes(name, tp)
 #ifdef	SET_CTIME
 	if (Ctime) {
 		gettimeofday(&pasttime, 0);
-		/* XXX Hack: f_ctime.tv_usec ist immer 0! */
-		curtime.tv_usec += pasttime.tv_usec;
-		if (curtime.tv_usec > 1000000) {
-			curtime.tv_sec += 1;
-			curtime.tv_usec -= 1000000;
-		}
+		timersub(&pasttime, &tp[2]);
+		timeradd(&curtime, &pasttime);
 		settimeofday(&curtime, 0);
-/*		error("pasttime.usec: %d\n", pasttime.tv_usec);*/
+/*		error("pasttime: %d.%6.6d\n", pasttime.tv_sec, pasttime.tv_usec);*/
 	}
 #endif
 	seterrno(errsav);
@@ -592,7 +747,8 @@ xutimes(name, tp)
 }
 
 EXPORT int
-sxsymlink(info)
+sxsymlink(name, info)
+	char	*name;
 	FINFO	*info;
 {
 #ifdef	HAVE_SYMLINK
@@ -600,7 +756,6 @@ sxsymlink(info)
 	struct  timeval curtime;
 	struct  timeval pasttime;
 	char	*linkname;
-	char	*name;
 	extern int Ctime;
 	int	ret;
 	int	errsav;
@@ -618,7 +773,6 @@ sxsymlink(info)
 	tp[2].tv_usec = info->f_cnsec/1000;
 #endif
 	linkname = info->f_lname;
-	name = info->f_name;
 
 #ifdef	SET_CTIME
 	if (Ctime) {
@@ -672,7 +826,7 @@ sxsymlink(info)
 
 EXPORT int
 rs_acctime(fd, info)
-		 int	fd;
+		int	fd;
 	register FINFO	*info;
 {
 #ifdef	_FIOSATIME
@@ -686,7 +840,7 @@ rs_acctime(fd, info)
 	/*
 	 * On Solaris 2.x root may reset accesstime without changing ctime.
 	 */
-	if (uid == ROOT_UID) {
+	if (my_uid == ROOT_UID) {
 		atv.tv_sec = info->f_atime;
 		atv.tv_usec = info->f_ansec/1000;
 		return (ioctl(fd, _FIOSATIME, &atv));
@@ -698,7 +852,7 @@ rs_acctime(fd, info)
 #ifndef	HAVE_UTIMES
 
 #define	utimes	__nothing__	/* BeOS has no utimes() but wrong prototype */
-#include <utimdefs.h>
+#include <schily/utime.h>
 #undef	utimes
 
 EXPORT int
@@ -711,34 +865,80 @@ utimes(name, tp)
 	ut.actime = tp->tv_sec;
 	tp++;
 	ut.modtime = tp->tv_sec;
-	
+
 	return (utime(name, &ut));
 }
 #endif
 
 #ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
+#define	OSMODE(tarmode)	    (tarmode)
+#else
+#define	OSMODE(tarmode)	    ((tarmode & TSUID   ? S_ISUID : 0)  \
+			    | (tarmode & TSGID   ? S_ISGID : 0) \
+			    | (tarmode & TSVTX   ? S_ISVTX : 0) \
+			    | (tarmode & TUREAD  ? S_IRUSR : 0) \
+			    | (tarmode & TUWRITE ? S_IWUSR : 0) \
+			    | (tarmode & TUEXEC  ? S_IXUSR : 0) \
+			    | (tarmode & TGREAD  ? S_IRGRP : 0) \
+			    | (tarmode & TGWRITE ? S_IWGRP : 0) \
+			    | (tarmode & TGEXEC  ? S_IXGRP : 0) \
+			    | (tarmode & TOREAD  ? S_IROTH : 0) \
+			    | (tarmode & TOWRITE ? S_IWOTH : 0) \
+			    | (tarmode & TOEXEC  ? S_IXOTH : 0))
+#endif
+
+EXPORT void
+#ifdef	PROTOTYPES
+setdirmodes(char *name, mode_t tarmode)
+#else
+setdirmodes(name, tarmode)
+	char	*name;
+	mode_t	tarmode;
+#endif
+{
+	register mode_t		_osmode;
+
+	_osmode = OSMODE(tarmode);
+	if (chmod(name, _osmode) < 0) {
+		if (!errhidden(E_SETMODE, name)) {
+			if (!errwarnonly(E_SETMODE, name))
+				xstats.s_setmodes++;
+			errmsg("Can't set permission for '%s'.\n", name);
+			(void) errabort(E_SETMODE, name, TRUE);
+		}
+	}
+}
+
+
+EXPORT mode_t
+#ifdef	PROTOTYPES
+osmode(register mode_t tarmode)
+#else
+osmode(tarmode)
+	register mode_t		tarmode;
+#endif
+{
+	register mode_t		_osmode;
+
+	_osmode = OSMODE(tarmode);
+	return (_osmode);
+}
+
+#ifdef	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
 #else
 #undef	chmod
 LOCAL int
+#ifdef	PROTOTYPES
+dochmod(register const char *name, register mode_t tarmode)
+#else
 dochmod(name, tarmode)
 	register const char	*name;
 	register mode_t		tarmode;
+#endif
 {
-	register mode_t		osmode;
+	register mode_t		_osmode;
 
-	osmode	= ((tarmode & TSUID   ? S_ISUID : 0)
-		 | (tarmode & TSGID   ? S_ISGID : 0)
-		 | (tarmode & TSVTX   ? S_ISVTX : 0)
-		 | (tarmode & TUREAD  ? S_IRUSR : 0)
-		 | (tarmode & TUWRITE ? S_IWUSR : 0)
-		 | (tarmode & TUEXEC  ? S_IXUSR : 0)
-		 | (tarmode & TGREAD  ? S_IRGRP : 0)
-		 | (tarmode & TGWRITE ? S_IWGRP : 0)
-		 | (tarmode & TGEXEC  ? S_IXGRP : 0)
-		 | (tarmode & TOREAD  ? S_IROTH : 0)
-		 | (tarmode & TOWRITE ? S_IWOTH : 0)
-		 | (tarmode & TOEXEC  ? S_IXOTH : 0));
-
-	return (chmod(name, osmode));
+	_osmode = OSMODE(tarmode);
+	return (chmod(name, _osmode));
 }
 #endif

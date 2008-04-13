@@ -1,56 +1,59 @@
-/* @(#)fifo.c	1.34 02/11/04 Copyright 1989 J. Schilling */
+/* @(#)fifo.c	1.67 07/10/20 Copyright 1989, 1994-2007 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fifo.c	1.34 02/11/04 Copyright 1989 J. Schilling";
+	"@(#)fifo.c	1.67 07/10/20 Copyright 1989, 1994-2007 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
  *
- *	Copyright (c) 1989 J. Schilling
+ *	s*wakeup() 2nd parameter character:
+ *
+ *		t	fifo_iwait() wake up put side to start read Tape change
+ *		d	fifo_owake() wake up get side if mp->oblocked == TRUE
+ *		e	fifo_oflush() wake up get side if EOF
+ *		T	fifo_owait() wake up put side after write Tape change
+ *		s	fifo_iwake() wake up put side if mp->iblocked == TRUE
+ *		S	fifo_resume() wake up put side after reading first blk
+ *		n	fifo_chitape() wake up put side to start wrt Tape chng
+ *		N	fifo_chotape()	wake up get side if mp->oblocked == TRUE
+ *
+ *	Copyright (c) 1989, 1994-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
 /*#define	DEBUG*/
 
-#include <mconfig.h>
-#if	!defined(HAVE_SMMAP) && !defined(HAVE_USGSHM) && !defined(HAVE_DOSALLOCSHAREDMEM)
-#undef	FIFO			/* We cannot have a FIFO on this platform */
-#endif
-#if	!defined(HAVE_FORK)
-#undef	FIFO			/* We cannot have a FIFO on this platform */
-#endif
+#include <schily/mconfig.h>
+#include <stdio.h>
+#include <schily/stdlib.h>
+#include <schily/unistd.h>	/* includes <sys/types.h> */
+#include <schily/libport.h>	/* getpagesize() */
+#include <schily/fcntl.h>
+#include <schily/standard.h>
+#include <schily/errno.h>
+#include "star.h"
+#include "fifo.h"	/* #undef FIFO may happen here */
+#include <schily/schily.h>
+#include "starsubs.h"
+
 #ifdef	FIFO
+
 #if !defined(USE_MMAP) && !defined(USE_USGSHM)
 #define	USE_MMAP
 #endif
-
-#include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>	/* includes <sys/types.h> */
-#include <fctldefs.h>
 #if defined(HAVE_SMMAP) && defined(USE_MMAP)
-#include <mmapdefs.h>
+#include <schily/mman.h>
 #endif
-#include <standard.h>
-#include <errno.h>
-#include "star.h"
-#include "fifo.h"
-#include <schily.h>
-#include "starsubs.h"
 
 #ifndef	HAVE_SMMAP
 #	undef	USE_MMAP
@@ -61,6 +64,13 @@ static	char sccsid[] =
 #	undef	USE_MMAP
 #	undef	USE_USGSHM
 #	define	USE_OS2SHM
+#endif
+
+#ifdef	HAVE_BEOS_AREAS		/* This is for BeOS/Zeta */
+#	undef	USE_MMAP
+#	undef	USE_USGSHM
+#	undef	USE_OS2SHM
+#	define	USE_BEOS_AREAS
 #endif
 
 #ifdef DEBUG
@@ -76,18 +86,24 @@ char	*buf;
 m_head	*mp;
 int	buflen;
 
+extern	BOOL	multivol;
 extern	BOOL	debug;
 extern	BOOL	shmflag;
 extern	BOOL	no_stats;
+extern	BOOL	lowmem;
 extern	long	fs;
 extern	long	bs;
 extern	long	ibs;
 extern	long	obs;
 extern	int	hiw;
 extern	int	low;
+extern	BOOL	copyflag;
+extern	long	chdrtype;
 
 extern	m_stats	*stats;
 extern	int	pid;
+
+extern	GINFO	*gip;
 
 long	ibs;
 long	obs;
@@ -97,7 +113,7 @@ int	low;
 EXPORT	void	initfifo	__PR((void));
 LOCAL	void	fifo_setparams	__PR((void));
 EXPORT	void	fifo_ibs_shrink	__PR((int newsize));
-EXPORT	void	runfifo		__PR((void));
+EXPORT	void	runfifo		__PR((int ac, char *const *av));
 LOCAL	void	prmp		__PR((void));
 EXPORT	void	fifo_stats	__PR((void));
 LOCAL	int	swait		__PR((int f));
@@ -109,24 +125,32 @@ EXPORT	void	fifo_oflush	__PR((void));
 EXPORT	int	fifo_owait	__PR((int amount));
 EXPORT	void	fifo_iwake	__PR((int amt));
 EXPORT	void	fifo_resume	__PR((void));
-EXPORT	void	fifo_sync	__PR((void));
-EXPORT	void	fifo_chtape	__PR((void));
+EXPORT	void	fifo_sync	__PR((int size));
+EXPORT	void	fifo_chitape	__PR((void));
+EXPORT	void	fifo_chotape	__PR((void));
 LOCAL	void	do_in		__PR((void));
 LOCAL	void	do_out		__PR((void));
+LOCAL	void	fbit_nclear	__PR((bitstr_t *name, int startb, int stopb));
 #ifdef	USE_MMAP
-LOCAL	char*	mkshare		__PR((int size));
+LOCAL	char	*mkshare	__PR((int size));
 #endif
 #ifdef	USE_USGSHM
-LOCAL	char*	mkshm		__PR((int size));
+LOCAL	char	*mkshm		__PR((int size));
 #endif
 #ifdef	USE_OS2SHM
-LOCAL	char*	mkos2shm	__PR((int size));
+LOCAL	char	*mkos2shm	__PR((int size));
+#endif
+#ifdef	USE_BEOS_AREAS
+LOCAL	char	*mkbeosshm	__PR((int size));
+LOCAL	void	beosshm_child	__PR((void));
 #endif
 
 EXPORT void
 initfifo()
 {
+extern	BOOL	cflag;
 	int	pagesize;
+	int	addsize;
 
 	if (obs == 0)
 		obs = bs;
@@ -140,19 +164,54 @@ initfifo()
 		fs = 8*1024*1024;
 #endif
 #endif
+		if (lowmem)
+			fs = 1*1024*1024;
 	}
 	if (fs < bs + obs)
 		fs = bs + obs;
+	/*
+	 * We need at least 2x obs for the visible part of the FIFO to allow
+	 * the inout and the output act independently.
+	 */
 	if (fs < 2*obs)
 		fs = 2*obs;
 	fs = roundup(fs, obs);
-#ifdef	_SC_PAGESIZE
-	pagesize = sysconf(_SC_PAGESIZE);
-#else
 	pagesize = getpagesize();
+	if (pagesize <= 0)
+		pagesize = TBLOCK;
+
+	/*
+	 * 'addsize' covers the invisible part of the FIFO.
+	 * The start of the real shared memory carries m_head, followed by
+	 * the space needed for moving residual bytes "down" before the
+	 * official start of the vivible part of the FIFO.
+	 * This is needed to grant that the FIFO output may always be done
+	 * in "obs" chunks to grant a unique tape output block size.
+	 * If we ony need to support CPIO to be fed into a tar inout, it
+	 * would be sufficient to add TBLOCK size. If we like to support
+	 * auto split multi volume archives, we need to count on QIC drives
+	 * that are unblocked and write less than a TAR "tape block" on EOT.
+	 * In this case we may need to move anything < obs "down" before the
+	 * official start of the FIFO.
+	 * We reserve at least 300 bytes for the GINFO string table.
+	 */
+#ifdef	CPIO_ONLY
+	addsize = sizeof (m_head) + 300 + TBLOCK;
+#else
+	addsize = sizeof (m_head) + 300 + obs;
 #endif
-	buflen = roundup(fs, pagesize) + pagesize;
-	EDEBUG(("bs: %d obs: %d fs: %d buflen: %d\n", bs, obs, fs, buflen));
+	if (multivol && cflag)
+		addsize += bitstr_size(fs/TBLOCK);
+	addsize = roundup(addsize, pagesize);
+
+	buflen = roundup(fs, pagesize) + addsize;
+	/* CSTYLED */
+	EDEBUG(("bs: %ld obs: %ld fs: %ld buflen: %d addsize: %d bitstr size: %ld\n", bs, obs, fs, buflen, addsize, bitstr_size(fs/TBLOCK)));
+	/*
+	 * llitos() overshoots by one space (' ') in cpio mode, add pagesize.
+	 * See also fifo_setparams().
+	 */
+	buflen += pagesize;
 
 #if	defined(USE_MMAP) && defined(USE_USGSHM)
 	if (shmflag)
@@ -169,11 +228,35 @@ initfifo()
 #if	defined(USE_OS2SHM)
 	buf = mkos2shm(buflen);
 #endif
+#if	defined(USE_BEOS_AREAS)
+	buf = mkbeosshm(buflen);
+#endif
 #endif
 	mp = (m_head *)buf;
-	fillbytes((char *)mp, sizeof(*mp), '\0');
+	fillbytes(buf, addsize, '\0');	/* We init the complete add. space */
 	stats = &mp->stats;
-	mp->base = &buf[pagesize];
+	stats->hdrtype = chdrtype;
+	mp->base = &buf[addsize];
+	mp->iblocked = FALSE;
+	mp->oblocked = FALSE;
+	/*
+	 * Note that R'est'size is used to store shareable strings from the
+	 * 'g'lobal P-1.2001 headers.
+	 */
+#ifdef	CPIO_ONLY
+	mp->rsize = addsize - sizeof (m_head) - TBLOCK;
+#else
+	mp->rsize = addsize - sizeof (m_head) - obs;
+#endif
+	if (multivol && cflag) {
+		/*
+		 * Subtract bitmap size from restsize and set up bitmap pointer
+		 */
+		mp->bmlast = (fs/TBLOCK) - 1;
+		mp->rsize -= bitstr_size(fs/TBLOCK);
+		mp->bmap  = (bitstr_t *)(((char *)(&(&mp->ginfo)[1])) + mp->rsize);
+	}
+	gip = &mp->ginfo;
 
 	fifo_setparams();
 
@@ -182,13 +265,24 @@ initfifo()
 	if (pipe(mp->pp) < 0)
 		comerr("Cannot create put pipe\n");
 
+#ifdef	F_SETFD
+	/*
+	 * Set close on exec() flag so the compress program
+	 * or other programs will not inherit out pipes.
+	 */
+	fcntl(mp->gp[0], F_SETFD, 1);
+	fcntl(mp->gp[1], F_SETFD, 1);
+	fcntl(mp->pp[0], F_SETFD, 1);
+	fcntl(mp->pp[1], F_SETFD, 1);
+#endif
+
 	mp->putptr = mp->getptr = mp->base;
 	prmp();
 	{
 		/* Temporary until all modules know about mp->xxx */
 		extern int	bufsize;
-		extern char*	bigbuf;
-		extern char*	bigptr;
+		extern char	*bigbuf;
+		extern char	*bigptr;
 
 		bufsize = mp->size;
 		bigptr = bigbuf = mp->base;
@@ -204,9 +298,12 @@ fifo_setparams()
 		return;
 	}
 	mp->end = &mp->base[fs];
+	fillbytes(mp->end, 10, 'U');	/* Mark llitos() overshoot reserve. */
 	mp->size = fs;
 	mp->ibs = ibs;
 	mp->obs = obs;
+	if (mp->bmap)
+		mp->bmlast = (fs/TBLOCK) - 1;
 
 	if (hiw)
 		mp->hiw = hiw;
@@ -238,15 +335,20 @@ fifo_ibs_shrink(newsize)
 |
 | Der eigentliche star Prozess ist immer im Vordergrund.
 | Der Band Prozess ist immer im Hintergrund.
+|
 | Band -> fifo -> star
-| star -> fifo -> Band
+| star -> fifo -> star	-copy	flag
+| star -> fifo -> Band	-c	flag
+|
 | Beim Lesen ist der star Prozess der get Prozess.
 | Beim Schreiben ist der star Prozess der put Prozess.
 |
 +---------------------------------------------------------------------------*/
 
 EXPORT void
-runfifo()
+runfifo(ac, av)
+	int		ac;
+	char	*const *av;
 {
 	extern	BOOL	cflag;
 
@@ -255,7 +357,11 @@ runfifo()
 
 #ifdef USE_OS2SHM
 	if (pid == 0)
-		DosGetSharedMem(buf,3);	/* PAG_READ|PAG_WRITE */
+		DosGetSharedMem(buf, 3);	/* PAG_READ|PAG_WRITE */
+#endif
+#ifdef	USE_BEOS_AREAS
+	if (pid == 0)
+		beosshm_child();
 #endif
 
 	if ((pid != 0) ^ cflag) {
@@ -271,7 +377,15 @@ runfifo()
 	}
 
 	if (pid == 0) {
-		if (cflag) {
+		/*
+		 * The background process
+		 */
+		if (copyflag) {
+			mp->ibs = mp->size;
+			mp->obs = mp->size;
+
+			copy_create(ac, av);
+		} else if (cflag) {
 			mp->ibs = mp->size;
 			mp->obs = bs;
 			do_out();
@@ -289,11 +403,16 @@ runfifo()
 #endif
 #endif
 		exit(0);
+		/* NOTREACHED */
 	} else {
 		extern	FILE	*tarf;
 
 		if (tarf)
 			fclose(tarf);
+		/*
+		 * Here we return from the FIFO set up to the foreground
+		 * TAR process.
+		 */
 	}
 }
 
@@ -304,15 +423,15 @@ prmp()
 	if (!debug)
 		return;
 #ifdef	TEST
-	error("putptr: %X\n", mp->putptr);
-	error("getptr: %X\n", mp->getptr);
+	error("putptr: %p\n", mp->putptr);
+	error("getptr: %p\n", mp->getptr);
 #endif
-	error("base:  %X\n", mp->base);
-	error("end:   %X\n", mp->end);
+	error("base:  %p\n", mp->base);
+	error("end:   %p\n", mp->end);
 	error("size:  %d\n", mp->size);
 	error("ibs:   %d\n", mp->ibs);
 	error("obs:   %d\n", mp->obs);
-	error("amt:   %d\n", FIFO_AMOUNT(mp));
+	error("amt:   %ld\n", FIFO_AMOUNT(mp));
 	error("hiw:   %d\n", mp->hiw);
 	error("low:   %d\n", mp->low);
 	error("flags: %X\n", mp->flags);
@@ -336,6 +455,16 @@ fifo_stats()
 						mp->empty, mp->full);
 	errmsgno(EX_BAD, "fifo held %d bytes max, size was %d bytes\n",
 						mp->maxfill, mp->size);
+	if (mp->moves) {
+		errmsgno(EX_BAD,
+			"fifo had %d moves, total of %lld moved bytes\n",
+						mp->moves, mp->mbytes);
+	}
+	if ((mp->flags & (FIFO_MEOF|FIFO_EXIT)) == 0 || FIFO_AMOUNT(mp) > 0) {
+		errmsgno(EX_BAD, "fifo is %lld%% full (%luk), size %dk.\n",
+				(Llong)FIFO_AMOUNT(mp) * (Llong)100 / mp->size,
+				FIFO_AMOUNT(mp)/1024, mp->size/1024);
+	}
 }
 
 
@@ -348,15 +477,19 @@ LOCAL int
 swait(f)
 	int	f;
 {
-		 int	ret;
+		int	ret;
 	unsigned char	c;
 
+	seterrno(0);
 	do {
 		ret = read(f, &c, 1);
 	} while (ret < 0 && geterrno() == EINTR);
 	if (ret < 0 || (ret == 0 && pid)) {
+		/*
+		 * If pid != 0, this is the foreground process
+		 */
 		if ((mp->flags & FIFO_EXIT) == 0)
-			errmsg("Sync pipe read error on pid %d.\n", pid);
+			errmsg("Sync pipe read error on pid %d flags 0x%X.\n", pid, mp->flags);
 		if ((mp->flags & FIFO_EXERRNO) != 0)
 			ret = mp->ferrno;
 		else
@@ -401,7 +534,7 @@ fifo_amount()
 
 /*---------------------------------------------------------------------------
 |
-| wait until at least amount bytes my be put into the fifo
+| wait until at least amount bytes may be put into the fifo
 |
 +---------------------------------------------------------------------------*/
 EXPORT int
@@ -411,13 +544,33 @@ fifo_iwait(amount)
 	register int	cnt;
 	register m_head *rmp = mp;
 
+	if (rmp->flags & FIFO_MEOF) {
+		EDEBUG(("E"));
+		cnt = sputwait(rmp);
+		if (cnt != 'n') {
+			errmsgno(EX_BAD,
+			"Implementation botch: with FIFO_MEOF\n");
+			comerrno(EX_BAD,
+			"Did not wake up from fifo_chitape() - got '%c'.\n",
+				cnt);
+		}
+		if (rmp->flags & FIFO_I_CHREEL) {
+			changetape(TRUE);
+			rmp->flags &= ~FIFO_I_CHREEL;
+			rmp->flags &= ~FIFO_MEOF;
+			EDEBUG(("t"));
+			sgetwakeup(rmp, 't');
+		} else {
+			return (-1);
+		}
+	}
 	while ((cnt = rmp->size - FIFO_AMOUNT(rmp)) < amount) {
 		if (rmp->flags & FIFO_MERROR) {
 			fifo_stats();
 			exit(1);
 		}
 		rmp->full++;
-		rmp->flags |= FIFO_IBLOCKED;
+		rmp->iblocked = TRUE;
 		EDEBUG(("i"));
 		sputwait(rmp);
 	}
@@ -449,7 +602,7 @@ fifo_owake(amount)
 {
 	register m_head *rmp = mp;
 
-	if (amount == 0)
+	if (amount <= 0)
 		return;
 	rmp->puts++;
 	rmp->putptr += amount;
@@ -457,18 +610,20 @@ fifo_owake(amount)
 	if (rmp->putptr >= rmp->end)
 		rmp->putptr = rmp->base;
 
-	if ((rmp->flags & FIFO_OBLOCKED) &&
+	if (rmp->oblocked &&
 			((rmp->flags & FIFO_IWAIT) ||
 					(FIFO_AMOUNT(rmp) >= rmp->low))) {
-		rmp->flags &= ~FIFO_OBLOCKED;
+		rmp->oblocked = FALSE;
 		EDEBUG(("d"));
 		sgetwakeup(rmp, 'd');
 	}
 	if ((rmp->flags & FIFO_IWAIT)) {
-		rmp->flags &= ~FIFO_IWAIT;
-
 		EDEBUG(("I"));
 		sputwait(rmp);
+		/*
+		 * Set up shadow properties for this proc.
+		 */
+		setprops(stats->hdrtype);
 	}
 }
 
@@ -482,8 +637,8 @@ EXPORT void
 fifo_oflush()
 {
 	mp->flags |= FIFO_MEOF;
-	if (mp->flags & FIFO_OBLOCKED) {
-		mp->flags &= ~FIFO_OBLOCKED;
+	if (mp->oblocked) {
+		mp->oblocked = FALSE;
 		EDEBUG(("e"));
 		sgetwakeup(mp, 'e');
 	}
@@ -509,15 +664,13 @@ again:
 
 	if (cnt < amount && (rmp->flags & (FIFO_MEOF|FIFO_O_CHREEL)) == 0) {
 		rmp->empty++;
-		rmp->flags |= FIFO_OBLOCKED;
+		rmp->oblocked = TRUE;
 		EDEBUG(("o"));
 		c = sgetwait(rmp);
 		cnt = FIFO_AMOUNT(rmp);
 	}
 	if (cnt == 0 && (rmp->flags & FIFO_O_CHREEL)) {
-		pid = 1;
-		changetape();
-		pid = 0;
+		changetape(TRUE);
 		rmp->flags &= ~FIFO_O_CHREEL;
 		EDEBUG(("T"));
 		sputwakeup(mp, 'T');
@@ -531,6 +684,28 @@ again:
 		cnt = rmp->obs;
 
 	c = rmp->end - rmp->getptr;
+#ifdef	CPIO_ONLY
+	if (c < TBLOCK && c < cnt) {	/* XXX Check for c < amount too? */
+#else
+	if (c < obs && c < cnt) {	/* Check for initial obs val */
+#endif
+		/*
+		 * A left over residual at the end of the FIFO is smaller
+		 * than 512 bytes (CPIO_ONLY) or 'obs' (auto-detect multivol
+		 * split) and there is additional data at the beginning
+		 * of the FIFO.
+		 * Move the residual before the beginning of the FIFO to make
+		 * the content continuous.
+		 */
+		char *p;
+
+		p = rmp->base - c;
+		movebytes(rmp->getptr, p, c);
+		rmp->moves++;
+		rmp->mbytes += c;
+		rmp->getptr = p;
+		c = rmp->end - rmp->getptr;
+	}
 	if (cnt > c && c >= amount)
 		cnt = c;
 
@@ -560,7 +735,7 @@ fifo_iwake(amt)
 {
 	register m_head *rmp = mp;
 
-	if (amt == 0) {
+	if (amt <= 0) {
 		rmp->flags |= FIFO_MERROR;
 		exit(1);
 	}
@@ -572,8 +747,8 @@ fifo_iwake(amt)
 	if (rmp->getptr >= rmp->end)
 		rmp->getptr = rmp->base;
 
-	if ((FIFO_AMOUNT(rmp) <= rmp->hiw) && (rmp->flags & FIFO_IBLOCKED)) {
-		rmp->flags &= ~FIFO_IBLOCKED;
+	if ((FIFO_AMOUNT(rmp) <= rmp->hiw) && rmp->iblocked) {
+		rmp->iblocked = FALSE;
 		EDEBUG(("s"));
 		sputwakeup(rmp, 's');
 	}
@@ -582,16 +757,37 @@ fifo_iwake(amt)
 EXPORT void
 fifo_resume()
 {
-	EDEBUG(("S"));
-	sputwakeup(mp, 'S');
+	register m_head *rmp = mp;
+
+	if ((rmp->flags & FIFO_IWAIT) != 0) {
+		rmp->flags &= ~FIFO_IWAIT;
+		EDEBUG(("S"));
+		sputwakeup(rmp, 'S');
+	}
 }
 
 EXPORT void
-fifo_sync()
+fifo_sync(size)
+	int	size;
 {
 	register m_head *rmp = mp;
-		 int	rest = rmp->obs - FIFO_AMOUNT(rmp)%rmp->obs;
+		int	rest = 0;
+		int	smax = rmp->end - rmp->putptr;
+		int	amt  = FIFO_AMOUNT(rmp);
 
+	if (size) {
+		if ((amt % size) != 0)
+			rest = size - amt%size;
+	} else {
+		if ((amt % rmp->obs) != 0)
+			rest = rmp->obs - amt%rmp->obs;
+	}
+
+	/*
+	 * Be careful with the size, as we might have changed mp->obs.
+	 */
+	if (rest > smax)
+		rest = smax;
 	fifo_iwait(rest);
 	fillbytes(rmp->putptr, rest, '\0');
 	fifo_owake(rest);
@@ -609,6 +805,15 @@ fifo_errno()
 	if ((mp->flags & FIFO_EXERRNO) != 0)
 		return (mp->ferrno);
 	return (0);
+}
+
+/* ARGSUSED */
+EXPORT void
+fifo_onexit(err, ignore)
+	int	err;
+	void	*ignore;
+{
+	fifo_exit(err);
 }
 
 EXPORT void
@@ -649,13 +854,30 @@ fifo_exit(err)
 }
 
 EXPORT void
-fifo_chtape()
+fifo_chitape()
+{
+	char	c;
+
+	mp->flags |= FIFO_I_CHREEL;
+	if (mp->flags & FIFO_MEOF) {
+		EDEBUG(("n"));
+		sputwakeup(mp, 'n');
+	} else {
+		comerrno(EX_BAD,
+		"Implementation botch: FIFO_MEOF not set in fifo_chitape()\n");
+	}
+	EDEBUG(("w"));
+	c = sgetwait(mp);
+}
+
+EXPORT void
+fifo_chotape()
 {
 	char	c;
 
 	mp->flags |= FIFO_O_CHREEL;
-	if (mp->flags & FIFO_OBLOCKED) {
-		mp->flags &= ~FIFO_OBLOCKED;
+	if (mp->oblocked) {
+		mp->oblocked = FALSE;
 		EDEBUG(("N"));
 		sgetwakeup(mp, 'N');
 	}
@@ -663,6 +885,13 @@ fifo_chtape()
 	c = sputwait(mp);
 }
 
+/*
+ * Tape -> FIFO
+ *
+ * Tape input process for the FIFO.
+ * This process runs in background and fills the FIFO with data from the TAPE.
+ * Also wait in fifo_owake() if FIFO_IWAIT and we ware reading the first block.
+ */
 LOCAL void
 do_in()
 {
@@ -671,15 +900,44 @@ do_in()
 
 	do {
 		cnt = fifo_iwait(mp->ibs);
-
 		amt = readtape(mp->putptr, cnt);
-
+wake:
 		fifo_owake(amt);
 	} while (amt > 0);
 
 	fifo_oflush();
+	if (multivol) {
+		/*
+		 * In theory, we don't need to test 'multivol' here.
+		 * We would die later from EOF in the sync pipe.
+		 */
+		cnt = fifo_iwait(mp->ibs);	/* Media is changed here */
+		if (cnt > 0) {
+			int	skip;
+
+			amt = readtape(mp->putptr, cnt);
+			while (amt > 0 &&
+				!verifyvol(mp->putptr, amt,
+							stats->volno, &skip)) {
+				changetape(FALSE);
+				amt = readtape(mp->putptr, cnt);
+			}
+			if (skip > 0)
+				fifo_iwake(skip*TBLOCK);
+			if (amt > 0)
+				goto wake;
+		}
+	}
+	closetape();
 }
 
+/*
+ * FIFO -> Tape
+ *
+ * Tape output process for the FIFO.
+ * This process runs in background and writes to the TAPE using
+ * data from the FIFO.
+ */
 LOCAL void
 do_out()
 {
@@ -690,18 +948,48 @@ do_out()
 		cnt = fifo_owait(mp->obs);
 		if (cnt == 0)
 			break;
-
+nextwrite:
 		amt = writetape(mp->getptr, cnt);
+		if (amt == -2) {
+			changetape(TRUE);
+			if ((amt = startvol(mp->getptr, cnt)) <= 0)
+				goto nextwrite;
+		}
+		if (multivol) {
+			int	startb = (mp->getptr - mp->base) / TBLOCK;
+			int	stopb = startb - 1 + amt / TBLOCK;
 
-		if (amt < 0)
-			comerr("write error getptr: %p, cnt: %d %p\n",
-					(void *)mp->getptr, cnt,
-					(void *)&mp->getptr[cnt]);
-		if (amt < cnt)
-			error("wrote: %d (%d)\n", amt, cnt);
-
+			if (mp->getptr < mp->base) {
+				stopb = mp->bmlast;
+				startb = stopb + 1 - (mp->base - mp->getptr) / TBLOCK;
+				if ((mp->getptr + amt) < mp->base)
+					stopb = startb - 1 + amt / TBLOCK;
+				fbit_nclear(mp->bmap, startb, stopb);
+				if ((mp->getptr + amt) < mp->base) {
+					startb = stopb = -1;
+				} else {
+					startb = 0;
+					stopb = -1 + (amt - (mp->base - mp->getptr)) / TBLOCK;
+				}
+			}
+			if (startb >= 0)
+				fbit_nclear(mp->bmap, startb, stopb);
+		}
 		fifo_iwake(amt);
 	}
+	closetape();
+}
+
+/*
+ * Make the macro a function...
+ */
+LOCAL void
+fbit_nclear(name, startb, stopb)
+	register bitstr_t *name;
+	register int	startb;
+	register int	stopb;
+{
+	bit_nclear(name, startb, stopb);
 }
 
 #ifdef	USE_MMAP
@@ -798,14 +1086,60 @@ mkos2shm(size)
 	 * The OS/2 implementation of shm (using shm.dll) limits the size of one shared
 	 * memory segment to 0x3fa000 (aprox. 4MBytes). Using OS/2 native API we have
 	 * no such restriction so I decided to use it allowing fifos of arbitrary size.
-         */
-	if(DosAllocSharedMem(&addr,NULL,size,0X100L | 0x1L | 0x2L | 0x10L))
+	 */
+	if (DosAllocSharedMem(&addr, NULL, size, 0X100L | 0x1L | 0x2L | 0x10L))
 		comerr("DosAllocSharedMem() failed\n");
 
 	if (debug) errmsgno(EX_BAD, "shared memory allocated attached at: %p size %d\n",
 				(void *)addr, size);
 
 	return (addr);
+}
+#endif
+
+#ifdef	USE_BEOS_AREAS
+LOCAL	area_id	fifo_aid;
+LOCAL	void	*fifo_addr;
+LOCAL	char	fifo_name[32];
+
+LOCAL char *
+mkbeosshm(size)
+	int	size;
+{
+	snprintf(fifo_name, sizeof (fifo_name), "star FIFO %lld",
+		(Llong)getpid());
+
+	fifo_aid = create_area(fifo_name, &fifo_addr,
+			B_ANY_ADDRESS,
+			size,
+			B_NO_LOCK, B_READ_AREA|B_WRITE_AREA);
+	if (fifo_addr == NULL) {
+		comerrno(fifo_aid,
+			"Cannot get create_area for %d Bytes FIFO.\n", size);
+	}
+	if (debug) errmsgno(EX_BAD, "shared memory allocated attached at: %p size %d\n",
+				(void *)fifo_addr, size);
+
+	return (fifo_addr);
+}
+
+LOCAL void
+beosshm_child()
+{
+	/*
+	 * Delete the area created by fork that is copy-on-write.
+	 */
+	delete_area(area_for(fifo_addr));
+	/*
+	 * Clone (share) the original one.
+	 */
+	fifo_aid = clone_area(fifo_name, &fifo_addr,
+			B_ANY_ADDRESS, B_READ_AREA|B_WRITE_AREA,
+			fifo_aid);
+	if (buf != fifo_addr) {
+		errmsgno(EX_BAD, "Panic FIFO addr.\n");
+		return (FALSE);
+	}
 }
 #endif
 

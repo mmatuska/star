@@ -1,7 +1,7 @@
-/* @(#)rmt.c	1.22 03/02/02 Copyright 1994,2000-2002 J. Schilling */
+/* @(#)rmt.c	1.34 08/03/23 Copyright 1994,2000-2008 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)rmt.c	1.22 03/02/02 Copyright 1994,2000-2002 J. Schilling";
+	"@(#)rmt.c	1.34 08/03/23 Copyright 1994,2000-2008 J. Schilling";
 #endif
 /*
  *	Remote tape server
@@ -21,57 +21,62 @@ static	char sccsid[] =
  *	seems that the current interface supports all what we need over the
  *	wire.
  *
- *	Copyright (c) 1994,2000-2002 J. Schilling
+ *	Copyright (c) 1994,2000-2008 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; see the file COPYING.  If not, write to the Free Software
- * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
 /*#define	FORCE_DEBUG*/
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>	/* includes sys/types.h */
-#include <fctldefs.h>
-#include <statdefs.h>
-#include <strdefs.h>
+#include <schily/stdlib.h>
+#include <schily/unistd.h>	/* includes sys/types.h */
+#include <schily/fcntl.h>
+#include <schily/stat.h>
+#include <schily/string.h>
+#ifdef	 HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
 #ifdef	 HAVE_SYS_PARAM_H
 #include <sys/param.h>	/* BSD-4.2 & Linux need this for MAXHOSTNAMELEN */
 #endif
-#include <sys/ioctl.h>
+#include <schily/ioctl.h>
 #ifdef	HAVE_SYS_MTIO_H
 #include <sys/mtio.h>
 #endif
-#include <errno.h>
+#include <schily/errno.h>
 #include <pwd.h>
 
-#include <utypes.h>
-#include <standard.h>
-#include <deflts.h>
-#include <patmatch.h>
-#include <schily.h>
+#include <schily/utypes.h>
+#include <schily/standard.h>
+#include <schily/deflts.h>
+#include <schily/patmatch.h>
+#include <schily/schily.h>
 
 #include <netinet/in.h>
 #ifdef	HAVE_ARPA_INET_H
 #include <arpa/inet.h>		/* BeOS does not have <arpa/inet.h> */
 #endif				/* but inet_ntaoa() is in <netdb.h> */
+#ifdef	 HAVE_NETDB_H
 #include <netdb.h>
+#endif
+
+#if (!defined(HAVE_NETDB_H) || !defined(HAVE_SYS_SOCKET_H))
+#undef	USE_REMOTE
+#endif
 
 EXPORT	int	main		__PR((int argc, char **argv));
+#ifdef	USE_REMOTE
 LOCAL	void	checkuser	__PR((void));
 LOCAL	char	*getpeer	__PR((void));
 LOCAL	BOOL	checkaccess	__PR((char *device));
@@ -91,11 +96,13 @@ LOCAL	void	statustape	__PR((int cmd));
 LOCAL	void	seektape	__PR((void));
 LOCAL	void	doversion	__PR((void));
 LOCAL	int	fillrdbuf	__PR((void));
+LOCAL	void	tryfillrdbuf	__PR((void));
 LOCAL	int	readchar	__PR((char *cp));
 LOCAL	void	readbuf		__PR((char *buf, int n));
-LOCAL	void	readarg		__PR((char *buf, int n));
+LOCAL	int	readarg		__PR((char *buf, int n));
 LOCAL	char *	preparebuffer	__PR((int size));
 LOCAL	int	checktape	__PR((char *device));
+LOCAL	BOOL	has_dotdot	__PR((char *name));
 LOCAL	void	rmtrespond	__PR((long ret, int err));
 LOCAL	void	rmterror	__PR((char *str));
 
@@ -110,11 +117,12 @@ LOCAL	char	*debug_name;
 LOCAL	FILE	*debug_file;
 LOCAL	BOOL	found_dfltfile;
 
-#define	DEBUG(fmt)		if (debug_file) js_fprintf(debug_file, fmt)
-#define	DEBUG1(fmt,a)		if (debug_file) js_fprintf(debug_file, fmt, a)
-#define	DEBUG2(fmt,a1,a2)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2)
-#define	DEBUG3(fmt,a1,a2,a3)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3)
-#define	DEBUG4(fmt,a1,a2,a3,a4)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3, a4)
+#define	DEBUG(fmt)			if (debug_file) js_fprintf(debug_file, fmt)
+#define	DEBUG1(fmt, a)			if (debug_file) js_fprintf(debug_file, fmt, a)
+#define	DEBUG2(fmt, a1, a2)		if (debug_file) js_fprintf(debug_file, fmt, a1, a2)
+#define	DEBUG3(fmt, a1, a2, a3)		if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3)
+#define	DEBUG4(fmt, a1, a2, a3, a4)	if (debug_file) js_fprintf(debug_file, fmt, a1, a2, a3, a4)
+#endif	/* USE_REMOTE */
 
 EXPORT int
 main(argc, argv)
@@ -122,6 +130,9 @@ main(argc, argv)
 	char	**argv;
 {
 	save_args(argc, argv);
+#ifndef	USE_REMOTE
+	comerrno(EX_BAD, "No remote TAPE support on this platform.\n");
+#else
 	argc--, argv++;
 	if (argc > 0 && strcmp(*argv, "-c") == 0) {
 		/*
@@ -159,8 +170,13 @@ main(argc, argv)
 	if (debug_name == NULL && argc <= 0)
 		debug_name = "/tmp/RMT";
 #endif
+#ifdef	NONONO
+	/*
+	 * Allowing to write arbitrary files may be a security risk.
+	 */
 	if (argc > 0)
 		debug_name = *argv;
+#endif
 
 	if (debug_name != NULL)
 		debug_file = fopen(debug_name, "w");
@@ -175,9 +191,11 @@ main(argc, argv)
 	checkuser();		/* Check if we are called by a bad guy	*/
 	peername = getpeer();	/* Get host name of caller		*/
 	dormt();
+#endif	/* USE_REMOTE */
 	return (0);
 }
 
+#ifdef	USE_REMOTE
 LOCAL void
 checkuser()
 {
@@ -219,7 +237,11 @@ LOCAL char *
 getpeer()
 {
 #ifdef	HAVE_GETNAMEINFO
+#ifdef	HAVE_SOCKADDR_STORAGE
 	struct sockaddr_storage sa;
+#else
+	char			sa[256];
+#endif
 #else
 	struct	sockaddr sa;
 	struct hostent	*he;
@@ -338,6 +360,8 @@ checkaccess(device)
 
 		DEBUG3("ACCESS %s %s %s\n", user, host, fname);
 
+		if (has_dotdot(device))		/* Do not allow ".." in name */
+			continue;
 		if (!strmatch(device, fname))
 			continue;
 		return (TRUE);
@@ -436,14 +460,25 @@ dormt()
 LOCAL void
 opentape()
 {
-	char	device[CMD_SIZE];
+	char	device[4096];
 	char	omode[CMD_SIZE];
 	int	omodes;
+	int	n;
 
 	if (tape_fd >= 0)
 		(void) close(tape_fd);
 
-	readarg(device, sizeof (device));
+	n = readarg(device, sizeof (device));
+	if (n < 0 || n >= sizeof (device)) {	/* Try to recover */
+		readarg(omode, sizeof (omode));	/* honor protocol */
+		DEBUG2("rmtd: O %s %s\n", device, omode);
+#ifdef	ENAMETOOLONG
+		seterrno(ENAMETOOLONG);
+#else
+		seterrno(EINVAL);
+#endif
+		goto out;
+	}
 	readarg(omode, sizeof (omode));
 	omodes = rmtoflags(omode);
 	if (omodes == -1) {
@@ -465,8 +500,9 @@ opentape()
 		tape_fd = -1;
 		seterrno(EACCES);
 	} else {
-		tape_fd = open(device, omodes, 0666);
+		tape_fd = open(device, omodes, (mode_t)0666);
 	}
+out:
 	rmtrespond((long)tape_fd, geterrno());
 }
 
@@ -902,7 +938,7 @@ statustape(cmd)
 #endif
 #ifdef	HAVE_MTGET_FILENO
 		case MTS_FILENO:
-			rmtrespond(mtget.mt_fileno, geterrno());break;
+			rmtrespond(mtget.mt_fileno, geterrno()); break;
 #endif
 #ifdef	HAVE_MTGET_BLKNO
 		case MTS_BLKNO:
@@ -952,6 +988,12 @@ seektape()
 	case 0:	iwhence = SEEK_SET; break;
 	case 1:	iwhence = SEEK_CUR; break;
 	case 2:	iwhence = SEEK_END; break;
+#ifdef	SEEK_DATA
+	case 3:	iwhence = SEEK_DATA; break;
+#endif
+#ifdef	SEEK_HOLE
+	case 4:	iwhence = SEEK_HOLE; break;
+#endif
 
 	default:
 		DEBUG1("rmtd: Illegal lseek() whence %d\n", iwhence);
@@ -998,6 +1040,27 @@ fillrdbuf()
 	return (readbcnt = _niread(STDIN_FILENO, readb, READB_SIZE));
 }
 
+/*
+ * This function is used for error recovery, it thus may be slow.
+ * We try to fill the read buffer in case there is something to read.
+ * We will not block here, if the OS does not support O_NONBLOCK we
+ * will just do nothing.
+ */
+LOCAL void
+tryfillrdbuf()
+{
+#if	defined(F_GETFL) && defined(F_SETFL) && defined(O_NONBLOCK)
+	int	fl;
+
+	fl = fcntl(STDIN_FILENO, F_GETFL, 0);
+	fcntl(STDIN_FILENO, F_SETFL, fl|O_NONBLOCK);
+
+	fillrdbuf();
+
+	fcntl(STDIN_FILENO, F_SETFL, fl);
+#endif
+}
+
 LOCAL int
 readchar(cp)
 	char	*cp;
@@ -1039,12 +1102,13 @@ readbuf(buf, n)
 	}
 }
 
-LOCAL void
+LOCAL int
 readarg(buf, n)
 	char	*buf;
 	int	n;
 {
 	int	i;
+	char	c;
 
 	for (i = 0; i < n; i++) {
 		if (readchar(&buf[i]) != 1)
@@ -1052,7 +1116,30 @@ readarg(buf, n)
 		if (buf[i] == '\n')
 			break;
 	}
-	buf[i] = '\0';
+	if (buf[i] == '\n') {
+		buf[i] = '\0';
+		return (--i);		/* Do not include null byte */
+	}
+	buf[n-1] = '\0';
+
+	/*
+	 * The following code is for error recovery.
+	 * We come here if the client send us too long parameters.
+	 * We try to recover from the problem by reading a reasonable
+	 * amount of data in hope to find the newline which is the
+	 * argument terminator.
+	 */
+	if (readbcnt <= 0)
+		tryfillrdbuf();
+	for (i = 0; readbcnt > 0 && i < 10000; i++) {
+		if (readchar(&c) != 1)
+			exit(0);
+		if (c == '\n')
+			break;
+		if (readbcnt <= 0)
+			tryfillrdbuf();
+	}
+	return (n);
 }
 
 LOCAL char *
@@ -1104,6 +1191,8 @@ checktape(device)
 	char	*device;
 {
 	if (!found_dfltfile) {
+		if (has_dotdot(device))
+			return (0);
 		if (strncmp(device, "/dev/", 5) == 0)
 			return (1);
 		return (0);
@@ -1111,6 +1200,27 @@ checktape(device)
 	return (checkaccess(device));
 }
 
+LOCAL BOOL
+has_dotdot(name)
+	char	*name;
+{
+	register char	*p = name;
+
+	while (*p) {
+		if ((p[0] == '.' && p[1] == '.') &&
+		    (p[2] == '/' || p[2] == '\0')) {
+			return (TRUE);
+		}
+		do {
+			if (*p++ == '\0')
+				return (FALSE);
+		} while (*p != '/');
+		p++;
+		while (*p == '/')	/* Skip multiple slashes */
+			p++;
+	}
+	return (FALSE);
+}
 LOCAL void
 rmtrespond(ret, err)
 	long	ret;
@@ -1139,3 +1249,4 @@ rmterror(str)
 	(void) js_snprintf(rbuf, sizeof (rbuf), "E0\n%s\n", str);
 	(void) _nixwrite(STDOUT_FILENO, rbuf, strlen(rbuf));
 }
+#endif	/* USE_REMOTE */

@@ -1,4 +1,4 @@
-. \" @(#)rmt.1	1.4 02/12/17 Copyr 1994-2000 J. Schilling
+. \" @(#)rmt.1	1.11 08/03/24 Copyr 1994-2008 J. Schilling
 . \"  Manual Seite fuer rmt
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -71,11 +71,11 @@ use the remote tape client code from
 .B star
 which is available in
 .B librmt
-or reimplement it's features.
+or reimplement its features.
 .LP
 All responses are send back in
-.SM ASCII
-and in one of the following two forms.
+.SM ASCII.
+They are in one of the following two forms.
 .LP
 Successful commands have responses of
 .IP
@@ -100,6 +100,10 @@ and
 .I error-message
 is the corresponding error string as retrieved by
 .BR strerror (3).
+.ne 4
+Note that the error number is valid on the remote system where the 
+.B rmt
+code runs and may have a different meaning on the local system.
 .LP
 .ne 5
 The protocol implements the
@@ -147,7 +151,7 @@ the wire, using a system independent method.
 This is needed because different operating systems usually define all
 bits in a different way. An exception are the lowest two bits.
 The lowest two bits allow to code 
-.IR O_RCONLY , O_WRONLY " and " O_RDWR .
+.IR O_RDONLY , O_WRONLY " and " O_RDWR .
 To prevent unexpected behavior, 
 .B rmt
 masks the numeric open mode with
@@ -158,6 +162,10 @@ call.
 If you need more bits in the second parameter ot
 .BR open (2),
 you need to use the symbolic mode.
+.sp
+If no file
+.I /etc/default/rmt
+exists, only filenames starting with /dev/ are accepted for security reasons.
 .sp
 If a device is already open, it is
 closed before a new open is performed.
@@ -213,6 +221,32 @@ is encountered.
 The return value from the
 .BR write (2)
 operation is returned as reply.
+.RS
+.PP
+The following whence values are supported:
+.TP
+0
+Mapped to 
+.BR SEEK_SET .
+.TP
+1
+Mapped to 
+.BR SEEK_CUR .
+.TP
+2
+Mapped to 
+.BR SEEK_END .
+.TP
+3
+Mapped to 
+.B SEEK_DATA
+If avalable on the remote system.
+.TP
+4
+Mapped to 
+.B SEEK_HOLE
+If avalable on the remote system.
+.RE
 .br
 .ne 7
 .TP
@@ -520,6 +554,12 @@ to exit.
 .SH FILES
 .TP
 /etc/default/rmt
+The file
+.B /etc/default/rmt
+allows to set up rules to limit the accessibility of files based on rules.
+This feature is typically used when the rmt run from a non personal but
+task specific login.
+.sp
 Default values can be set for the following options in /etc/default/rmt.
 For example:
 .sp
@@ -612,11 +652,18 @@ but is not connected to an internet socket.
 .BR write (2),
 .BR ioctl (2),
 .BR lseek (2),
-.BR getpeername(3)
+.BR getpeername (3),
 .BR rcmd (3),
 .BR rexec (3),
 .BR strerror (3),
-.BR mtio (7)
+.BR mtio (7),
+.BR rmtopen (3),
+.BR rmtclose (3),
+.BR rmtread (3),
+.BR rmtwrite (3),
+.BR rmtseek (3),
+.BR rmtioctl (3),
+.BR rmtstatus (3)
 
 .SH DIAGNOSTICS
 All responses are send to the network connection.
@@ -629,6 +676,24 @@ as a remote file access protocol you need to use the symbolic open
 modes as e.g. the
 .I O_CREAT
 flag is not unique between different architectures.
+.LP
+In order to allow this implementation to be used
+as a remote file access protocol,
+it accepts file names up to 4096 bytes with the open command.
+Other
+.B rmt
+implementations allow no more than 64 bytes.
+.LP
+The possibility to create a debug file by calling
+.BI rmt " file
+has been disabled for security reasons.
+If you like to debug
+.B rmt
+edit
+.B /etc/default/rmt
+and insert a 
+.B DEBUG
+entry.
 .LP
 This implementation of
 .B rmt
@@ -650,6 +715,17 @@ to this file:
 Note that the three fields in the
 .B ACCESS=
 line need to be separated by a TAB character.
+.LP
+Be very careful when designing patterns to match path names that may
+be accepted for 
+.IR open .
+If a pattern would allow to include
+.I /../
+in the path,
+a possible intruder could virtually access any path on your system.
+For this reason, 
+.I /../
+is not allowed to appear in a path regardless of the pattern.
 .SH BUGS
 .LP
 None known.

@@ -1,7 +1,7 @@
-/* @(#)unicode.c	1.4 02/06/10 Copyright 2001 J. Schilling */
+/* @(#)unicode.c	1.8 06/10/31 Copyright 2001-2006 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)unicode.c	1.4 02/06/10 Copyright 2001 J. Schilling";
+	"@(#)unicode.c	1.8 06/10/31 Copyright 2001-2006 J. Schilling";
 #endif
 /*
  *	Routines to convert from/to UNICODE
@@ -10,29 +10,25 @@ static	char sccsid[] =
  *	handles ISO-8859-1 coding. There should be a better solution
  *	in the future.
  *
- *	Copyright (c) 2001 J. Schilling
+ *	Copyright (c) 2001-2006 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
 #include "star.h"
-#include <standard.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/schily.h>
 #include "starsubs.h"
 
 EXPORT	int	to_utf8		__PR((Uchar *to, Uchar *from));
@@ -108,8 +104,8 @@ from_utf8(to, from)
 		} else if (c == 0xC3) {
 			*to++ = *from++ | 0x40;
 		} else {
-			ret = FALSE;		/* unknown/illegal UTF-8 char*/
-			*to++ = '_';		/* use default character     */
+			ret = FALSE;		/* unknown/illegal UTF-8 char */
+			*to++ = '_';		/* use default character    */
 			if (c < 0xE0) {
 				from++;		/* 2 bytes in total */
 			} else if (c < 0xF0) {
@@ -140,7 +136,7 @@ EXPORT BOOL
 from_utf8l(to, from, lenp)
 	register Uchar	*to;
 	register Uchar	*from;
-		 int	*lenp;
+		int	*lenp;
 {
 	register Uchar	*oto = to;
 	register Uchar	c;
@@ -164,8 +160,8 @@ from_utf8l(to, from, lenp)
 			*to++ = *from++ | 0x40;
 			len--;
 		} else {
-			ret = FALSE;		/* unknown/illegal UTF-8 char*/
-			*to++ = '_';		/* use default character     */
+			ret = FALSE;		/* unknown/illegal UTF-8 char */
+			*to++ = '_';		/* use default character    */
 			if (c < 0xE0) {
 				from++;		/* 2 bytes in total */
 				len--;

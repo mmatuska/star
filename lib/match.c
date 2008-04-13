@@ -1,31 +1,27 @@
-/* @(#)match.c	1.18 00/11/12 Copyright 1985 J. Schilling */
-#include <standard.h>
-#include <patmatch.h>
+/* @(#)match.c	1.22 06/09/13 Copyright 1985, 1995-2003 J. Schilling */
+#include <schily/standard.h>
+#include <schily/patmatch.h>
 /*
  *	Pattern matching functions
  *
- *	Copyright (c) 1985,1995 J. Schilling
+ *	Copyright (c) 1985, 1995-2003 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 /*
  *	The pattern matching functions below are based on the algorithm
  *	presented by Martin Richards in:
  *
- *	"A Compact Function for Regular Expression Pattern Matching", 
+ *	"A Compact Function for Regular Expression Pattern Matching",
  *	Software-Practice and Experience, Vol. 9, 527-534 (1979)
  *
  *	Several changes have been made to the original source which has been
@@ -58,7 +54,7 @@ typedef	unsigned char	Uchar;
 /*
  *	put adds a new state to the active list
  */
-#define put(ret, state, sp, n)	{		\
+#define	 put(ret, state, sp, n)	{		\
 	register int *lstate	= state;	\
 	register int *lsp	= sp;		\
 	register int ln		= n;		\
@@ -80,7 +76,7 @@ typedef	unsigned char	Uchar;
 /*
  *	match a character in class
  */
-#define in_class(found, pat, c)	{			\
+#define	in_class(found, pat, c)	{			\
 	register const Uchar	*lpat	= pat;		\
 	register int		lc	= c;		\
 	int	lo_bound;				\
@@ -117,7 +113,8 @@ typedef	unsigned char	Uchar;
  *	Trys to match a string beginning at offset
  *	against the compiled pattern.
  */
-Uchar *opatmatch(pat, aux, str, soff, slen, alt)
+EXPORT Uchar
+*opatmatch(pat, aux, str, soff, slen, alt)
 	const Uchar	*pat;
 	const int	*aux;
 	const Uchar	*str;
@@ -136,7 +133,8 @@ Uchar *opatmatch(pat, aux, str, soff, slen, alt)
  *	Trys to match a string beginning at offset
  *	against the compiled pattern.
  */
-Uchar *patmatch(pat, aux, str, soff, slen, alt, state)
+EXPORT Uchar *
+patmatch(pat, aux, str, soff, slen, alt, state)
 	const Uchar	*pat;
 	const int	*aux;
 	const Uchar	*str;
@@ -154,7 +152,7 @@ Uchar *patmatch(pat, aux, str, soff, slen, alt, state)
 	const Uchar	*lastp = (Uchar *)NULL;
 
 #ifdef	__LINE_MATCH
-for( ;soff <= slen; soff++) {
+for (; soff <= slen; soff++) {
 #endif
 
 	sp = state;
@@ -162,7 +160,7 @@ for( ;soff <= slen; soff++) {
 	if (alt != ENDSTATE)
 		put(sp, state, sp, alt);
 
-	for(s = soff; ; s++) {
+	for (s = soff; ; s++) {
 		/*
 		 * next char from input string
 		 */
@@ -173,7 +171,7 @@ for( ;soff <= slen; soff++) {
 		/*
 		 * first complete the closure
 		 */
-		for(n = state; n < sp;) {
+		for (n = state; n < sp; ) {
 			p = *n++;		/* next state number */
 			if (p == ENDSTATE)
 				continue;
@@ -183,6 +181,7 @@ for( ;soff <= slen; soff++) {
 
 			case REP:
 				put(sp, state, sp, p+1);
+				/* FALLTHRU */
 			case NIL:		/* NIL matches always */
 			case STAR:
 				put(sp, state, sp, q);
@@ -204,7 +203,7 @@ for( ;soff <= slen; soff++) {
 			}
 		}
 
-		for (i = state; i < sp;) {
+		for (i = state; i < sp; ) {
 			if (*i++ == ENDSTATE) {
 				lastp = &str[s];
 				break;
@@ -218,7 +217,7 @@ for( ;soff <= slen; soff++) {
 		 */
 		n = sp;
 		sp = state;
-		for(i = sp; i < n;) {
+		for (i = sp; i < n; ) {
 			p = *i++;		/* next active state number */
 			if (p == ENDSTATE)
 				continue;
@@ -245,6 +244,7 @@ for( ;soff <= slen; soff++) {
 			default:
 				if (k != c)
 					continue;
+				/* FALLTHRU */
 			case ANY:
 				break;
 			}
@@ -263,8 +263,8 @@ for( ;soff <= slen; soff++) {
 		}
 	}
 #ifdef	__LINE_MATCH
-   }
-   return ((Uchar *)lastp);
+}
+return ((Uchar *)lastp);
 #endif
 }
 
@@ -284,12 +284,12 @@ typedef	struct args {
 	Uchar		Ch;
 } arg_t;
 
-static	void	nextitem __PR((arg_t *));
-static	int	prim	 __PR((arg_t *));
-static	int	exp	 __PR((arg_t *, int *));
-static	void	setexits __PR((int *, int, int));
-static	int	join	 __PR((int *, int, int));
-	
+LOCAL	void	nextitem __PR((arg_t *));
+LOCAL	int	prim	 __PR((arg_t *));
+LOCAL	int	expr	 __PR((arg_t *, int *));
+LOCAL	void	setexits __PR((int *, int, int));
+LOCAL	int	join	 __PR((int *, int, int));
+
 /*
  *	'read' the next character from pattern
  */
@@ -304,7 +304,8 @@ static	int	join	 __PR((int *, int, int));
 /*
  *	get the next item from pattern
  */
-static void nextitem(ap)
+LOCAL void
+nextitem(ap)
 	arg_t	*ap;
 {
 	if (ap->Ch == QUOTE)
@@ -315,7 +316,8 @@ static void nextitem(ap)
 /*
  *	parse a primary
  */
-static int prim(ap)
+LOCAL int
+prim(ap)
 	arg_t	*ap;
 {
 	int	a  = ap->patp;
@@ -343,7 +345,7 @@ static int prim(ap)
 		setexits(ap->aux, t, a);
 		break;
 	case LBRACK:
-		a = exp(ap, &ap->aux[a]);
+		a = expr(ap, &ap->aux[a]);
 		if (a == ENDSTATE || ap->Ch != RBRACK)
 			return (ENDSTATE);
 		nextitem(ap);
@@ -355,7 +357,8 @@ static int prim(ap)
 /*
  *	parse an expression (a sequence of primaries)
  */
-static int exp(ap, altp)
+LOCAL int
+expr(ap, altp)
 	arg_t	*ap;
 	int	*altp;
 {
@@ -364,7 +367,7 @@ static int exp(ap, altp)
 	int	*aux = ap->aux;
 	Uchar	Ch;
 
-	for(;;) {
+	for (;;) {
 		a = prim(ap);
 		Ch = ap->Ch;
 		if (Ch == ALT || Ch == RBRACK || Ch == '\0') {
@@ -382,7 +385,8 @@ static int exp(ap, altp)
 /*
  *	set all exits in a list to a specified value
  */
-static void setexits(aux, list, val)
+LOCAL void
+setexits(aux, list, val)
 	int	*aux;
 	int	list;
 	int	val;
@@ -399,7 +403,8 @@ static void setexits(aux, list, val)
 /*
  *	concatenate two lists
  */
-static int join(aux, a, b)
+LOCAL int
+join(aux, a, b)
 	int	*aux;
 	int	a;
 	int	b;
@@ -422,7 +427,8 @@ static int join(aux, a, b)
  *	Return value on success, is the outermost alternate which is != 0.
  *	Error is indicated by return of 0.
  */
-int patcompile(pat, len, aux)
+EXPORT int
+patcompile(pat, len, aux)
 	const Uchar	*pat;
 	int		len;
 	int		*aux;
@@ -433,13 +439,13 @@ int patcompile(pat, len, aux)
 
 	a.pattern = pat;
 	a.length  = len;
-	a.aux     = aux;
+	a.aux	  = aux;
 	a.patp    = -1;
 
-	for(i = 0; i < len; i++)
+	for (i = 0; i < len; i++)
 		aux[i] = ENDSTATE;
 	rch(&a);
-	i = exp(&a, &alt);
+	i = expr(&a, &alt);
 	if (i == ENDSTATE)
 		return (0);
 	setexits(aux, i, ENDSTATE);

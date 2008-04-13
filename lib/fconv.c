@@ -1,33 +1,29 @@
-/* @(#)fconv.c	1.31 01/11/11 Copyright 1985 J. Schilling */
+/* @(#)fconv.c	1.36 06/10/29 Copyright 1985, 1995-2003 J. Schilling */
 /*
  *	Convert floating point numbers to strings for format.c
  *	Should rather use the MT-safe routines [efg]convert()
  *
- *	Copyright (c) 1985 J. Schilling
+ *	Copyright (c) 1985, 1995-2003 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>	/* <- may define NO_FLOATINGPOINT */
+#include <schily/mconfig.h>	/* <- may define NO_FLOATINGPOINT */
 #ifndef	NO_FLOATINGPOINT
 
-#include <stdxlib.h>
-#include <standard.h>
-#include <strdefs.h>
-#include <schily.h>
+#include <schily/stdlib.h>
+#include <schily/standard.h>
+#include <schily/string.h>
+#include <schily/schily.h>
 
 #if	!defined(HAVE_STDLIB_H) || defined(HAVE_DTOA)
 extern	char	*ecvt __PR((double, int, int *, int *));
@@ -43,7 +39,12 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 
 #include <math.h>
 
-#if	defined(HAVE_FP_H)  && !defined(FOUND_ISXX)
+#if	defined(HAVE_C99_ISNAN) && defined(HAVE_C99_ISINF)
+#define	FOUND_ISXX
+#define	FOUND_C99_ISXX
+#endif
+
+#if	defined(HAVE_FP_H) && !defined(FOUND_ISXX)
 /*
  * WAS:
  * #if	defined(__osf__) || defined(_IBMR2) || defined(_AIX)
@@ -57,7 +58,7 @@ extern	char	*fcvt __PR((double, int, int *, int *));
  * as a macro and the function lives in libm.
  * Let's hope that we will not get problems with the new order.
  */
-#include <fp.h> 
+#include <fp.h>
 #ifndef	isnan
 #define	isnan	IS_NAN
 #endif
@@ -66,7 +67,7 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 /*#define	isinf	IS_INF*/
 #endif
 #define	FOUND_ISXX
-#endif 
+#endif
 
 #if	defined(HAVE_IEEEFP_H) && !defined(FOUND_ISXX)
 /*
@@ -86,15 +87,17 @@ extern	char	*fcvt __PR((double, int, int *, int *));
  * WAS:
  * #if	defined(__hpux) || defined(VMS) || defined(_SCO_DS) || defined(__QNX__)
  */
-#if	defined(__hpux) || defined(__QNX__)
+#if	defined(__hpux) || defined(__QNX__) || defined(__DJGPP__)
+#ifndef	FOUND_C99_ISXX
 #undef	isnan
 #undef	isinf
 #endif
+#endif
 
-#if	!defined(isnan) && !defined(HAVE_ISNAN)
+#if	!defined(isnan) && !defined(HAVE_ISNAN) && !defined(HAVE_C99_ISNAN)
 #define	isnan(val)	(0)
 #endif
-#if	!defined(isinf) && !defined(HAVE_ISINF)
+#if	!defined(isinf) && !defined(HAVE_ISINF) && !defined(HAVE_C99_ISINF)
 #define	isinf(val)	(0)
 #endif
 
@@ -127,7 +130,7 @@ ftoes(s, val, fieldwidth, ndigits)
 			int	sign;
 
 	if ((len = _ferr(s, val)) > 0)
-		return len;
+		return (len);
 	rs = s;
 #ifdef	V7_FLOATSTYLE
 	b = ecvt(val, ndigits, &decpt, &sign);
@@ -164,7 +167,7 @@ ftoes(s, val, fieldwidth, ndigits)
 	*rs++ = rdecpt / 10 + '0';
 	*rs++ = rdecpt % 10 + '0';
 	*rs = '\0';
-	return rs - s;
+	return (rs - s);
 }
 
 /*
@@ -189,7 +192,7 @@ ftofs(s, val, fieldwidth, ndigits)
 			int	sign;
 
 	if ((len = _ferr(s, val)) > 0)
-		return len;
+		return (len);
 	rs = s;
 #ifdef	USE_ECVT
 	/*
@@ -243,7 +246,7 @@ ftofs(s, val, fieldwidth, ndigits)
 		*rs++ = '0';
 #endif
 	*rs = '\0';
-	return rs - s;
+	return (rs - s);
 }
 
 LOCAL int
@@ -251,7 +254,7 @@ _ferr(s, val)
 	char	*s;
 	double	val;
 {
-	if (isnan(val)){
+	if (isnan(val)) {
 		strcpy(s, _js_nan);
 		return (sizeof (_js_nan) - 1);
 	}
@@ -259,10 +262,10 @@ _ferr(s, val)
 	/*
 	 * Check first for NaN because finite() will return 1 on Nan too.
 	 */
-	if (isinf(val)){
+	if (isinf(val)) {
 		strcpy(s, _js_inf);
 		return (sizeof (_js_inf) - 1);
 	}
-	return 0;
+	return (0);
 }
 #endif	/* NO_FLOATINGPOINT */

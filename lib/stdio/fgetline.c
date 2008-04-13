@@ -1,24 +1,20 @@
-/* @(#)fgetline.c	1.5 00/12/03 Copyright 1986 J. Schilling */
+/* @(#)fgetline.c	1.8 04/09/25 Copyright 1986, 1996-2003 J. Schilling */
 /*
- *	Copyright (c) 1986 J. Schilling
+ *	Copyright (c) 1986, 1996-2003 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include "io.h"
+#include "schilyio.h"
 
 /*
  * XXX should we check if HAVE_USG_STDIO is defined and
@@ -37,18 +33,19 @@ fgetline(f, buf, len)
 
 	down2(f, _IOREAD, _IORW);
 
-	for(;;) {
-		if((c = getc(f)) < 0)
+	for (;;) {
+		if ((c = getc(f)) < 0)
 			break;
-		if(c == nl)
+		if (c == nl)
 			break;
 		if (--len > 0) {
-			*bp++ = c;
+			*bp++ = (char)c;
 		} else {
 			/*
 			 * Read up to end of line
 			 */
 			while ((c = getc(f)) >= 0 && c != nl)
+				/* LINTED */
 				;
 			break;
 		}
@@ -57,7 +54,7 @@ fgetline(f, buf, len)
 	/*
 	 * If buffer is empty and we hit EOF, return EOF
 	 */
-	if(c < 0 && bp == buf)
+	if (c < 0 && bp == buf)
 		return (c);
 
 	return (bp - buf);

@@ -1,27 +1,23 @@
-/* @(#)fcons.c	2.13 01/12/09 Copyright 1986, 1995 J. Schilling */
+/* @(#)fcons.c	2.18 07/04/03 Copyright 1986, 1995-2007 J. Schilling */
 /*
- *	Copyright (c) 1986, 1995  J. Schilling
+ *	Copyright (c) 1986, 1995-2007  J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include "io.h"
+#include "schilyio.h"
 
 /*
- * Note that because of a definition in io.h we are using fseeko()/ftello()
+ * Note that because of a definition in schilyio.h we are using fseeko()/ftello()
  * instead of fseek()/ftell() if available.
  */
 
@@ -34,6 +30,15 @@ LOCAL	char	*fmtab[] = {
 			"rb",	/* 5	FI_READ  | FI_BINARY		*/
 			"wb",	/* 6	FI_WRITE | FI_BINARY	**1)	*/
 			"r+b",	/* 7	FI_READ  | FI_WRITE | FI_BINARY	*/
+
+/* + FI_APPEND	*/	"",	/* 0	FI_NONE				*/
+/* ...		*/	"r",	/* 1	FI_READ				*/
+			"a",	/* 2	FI_WRITE		**1)	*/
+			"a+",	/* 3	FI_READ  | FI_WRITE		*/
+			"b",	/* 4	FI_NONE  | FI_BINARY		*/
+			"rb",	/* 5	FI_READ  | FI_BINARY		*/
+			"ab",	/* 6	FI_WRITE | FI_BINARY	**1)	*/
+			"a+b",	/* 7	FI_READ  | FI_WRITE | FI_BINARY	*/
 		};
 /*
  * NOTES:
@@ -47,13 +52,14 @@ LOCAL	char	*fmtab[] = {
 EXPORT FILE *
 _fcons(fd, f, flag)
 	register FILE	*fd;
-		 int	f;
-		 int	flag;
+		int	f;
+		int	flag;
 {
 	int	my_gflag = _io_glflag;
 
 	if (fd == (FILE *)NULL)
-		fd = fdopen(f, fmtab[flag&(FI_READ|FI_WRITE|FI_BINARY)]);
+		fd = fdopen(f,
+			fmtab[flag&(FI_READ|FI_WRITE|FI_BINARY | FI_APPEND)]);
 
 	if (fd != (FILE *)NULL) {
 		if (flag & FI_APPEND) {
@@ -61,7 +67,7 @@ _fcons(fd, f, flag)
 		}
 		if (flag & FI_UNBUF) {
 			setbuf(fd, NULL);
-			my_gflag |= _IOUNBUF;
+			my_gflag |= _JS_IOUNBUF;
 		}
 		set_my_flag(fd, my_gflag); /* must clear it if fd is reused */
 		return (fd);

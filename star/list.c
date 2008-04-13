@@ -1,45 +1,52 @@
-/* @(#)list.c	1.41 02/05/05 Copyright 1985, 1995, 2000-2001 J. Schilling */
+/* @(#)list.c	1.70 08/04/06 Copyright 1985, 1995, 2000-2007 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)list.c	1.41 02/05/05 Copyright 1985, 1995, 2000-2001 J. Schilling";
+	"@(#)list.c	1.70 08/04/06 Copyright 1985, 1995, 2000-2007 J. Schilling";
 #endif
 /*
  *	List the content of an archive
  *
- *	Copyright (c) 1985, 1995, 2000-2001 J. Schilling
+ *	Copyright (c) 1985, 1995, 2000-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
 #include "star.h"
+#include "props.h"
 #include "table.h"
-#include <dirdefs.h>
-#include <standard.h>
-#include <strdefs.h>
-#include <schily.h>
+#include <schily/dirent.h>
+#include <schily/standard.h>
+#include <schily/stdlib.h>
+#include <schily/string.h>
+#include <schily/schily.h>
 #include "starsubs.h"
+#ifdef	USE_FIND
+#include <schily/walk.h>
+#endif
 
 extern	FILE	*tarf;
 extern	FILE	*vpr;
 extern	char	*listfile;
 extern	Llong	curblockno;
 
+extern	time_t	sixmonth;		/* 6 months before limit (ls)	*/
+extern	time_t	now;			/* now limit (ls)		*/
+
 extern	BOOL	havepat;
+extern	int	iftype;
+extern	BOOL	paxls;
+extern	int	xdebug;
 extern	BOOL	numeric;
 extern	int	verbose;
 extern	BOOL	prblockno;
@@ -49,52 +56,85 @@ extern	BOOL	xflag;
 extern	BOOL	interactive;
 
 extern	BOOL	acctime;
+extern	BOOL	no_dirslash;
 extern	BOOL	Ctime;
+extern	BOOL	prinodes;
 
 extern	BOOL	listnew;
 extern	BOOL	listnewf;
 
+extern	BOOL	do_subst;
+
+#ifdef	USE_FIND
+extern	BOOL	dofind;
+#endif
+
 EXPORT	void	list		__PR((void));
-LOCAL	void	modstr		__PR((FINFO * info, char* s, Ulong  mode));
-EXPORT	void	list_file	__PR((FINFO * info));
-EXPORT	void	vprint		__PR((FINFO * info));
+LOCAL	void	modstr		__PR((FINFO *info, char *s, mode_t  mode));
+EXPORT	void	list_file	__PR((FINFO *info));
+EXPORT	void	vprint		__PR((FINFO *info));
 
 EXPORT void
 list()
 {
+#ifdef	USE_FIND
+extern	struct WALK walkstate;
+#endif
 		FINFO	finfo;
 		FINFO	newinfo;
 		TCB	tb;
 		TCB	newtb;
 		char	name[PATH_MAX+1];
+		char	lname[PATH_MAX+1];
 		char	newname[PATH_MAX+1];
 		char	newlname[PATH_MAX+1];
 	register TCB 	*ptb = &tb;
 
-	fillbytes((char *)&finfo, sizeof(finfo), '\0');
-	fillbytes((char *)&newinfo, sizeof(newinfo), '\0');
+	fillbytes((char *)&finfo, sizeof (finfo), '\0');
+	fillbytes((char *)&newinfo, sizeof (newinfo), '\0');
 
+#ifdef	USE_FIND
+	if (dofind) {
+		walkopen(&walkstate);
+		walkgethome(&walkstate);	/* Needed in case we chdir */
+	}
+#endif
 	finfo.f_tcb = ptb;
 	for (;;) {
 		if (get_tcb(ptb) == EOF)
 			break;
 		if (prblockno)
-			(void)tblocks();		/* set curblockno */
+			(void) tblocks();		/* set curblockno */
 
 		finfo.f_name = name;
+		finfo.f_lname = lname;
 		if (tcb_to_info(ptb, &finfo) == EOF)
-			return;
+			break;
+		if (xdebug > 0)
+			dump_info(&finfo);
+
+#ifdef	USE_FIND
+		if (dofind && !findinfo(&finfo)) {
+			void_file(&finfo);
+			continue;
+		}
+#endif
+
+		if (do_subst) {
+			subst(&finfo);
+		}
+
 		if (listnew || listnewf) {
 			/*
 			 * XXX nsec beachten wenn im Archiv!
 			 */
 			if (((finfo.f_mtime > newinfo.f_mtime) ||
-			    ((finfo.f_xflags & XF_MTIME) && 
-			     (newinfo.f_xflags & XF_MTIME) &&
-			     (finfo.f_mtime == newinfo.f_mtime) &&
-			     (finfo.f_mnsec > newinfo.f_mnsec))) &&
+			    ((finfo.f_xflags & XF_MTIME) &&
+			    (newinfo.f_xflags & XF_MTIME) &&
+			    (finfo.f_mtime == newinfo.f_mtime) &&
+			    (finfo.f_mnsec > newinfo.f_mnsec))) &&
 					(!listnewf || is_file(&finfo))) {
-				movebytes(&finfo, &newinfo, sizeof(finfo));
+				movebytes(&finfo, &newinfo, sizeof (finfo));
 				movetcb(&tb, &newtb);
 				/*
 				 * Paranoia.....
@@ -113,40 +153,69 @@ list()
 				}
 				newinfo.f_flags |= F_HAS_NAME;
 			}
-		} else if (listfile) {
-			if (hash_lookup(finfo.f_name))
-				list_file(&finfo);
-		} else if (!havepat || match(finfo.f_name))
-			list_file(&finfo);
-
+			void_file(&finfo);
+			continue;
+		}
+		if (listfile && !hash_lookup(finfo.f_name)) {
+			void_file(&finfo);
+			continue;
+		}
+		if (hash_xlookup(finfo.f_name)) {
+			void_file(&finfo);
+			continue;
+		}
+		if (havepat && !match(finfo.f_name)) {
+			void_file(&finfo);
+			continue;
+		}
+		list_file(&finfo);
 		void_file(&finfo);
 	}
+#ifdef	USE_FIND
+	if (dofind) {
+		walkhome(&walkstate);
+		walkclose(&walkstate);
+		free(walkstate.twprivate);
+	}
+#endif
 	if ((listnew || listnewf) && newinfo.f_mtime != 0L) {
-		/* XXX
+		/*
+		 * XXX
 		 * XXX Achtung!!! tcb_to_info zerstört t_name[NAMSIZ]
 		 * XXX und t_linkname[NAMSIZ].
+		 * XXX Ist dies noch richtig?
+		 * XXX Es sieht so aus as ob nur noch t_name[NAMSIZ] auf ' '
+		 * XXX gesetzt wird wenn dort ein null Byte steht.
 		 */
-		tcb_to_info(&newtb, &newinfo);
+		if ((props.pr_flags & PR_CPIO) == 0) {
+			/*
+			 * Needed to set up the uname/gname fields for the
+			 * various TAR headers.
+			 */
+			tcb_to_info(&newtb, &newinfo);
+		}
 		list_file(&newinfo);
 	}
 }
 
-#ifdef	OLD
-static char *typetab[] = 
-{"S","-","l","d","","","","", };
-#endif
-
+/*
+ * Convert POSIX.1 TAR mode/permission flags into string.
+ */
 LOCAL void
+#ifdef	PROTOTYPES
+modstr(FINFO *info, char *s, register mode_t  mode)
+#else
 modstr(info, s, mode)
 		FINFO	*info;
-		 char	*s;
-	register Ulong	mode;
+		char	*s;
+	register mode_t	mode;
+#endif
 {
 	register char	*mstr = "xwrxwrxwr";
 	register char	*str = s;
 	register int	i;
 
-	for (i=9; --i >= 0;) {
+	for (i = 9; --i >= 0; ) {
 		if (mode & (1 << i))
 			*str++ = mstr[i];
 		else
@@ -155,34 +224,44 @@ modstr(info, s, mode)
 #ifdef	USE_ACL
 	*str++ = ' ';
 #endif
+#ifdef	USE_XATTR
+	*str++ = '\0';				/* Don't claim space for '@' */
+#endif
 	*str = '\0';
 	str = s;
-	if (mode & 01000) {
-		if (mode & 01)
-			str[8] = 't';
-		else
-			str[8] = 'T';
-	}
-	if (mode & 02000) {
-		if (mode & 010) {
-			str[5] = 's';
+	if (mode & TSVTX) {
+		if (mode & TOEXEC) {
+			str[8] = 't';		/* Sticky & exec. by others  */
 		} else {
-			if (is_dir(info))
-				str[5] = 'S';
-			else
-				str[5] = 'l';
+			str[8] = 'T';		/* Sticky but !exec. by oth  */
 		}
 	}
-	if (mode & 04000) {
-		if (mode & 0100)
-			str[2] = 's';
-		else
-			str[2] = 'S';
+	if (mode & TSGID) {
+		if (mode & TGEXEC) {
+			str[5] = 's';		/* Sgid & executable by grp  */
+		} else {
+			if (is_dir(info))
+				str[5] = 'S';	/* Sgid directory	    */
+			else
+				str[5] = 'l';	/* Mandatory lock file	    */
+		}
 	}
+	if (mode & TSUID) {
+		if (mode & TUEXEC)
+			str[2] = 's';		/* Suid & executable by own. */
+		else
+			str[2] = 'S';		/* Suid but not executable   */
+	}
+	i = 9;
 #ifdef	USE_ACL
 	if ((info->f_xflags & (XF_ACL_ACCESS|XF_ACL_DEFAULT)) != 0)
-		str[9] = '+';
+		str[i++] = '+';
 #endif
+#ifdef	USE_XATTR
+	if ((info->f_xflags & XF_XATTR) != 0)
+		str[i++] = '@';
+#endif
+	i++;	/* Make lint believe that we always use i. */
 }
 
 EXPORT void
@@ -192,9 +271,11 @@ list_file(info)
 		FILE	*f;
 		time_t	*tp;
 		char	*tstr;
-		char	mstr[11]; /* 9 UNIX chars + ACL '+' + nul */
+		char	mstr[12]; /* 9 UNIX chars + ACL '+' XATTR '@' + nul */
+		char	lstr[11]; /* contains link count as string */
 	static	char	nuid[11]; /* XXXX 64 bit longs??? */
 	static	char	ngid[11]; /* XXXX 64 bit longs??? */
+		char	*add = "";
 
 	f = vpr;
 	if (prblockno)
@@ -204,6 +285,16 @@ list_file(info)
 	else if (xflag)
 		fprintf(f, "x ");
 
+	if (prinodes && info->f_ino > 0)
+		fprintf(f, "%7llu ", (Llong)info->f_ino);
+	if (cflag && is_dir(info) && !no_dirslash) {
+		int	len = info->f_namelen;
+
+		if (len == 0)
+			len = strlen(info->f_name);
+		if (info->f_name[len-1] != '/')
+			add = "/";
+	}
 	if (verbose) {
 		register Uint	xft = info->f_xftype;
 
@@ -213,23 +304,37 @@ list_file(info)
 				(Ctime ? &info->f_ctime : &info->f_mtime);
 		tstr = ctime(tp);
 		if (numeric || info->f_uname == NULL) {
-			sprintf(nuid, "%lu", info->f_uid);
+			sprintf(nuid, "%lld", (Llong)info->f_uid);
 			info->f_uname = nuid;
-			info->f_umaxlen = sizeof(nuid)-1;
+			info->f_umaxlen = sizeof (nuid)-1;
 		}
 		if (numeric || info->f_gname == NULL) {
-			sprintf(ngid, "%lu", info->f_gid);
+			sprintf(ngid, "%lld", (Llong)info->f_gid);
 			info->f_gname = ngid;
-			info->f_gmaxlen = sizeof(ngid)-1;
+			info->f_gmaxlen = sizeof (ngid)-1;
 		}
 
-		if (is_special(info))
-			fprintf(f, "%3lu %3lu",
-				info->f_rdevmaj, info->f_rdevmin);
-		else
-			fprintf(f, "%7llu", (Llong)info->f_size);
+		if (!paxls) {
+			if (is_special(info))
+				fprintf(f, "%3lu %3lu",
+					info->f_rdevmaj, info->f_rdevmin);
+			else
+				fprintf(f, "%7llu", (Llong)info->f_size);
+		}
 		modstr(info, mstr, info->f_mode);
 
+		if (paxls && info->f_nlink == 0 && is_link(info)) {
+			info->f_nlink = 2;
+		}
+		if (paxls || info->f_nlink > 0) {
+			/*
+			 * UNIX ls uses %3d for the link count
+			 * and does not claim space for ACL '+'
+			 */
+			js_sprintf(lstr, " %2llu", (Ullong)info->f_nlink);
+		} else {
+			lstr[0] = 0;
+		}
 /*
  * XXX Übergangsweise, bis die neue Filetypenomenklatur sauber eingebaut ist.
  */
@@ -240,19 +345,46 @@ if (xft == 0 || xft == XT_BAD) {
 }
 		if (xft == XT_LINK)
 			xft = info->f_rxftype;
-		fprintf(f,
-			" %s%s %3.*s/%-3.*s %.12s %4.4s ",
+		if (!paxls) {
+			fprintf(f,
+				" %s%s%s %3.*s/%-3.*s %.12s %4.4s ",
 #ifdef	OLD
-			typetab[info->f_filetype & 07],
+				typetab[info->f_filetype & 07],
 #else
-			XTTOSTR(xft),
+				XTTOSTR(xft),
 #endif
-			mstr,
-			(int)info->f_umaxlen, info->f_uname,
-			(int)info->f_gmaxlen, info->f_gname,
-			&tstr[4], &tstr[20]);
+				mstr,
+				lstr,
+				(int)info->f_umaxlen, info->f_uname,
+				(int)info->f_gmaxlen, info->f_gname,
+				&tstr[4], &tstr[20]);
+		} else {
+			fprintf(f,
+				"%s%s%s %-8.*s %-8.*s ",
+#ifdef	OLD
+				typetab[info->f_filetype & 07],
+#else
+				XTTOSTR(xft),
+#endif
+				mstr,
+				lstr,
+				(int)info->f_umaxlen, info->f_uname,
+				(int)info->f_gmaxlen, info->f_gname);
+			if (is_special(info))
+				fprintf(f, "%3lu %3lu",
+					info->f_rdevmaj, info->f_rdevmin);
+			else
+				fprintf(f, "%7llu", (Llong)info->f_size);
+			if ((*tp < sixmonth) || (*tp > now)) {
+				fprintf(f, " %.6s  %4.4s ",
+					&tstr[4], &tstr[20]);
+			} else {
+				fprintf(f, " %.12s ",
+					&tstr[4]);
+			}
+		}
 	}
-	fprintf(f, "%s", info->f_name);
+	fprintf(f, "%s%s", info->f_name, add);
 	if (tpath) {
 		fprintf(f, "\n");
 		return;
@@ -260,14 +392,18 @@ if (xft == 0 || xft == XT_BAD) {
 	if (is_link(info)) {
 		if (is_dir(info))
 			fprintf(f, " directory");
-		fprintf(f, " link to %s", info->f_lname);
+		fprintf(f, " %s %s",
+			paxls ? "==" : "link to",
+			info->f_lname);
 	}
 	if (is_symlink(info))
 		fprintf(f, " -> %s", info->f_lname);
 	if (is_volhdr(info))
 		fprintf(f, " --Volume Header--");
-	if (is_multivol(info))
-		fprintf(f, " --Continued at byte %lld--", (Llong)info->f_contoffset);
+	if (is_multivol(info)) {
+		fprintf(f, " --Continued at byte %lld--",
+						(Llong)info->f_contoffset);
+	}
 	fprintf(f, "\n");
 }
 
@@ -277,6 +413,7 @@ vprint(info)
 {
 		FILE	*f;
 	char	*mode;
+	char	*add = "";
 
 	if (verbose || interactive) {
 		if (verbose > 1) {
@@ -295,23 +432,38 @@ vprint(info)
 		else
 			mode = "";
 
+		if (cflag && is_dir(info) && !no_dirslash) {
+			int	len = info->f_namelen;
+
+			if (len == 0)
+				len = strlen(info->f_name);
+			if (info->f_name[len-1] != '/')
+				add = "/";
+		}
 		if (tpath) {
-			fprintf(f, "%s%s\n", mode, info->f_name);
+			fprintf(f, "%s%s\n", info->f_name, add);
 			return;
 		}
 		if (is_dir(info)) {
 			if (is_link(info)) {
-				fprintf(f, "%s%s directory link to %s\n",
-					mode, info->f_name, info->f_lname);
+				fprintf(f, "%s%s%s directory %s %s\n",
+					mode, info->f_name, add,
+					paxls ? "==" : "link to",
+					info->f_lname);
 			} else {
-				fprintf(f, "%s%s directory\n", mode, info->f_name);
+				fprintf(f, "%s%s%s directory\n", mode,
+							info->f_name, add);
 			}
 		} else if (is_link(info)) {
-			fprintf(f, "%s%s link to %s\n",
-				mode, info->f_name, info->f_lname);
+			fprintf(f, "%s%s %s %s\n",
+				mode, info->f_name,
+				paxls ? "==" : "link to",
+				info->f_lname);
 		} else if (is_symlink(info)) {
-			fprintf(f, "%s%s symbolic link to %s\n",
-				mode, info->f_name, info->f_lname);
+			fprintf(f, "%s%s %s %s\n",
+				mode, info->f_name,
+				paxls ? "->" : "symbolic link to",
+				info->f_lname);
 		} else if (is_special(info)) {
 			fprintf(f, "%s%s special\n", mode, info->f_name);
 		} else {

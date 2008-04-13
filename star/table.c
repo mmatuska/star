@@ -1,34 +1,30 @@
-/* @(#)table.c	1.16 02/05/09 Copyright 1994 J. Schilling */
+/* @(#)table.c	1.24 06/10/31 Copyright 1994-96 2000-2006 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)table.c	1.16 02/05/09 Copyright 1994 J. Schilling";
+	"@(#)table.c	1.24 06/10/31 Copyright 1994-96 2000-2006 J. Schilling";
 #endif
 /*
  *	Conversion tables for efficient conversion
  *	of different file type representations
  *
- *	Copyright (c) 1994 J. Schilling
+ *	Copyright (c) 1994-96 2000-2006 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include "star.h"
 #include "table.h"
-#include <statdefs.h>
+#include <schily/stat.h>
 
 #ifndef	S_IFIFO			/* If system knows no fifo's		*/
 #define	S_IFIFO		S_IFREG	/* Map fifo's to regular files 		*/
@@ -90,7 +86,7 @@ static	char sccsid[] =
  *	4 Directory	5 NAM special	6 BLK special	7 MPX blk
  *	8 Regular File	9 Contig File	10 Symlink	11 Sol Shadow ino
  *	12 Socket	13 DOOR special	14 Whiteout	15 UNOS event count
- * 
+ *
  * No bound checking in hope that S_IFMT will never hold more than 4 bits.
  */
 char	iftoxt_tab[] = {
@@ -119,6 +115,7 @@ char	ustoxt_tab[] = {
  * Fortunately, the different vendor unique extensions are disjunct.
  * External code does bound checking.
  */
+/* BEGIN CSTYLED */
 char	vttoxt_tab[] = {
 		/* A */	XT_NONE,     XT_NONE,   XT_NONE,     XT_DUMPDIR,
 		/* E */	XT_NONE,     XT_NONE,   XT_NONE,     XT_NONE,
@@ -128,7 +125,7 @@ char	vttoxt_tab[] = {
 		/* U */	XT_NONE,     XT_VOLHDR, XT_NONE,     XT_NONE,
 		/* Y */	XT_NONE,     XT_NONE,
 };
-
+/* END CSTYLED */
 
 /*
  * XT_* codes used (see table.h):
@@ -142,7 +139,8 @@ char	vttoxt_tab[] = {
  *
  * XT_SPARSE and XT_META are just other (tar specific) views of regular files.
  */
-int	xttoif_tab[] = {
+/* BEGIN CSTYLED */
+mode_t	xttoif_tab[] = {
 		/* 0 */	0,       S_IFREG,  S_IFCNT, S_IFREG,
 		/* 4 */	S_IFLNK, S_IFDIR,  S_IFCHR, S_IFBLK,
 		/* 8 */	S_IFIFO, S_IFSOCK, S_IFMPC, S_IFMPB,
@@ -151,11 +149,13 @@ int	xttoif_tab[] = {
 		/*20 */	S_IFDIR, S_IFBAD,  S_IFBAD, S_IFBAD,
 		/*24 */	S_IFBAD, S_IFREG,  S_IFBAD, S_IFREG,
 		/*28 */	S_IFBAD, S_IFBAD,  S_IFBAD, S_IFBAD,
-			};
+};
+/* END CSTYLED */
 
 /*
  * XT_ to Star-1985 File type table
  */
+/* BEGIN CSTYLED */
 char	xttost_tab[] = {
 		/* 0 */	0,       F_FILE, F_FILE, F_FILE,
 		/* 4 */	F_SLINK, F_DIR,  F_SPEC, F_SPEC,
@@ -165,10 +165,25 @@ char	xttost_tab[] = {
 		/*20 */	F_DIR,   F_FILE, F_FILE, F_FILE,
 		/*24 */	F_FILE,  F_FILE, F_SPEC, F_FILE,
 		/*28 */	F_SPEC,  F_SPEC, F_SPEC, F_SPEC,
-			};
+};
+/* END CSTYLED */
 
 /*
- * XT_ Old tar supported File type table
+ * XT_ Old UNIX V7 tar supported File type table
+ */
+char	xtv7tar_tab[] = {
+		/* 0 */	0,	1,	1,	1,
+		/* 4 */	0,	0,	0,	0,
+		/* 8 */	0,	0,	0,	0,
+		/*12 */	0,	0,	0,	0,
+		/*16 */	0,	0,	0,	0,
+		/*20 */	0,	0,	0,	0,
+		/*24 */	0,	0,	0,	0,
+		/*28 */	0,	0,	0,	0,
+};
+
+/*
+ * XT_ Old BSD tar supported File type table
  */
 char	xttar_tab[] = {
 		/* 0 */	0,	1,	1,	1,
@@ -192,7 +207,8 @@ char	xtstar_tab[] = {
 		/*20 */	0,	0,	0,	0,
 		/*24 */	0,	1,	0,	1,
 		/*28 */	0,	0,	0,	0,
-			};
+};
+
 /*
  * XT_ Ustar-1988 supported File type table
  */
@@ -206,8 +222,6 @@ char	xtustar_tab[] = {
 		/*24 */	0,	0,	0,	0,
 		/*28 */	0,	0,	0,	0,
 			};
-
-
 /*
  * XT_ Extended PAX-2001 'exustar' supported File type table
  */
@@ -220,14 +234,28 @@ char	xtexustar_tab[] = {
 		/*20 */	0,	0,	0,	0,
 		/*24 */	0,	1,	0,	1,
 		/*28 */	0,	0,	0,	0,
-			};
+};
 
+/*
+ * XT_ CPIO-1988 supported File type table
+ */
+char	xtcpio_tab[] = {
+		/* 0 */	0,	1,	1,	1,
+		/* 4 */	1,	1,	1,	1,
+		/* 8 */	1,	1,	0,	0,
+		/*12 */	0,	0,	0,	0,
+		/*16 */	0,	0,	0,	0,
+		/*20 */	0,	0,	0,	0,
+		/*24 */	0,	0,	0,	0,
+		/*28 */	0,	0,	0,	0,
+};
 
 /*
  * XT_ to Ustar (including Vendor Unique extensions) File type table
  *
  * sockets cannot be handled in ansi tar, they are handled as regular files :-(
  */
+/* BEGIN CSTYLED */
 char	xttous_tab[] = {
 		/* 0 */	0,       REGTYPE, CONTTYPE, LNKTYPE,
 		/* 4 */	SYMTYPE, DIRTYPE, CHRTYPE,  BLKTYPE,
@@ -237,7 +265,8 @@ char	xttous_tab[] = {
 		/*20 */	LF_DUMPDIR, LF_LONGLINK, LF_LONGNAME, LF_MULTIVOL,
 		/*24 */	LF_NAMES,   LF_SPARSE,   LF_VOLHDR,   LF_META,
 		/*28 */	0,       0,       0,        0,
-			};
+};
+/* END CSTYLED */
 
 /*
  * XT_ to String table
@@ -262,7 +291,7 @@ char	*xttostr_tab[] = {
 #endif
 
 		/*28 */	"~",	"~",	"~",	"~",
-			};
+};
 
 /*
  * XT_ to named file type text
@@ -270,11 +299,10 @@ char	*xttostr_tab[] = {
 char	*xttoname_tab[] = {
 		/* 0 */	"unallocated",	"regular",	"contiguous",		"hardlink",
 		/* 4 */	"symlink",	"directory",	"character special",	"block special",
-		/* 8 */	"fifo",		"socket",	"mpx character special","mpx block special",
+		/* 8 */	"fifo",		"socket",	"mpx character special", "mpx block special",
 		/*12 */	"XENIX nsem",	"XENIX nshd",	"door",		        "eventcount",
 		/*16 */	"whiteout",	"reserved",	"reserved",		"reserved",
 		/*20 */	"dumpdir",	"longlink",	"longname",		"multivol continuation",
 		/*24 */	"names",	"sparse",	"volheader",		"meta",
 		/*28 */	"reserved",	"reserved",	"reserved",		"unknown/bad",
-			};
-
+};

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# @(#)install-sh	1.5 01/04/03 1999 J. Schilling
+# @(#)install-sh	1.7 05/05/03 1999 J. Schilling
 #
 # install - install a program, script, or datafile
 # This comes from X11R5 (mit/util/scripts/install.sh).
@@ -28,6 +28,9 @@
 # from scratch.  It can only install one file at a time, a restriction
 # shared with many OS's install programs.
 
+# on BSDi chown is in /usr/sbin
+
+PATH="${PATH}:/usr/sbin"
 
 # set DOITPROG to echo to test this script
 
@@ -63,8 +66,11 @@ dir_arg=""
 # Check if we are 'root' to avoid chown as non root user
 #
 rootflag=FALSE
-dsttmp=/tmp/xx.$$
-trap "rm -f ${dsttmp}" 0
+dstdir=/tmp/xd.$$
+dsttmp=${dstdir}/xx.$$
+trap "rm -f ${dsttmp}; rm -rf ${dstdir}" 0
+mkdir ${dstdir}
+${chmodcmd} ${dstdir}
 echo > ${dsttmp}
 ${chownprog} root ${dsttmp} 2> /dev/null && ${chmodcmd} ${dsttmp} 2> /dev/null && rootflag=TRUE
 #
@@ -77,6 +83,7 @@ if [ $rootflag = TRUE ]; then
 	ls -l ${dsttmp} 2> /dev/null | grep root > /dev/null || rootflag=FALSE
 fi
 rm -f ${dsttmp}
+rm -rf ${dstdir}
 
 while [ x"$1" != x ]; do
     case $1 in

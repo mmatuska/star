@@ -6,3 +6,4 @@ rm -f .vedt* */.vedt* */*/.vedt*
 rm -f *.bak */*.bak */*/*.bak
 rm -f */tags */*/tags
 rm -f */TAGS */*/TAGS
+rm -rf proto/* packages/*

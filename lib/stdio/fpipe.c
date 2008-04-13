@@ -1,33 +1,29 @@
-/* @(#)fpipe.c	1.10 02/05/20 Copyright 1986, 1995 J. Schilling */
+/* @(#)fpipe.c	1.12 04/08/08 Copyright 1986, 1995-2003 J. Schilling */
 /*
- *	Copyright (c) 1986, 1995 J. Schilling
+ *	Copyright (c) 1986, 1995-2003 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include "io.h"
+#include "schilyio.h"
 
 EXPORT int
-fpipe (pipef)
+fpipe(pipef)
 	FILE *pipef[];
 {
 	int filedes[2];
 
 	if (pipe(filedes) < 0)
-		return 0;
+		return (0);
 
 	if ((pipef[0] = _fcons((FILE *)0,
 				filedes[0], FI_READ|FI_CLOSE)) != (FILE *)0) {
@@ -35,8 +31,8 @@ fpipe (pipef)
 				filedes[1], FI_WRITE|FI_CLOSE)) != (FILE *)0) {
 			return (1);
 		}
-		fclose (pipef[0]);
+		fclose(pipef[0]);
 	}
-	close (filedes[1]);
+	close(filedes[1]);
 	return (0);
 }

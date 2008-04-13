@@ -189,26 +189,32 @@ Using a different C-compiler:
 
 Creating 64 bit executables on Solaris:
 
-	If you like to create 64 bit executables you always need first to 
-	remove any old make results. This includes all autoconf results. In 
-	order to make sure that the source tree is in a "clean" state, call:
+	Simply call:
 
-		./.clean
-
-	at the top level directory. Then configure and compile everything by 
-	calling:
-
-		smake COPTX=-xarch=v9 LDOPTX=-xarch=v9
-
-	To do this with GCC, you need at least GCC-3.1. It is the first 64 bit
-	aware GCC. With GCC, call on Solaris:
-
-		smake CCOM=gcc COPTX=-m64 LDOPTX=-m64
+		make CCOM=gcc64
+	or
+		make CCOM=cc64
 
 	It is not clear if GCC already supports other platforms in 64 bit mode.
 	As all GCC versions before 3.1 did emit hundreds of compilation
 	warnings related to 64 bit bugs when compiling itself, there is little
 	hope that other platforms are already supported in 64 bit mode.
+
+Creating executables using the Sun Studio compiler on Linux:
+
+	Simply call:
+
+		make CCOM=suncc
+
+	If the compilation does not work, try:
+
+	mkdir   /opt/sunstudio12/prod/include/cc/linux 
+	cp      /usr/include/linux/types.h  /opt/sunstudio12/prod/include/cc/linux
+
+	Then edit /opt/sunstudio12/prod/include/cc/linux/types.h and remove all
+	lines like: "#if defined(__GNUC__) && !defined(__STRICT_ANSI__)"
+	as well as the related #endif.
+
 
 
 Getting help from make:
@@ -258,7 +264,7 @@ Hints for compilation:
 	on some architectures that will not correctly recognize the default
 	target. In this case call 'make all' or ../Gmake all'.
 
-	Note that speudo error messages from gmake similar to:
+	Note that pseudo error messages from gmake similar to:
 
 	gmake[1]: Entering directory `cdrtools-1.10/conf'
 	../RULES/rules.cnf:58: ../incs/sparc-sunos5-cc/Inull: No such file or directory
@@ -307,6 +313,22 @@ Compiling the project to allow debugging with dbx/gdb:
 		make COPTX=-g LDOPTX=-g
 
 
+Creting Blastwave packages:
+
+	Call:
+		.clean
+		smake -f Mcsw
+
+	You need the program "fakeroot" and will find the results
+	in packages/<arch-dir>
+
+	Note that a single program source tree will allow you to create
+	packages like CSWstar but not the packages CSWschilybase and
+	CSWschilyutils on which CSWstar depends.
+
+
+
+
 	If you want to see an example, please have a look at the "star"
 	source. It may be found on:
 
@@ -321,6 +343,7 @@ Compiling the project to allow debugging with dbx/gdb:
 	/usr/lib/makewhatis /opt/schily/man or to call 
 
 		man -F <man-page-name>
+
 
 Author:
 

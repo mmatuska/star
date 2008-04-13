@@ -1,64 +1,102 @@
-/* @(#)fflags.c	1.4 02/01/19 Copyright 2001-2002 J. Schilling */
+/* @(#)fflags.c	1.21 08/03/16 Copyright 2001-2008 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)fflags.c	1.4 02/01/19 Copyright 2001-2002 J. Schilling";
+	"@(#)fflags.c	1.21 08/03/16 Copyright 2001-2008 J. Schilling";
 #endif
 /*
  *	Routines to handle extended file flags
  *
- *	Copyright (c) 2001-2002 J. Schilling
+ *	Copyright (c) 2001-2008 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 
 #ifdef	USE_FFLAGS
 #include <stdio.h>
-#include <errno.h>
+#include <schily/errno.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <standard.h>
-#include <unixstd.h>
-#include <dirdefs.h>
-#include <strdefs.h>
-#include <statdefs.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/unistd.h>
+#include <schily/dirent.h>
+#include <schily/string.h>
+#include <schily/stat.h>
+#include <schily/schily.h>
 #include "starsubs.h"
 #ifdef	__linux__
-#include <fctldefs.h>
+#include <schily/fcntl.h>
+#ifdef	HAVE_EXT2FS_EXT2_FS_H
+/*
+ * The Linux Kernel appears to be unplanned and full of moving targets :-(
+ */
+#include <ext2fs/ext2_fs.h>
+
+#else	/* !HAVE_EXT2FS_EXT2_FS_H */
+#if defined(HAVE_USABLE_EXT2_FS_H) || defined(TRY_EXT2_FS)
+/*
+ * Be very careful in case that the Linux Kernel maintainers
+ * unexpectedly fix the bugs in the Linux Lernel include files.
+ * Only introduce the attempt for a workaround in case the include
+ * files are broken anyway.
+ *
+ * If HAVE_USABLE_LINUX_EXT2_FS_H is defined, a simple
+ * #include <linux/ex2_fs.h> will work.
+ *
+ * If TRY_EXT2_FS is defined, we will asume that
+ */
+#ifdef	TRY_EXT2_FS
+#define	__KERNEL__
+#ifdef	HAVE_LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+#define	KBUILD_BASENAME	"foo"
+#define	CONFIG_X86_L1_CACHE_SHIFT 7
+#ifdef	HAVE_LINUX_GFP_H
+#include <linux/gfp.h>
+#endif
+#ifdef	HAVE_ASM_TYPES_H
+#include <asm/types.h>
+#endif
+#undef	__KERNEL__
+#endif	/* TRY_EXT2_FS */
 #include <linux/ext2_fs.h>
-#include <sys/ioctl.h>
-#endif
+#endif	/* defined(HAVE_USABLE_EXT2_FS_H) || defined(TRY_EXT2_FS) */
+#endif	/* HAVE_EXT2FS_EXT2_FS_H */
+#include <schily/ioctl.h>
+#endif	/* __linux__ */
 
-#ifndef	HAVE_ERRNO_DEF
-extern	int	errno;
-#endif
-
+EXPORT	void	opt_fflags	__PR((void));
 EXPORT	void	get_fflags	__PR((FINFO *info));
 EXPORT	void	set_fflags	__PR((FINFO *info));
 EXPORT	char	*textfromflags	__PR((FINFO *info, char *buf));
 EXPORT	int	texttoflags	__PR((FINFO *info, char *buf));
 
 EXPORT void
+opt_fflags()
+{
+	/*	Linux							*BSD */
+#if (defined(__linux__) && defined(EXT2_IOC_GETFLAGS)) || defined(HAVE_ST_FLAGS)
+	printf(" fflags");
+#endif
+}
+
+EXPORT void
 get_fflags(info)
 	register FINFO	*info;
 {
-#ifdef	__linux__
+#if defined(__linux__) && defined(EXT2_IOC_GETFLAGS)
 	int	f;
 	long	l = 0L;
 
@@ -88,6 +126,7 @@ set_fflags(info)
  */
 #if	defined(HAVE_CHFLAGS) && defined(UF_SETTABLE)
 	char	buf[512];
+	BOOL	err = TRUE;
 
 	/*
 	 * As for 14.2.2002 the man page of chflags() is wrong, the following
@@ -95,12 +134,17 @@ set_fflags(info)
 	 * If we are not allowed to set the flags, try to only set the user
 	 * settable flags.
 	 */
-	if ((chflags(info->f_name, info->f_fflags) < 0 && geterrno() == EPERM) ||
-	     chflags(info->f_name, info->f_fflags & UF_SETTABLE) < 0)
+	if (chflags(info->f_name, info->f_fflags) >= 0)
+		err = FALSE;
+	else if (geterrno() == EPERM &&
+	    chflags(info->f_name, info->f_fflags & UF_SETTABLE) >= 0)
+		err = FALSE;
+
+	if (err)
 		errmsg("Cannot set file flags '%s' for '%s'.\n",
 				textfromflags(info, buf), info->f_name);
 #else
-#ifdef	__linux__
+#if defined(__linux__) && defined(EXT2_IOC_GETFLAGS)
 	char	buf[512];
 	int	f;
 	Ulong	flags;
@@ -110,7 +154,11 @@ set_fflags(info)
 	 * Linux bites again! There is no define for the flags that are only
 	 * settable by the root user.
 	 */
-#define	SF_MASK			(EXT2_IMMUTABLE_FL|EXT2_APPEND_FL)
+#ifdef	EXT3_JOURNAL_DATA_FL			/* 'j' */
+#define	SF_MASK		(EXT2_IMMUTABLE_FL|EXT2_APPEND_FL|EXT3_JOURNAL_DATA_FL)
+#else
+#define	SF_MASK		(EXT2_IMMUTABLE_FL|EXT2_APPEND_FL)
+#endif
 
 	if ((f = open(info->f_name, O_RDONLY|O_NONBLOCK)) >= 0) {
 		if (ioctl(f, EXT2_IOC_SETFLAGS, &info->f_fflags) >= 0) {
@@ -123,7 +171,7 @@ set_fflags(info)
 				oldflags &= SF_MASK;
 				flags	 |= oldflags;
 				if (ioctl(f, EXT2_IOC_SETFLAGS, &flags) >= 0)
-					err = FALSE;	
+					err = FALSE;
 			}
 		}
 		close(f);
@@ -142,6 +190,7 @@ LOCAL struct {
 	Ulong	flag;
 } flagnames[] = {
 	/* shorter names per flag first, all prefixed by "no" */
+	/* Super user settable flags first */
 #ifdef	SF_APPEND
 	{ "sappnd",		SF_APPEND },
 	{ "sappend",		SF_APPEND },
@@ -173,8 +222,13 @@ LOCAL struct {
 	{ "sunlink",		SF_NOUNLINK },
 #endif
 
+#ifdef	EXT3_JOURNAL_DATA_FL			/* 'j' */
+	{ "journal-data",	EXT3_JOURNAL_DATA_FL },
+#endif
+
 /*--------------------------------------------------------------------------*/
 
+	/* The following flags may be set without being super user. */
 #ifdef	UF_APPEND
 	{ "uappnd",		UF_APPEND },
 	{ "uappend",		UF_APPEND },
@@ -223,7 +277,7 @@ LOCAL struct {
 #endif
 	{ NULL,			0 }
 };
-#define nflagnames	((sizeof(flagnames) / sizeof(flagnames[0])) -1)
+#define	nflagnames	((sizeof (flagnames) / sizeof (flagnames[0])) -1)
 
 /*
  * With 32 bits for flags and 512 bytes for the text buffer any name

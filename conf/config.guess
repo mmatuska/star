@@ -531,11 +531,17 @@ EOF
     p*:CYGWIN*:*)
 	echo powerpcle-unknown-cygwin
 	exit 0 ;;
+    x86:Interix*:3*)
+	echo i586-pc-interix3
+	exit 0 ;;
     prep*:SunOS:5.*:*)
 	echo powerpcle-unknown-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
 	exit 0 ;;
     *:GNU:*:*)
 	echo `echo ${UNAME_MACHINE}|sed -e 's,[-/].*$,,'`-unknown-gnu`echo ${UNAME_RELEASE}|sed -e 's,/.*$,,'`
+	exit 0 ;;
+    s390:Linux:*:* | s390x:Linux:*:*)
+	echo ${UNAME_MACHINE}-ibm-linux
 	exit 0 ;;
     *:Linux:*:*)
 	# uname on the ARM produces all sorts of strangeness, and we need to
@@ -651,7 +657,7 @@ main(argc, argv)
      int argc;
      char *argv[];
 {
-#ifdef __ELF__
+#if defined __ELF__ || defined __SUNPRO_C
 # ifdef __GLIBC__
 #  if __GLIBC__ >= 2
     printf ("%s-${VENDOR}-linux-gnu\n", argv[1]);
@@ -690,6 +696,10 @@ EOF
 		echo ${UNAME_MACHINE}-pc-sysv${UNAME_RELEASE}
 	fi
 	exit 0 ;;
+    i?86:MS-DOS:5:50)
+    	# DJGPP v2
+	echo ${UNAME_MACHINE}-pc-msdos
+        exit 0 ;;
     i?86:*:5:*)
         # Fixed at (any) Pentium or better
         UNAME_MACHINE=i586
@@ -821,6 +831,9 @@ EOF
 	exit 0 ;;
     "Power Macintosh":"Darwin":*)
 	echo powerpc-apple-macosx${UNAME_RELEASE}
+	exit 0 ;;
+    "i386":"Darwin":*)
+	echo i386-apple-macosx${UNAME_RELEASE}
 	exit 0 ;;
     *:OS/2:*:*)
         echo "i386-pc-os2_emx"

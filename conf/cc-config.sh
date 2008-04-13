@@ -1,28 +1,85 @@
 #!/bin/sh
-# @(#)cc-config.sh	1.3 02/08/16 Copyright 2002 J. Schilling
+# @(#)cc-config.sh	1.8 07/02/13 Copyright 2002 J. Schilling
 ###########################################################################
 # Written 2002 by J. Schilling
 ###########################################################################
 # Configuration script called to verify system default C-compiler.
 # It tries to fall back to GCC if the system default could not be found.
 ###########################################################################
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
-# any later version.
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# See the file CDDL.Schily.txt in this distribution for details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING.  If not, write to
-# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file CDDL.Schily.txt from this distribution.
 ###########################################################################
 
+#
+# Usage:
+#	sh ./conf/cc-config.sh cc default-cc incs/Dcc.<platform>
+#
+if [ $# -lt 3 ]; then
+	echo 'Usage: sh ./conf/cc-config.sh [-echo] <cc> <default-cc> incs/Dcc.<platform>'
+	echo 'Options:'
+	echo '	-echo	Do not write into incs/Dcc.<platform> but echo to stdout'
+	echo
+	echo 'The "cc"         parameter is the name of the preferred C-compiler'
+	echo 'The "default-cc" parameter is the name of the default   C-compiler'
+	exit 1
+fi
+
+echo=echo
+if [ ".$1" = .-echo ]; then
+	echo=:
+	shift
+fi
+
+#
+# Try to make sure all error messages are in english.
+#
+LC_ALL=C
+LANG=C
+
 CC=$1
-echo "Trying to find $CC"
+ARG_CC=$1
+DEF_CC=$2
+PLATFORM_FILE=$3
+${echo} "Trying to find $CC"
+
+#
+# Check if we are on SunOS-5.x and /usr/ucb is in PATH before /opt/SUNWspro/bin
+# /usr/ucb/cc will not work correctly to compile things on Solaris.
+#
+# This check will also catch the case where no Sun C-compiler is installed and
+# calling cc results in the message:
+#	/usr/ucb/cc:  language optional software package not installed
+#
+xos=`echo "$PLATFORM_FILE" | grep sunos5 `
+if [ -n "$xos" ]; then
+	#
+	# On Solaris, the type builtin is working.
+	#
+	xcc=`type "$CC" | grep '/usr/ucb/*cc' `
+	if [ -n "$xcc" ]; then
+		#
+		# We did find /usr/ucb/cc
+		#
+		echo											1>&2
+		echo 'Warning:' "$xcc"									1>&2
+		echo '         You should not have "/usr/ucb" in your PATH if you like to compile.'	1>&2
+		echo '         "/usr/ucb/cc" is not working correclty on Solaris.'			1>&2
+		echo '         If you did install a C-compiler in /opt/SUNWspro/bin, abort'		1>&2
+		echo '         fix your PATH and start again.'						1>&2
+		echo '         Otherwise GCC will be used.'						1>&2
+		echo											1>&2
+		sleep 60
+		CC=do-no-use-ucb-cc
+	fi
+fi
+
 #
 # There are old shells that don't support the 'type' builtin.
 # For this reason it is not a simple task to find out whether
@@ -30,11 +87,25 @@ echo "Trying to find $CC"
 #
 # First try to run the default C-compiler without args
 #
-$CC > /dev/null 2>&1
+eval "$CC > /dev/null 2>&1" 2> /dev/null
 if [ $? = 0 ]; then
-	echo "Found $CC"
-	echo "Creating empty '$2'"
-	:> $2
+	${echo} "Found $CC"
+	if [  ".$CC" = ".$DEF_CC" ]; then
+		${echo} "Creating empty '$PLATFORM_FILE', using $DEF_CC as default compiler"
+		if [ ${echo} = echo ]; then
+			:> $PLATFORM_FILE
+		else
+			echo "$DEF_CC"
+		fi
+	else
+		${echo} "Making $CC the default compiler in '$PLATFORM_FILE'"
+		if [ ${echo} = echo ]; then
+			:> $PLATFORM_FILE
+			echo DEFCCOM=$CC > $PLATFORM_FILE
+		else
+			echo "$CC"
+		fi
+	fi
 	exit
 fi
 
@@ -46,9 +117,9 @@ fi
 # "cc: not found". All shells I tested (except ksh) send this message to
 # the stderr stream the shell itself is attached to and only redirects the
 # output from the command. As there may no output if there is no binary,
-# this prooves the existence of the default compiler.
+# this proves the existence of the default compiler.
 #
-ccout=`$CC 2>&1`
+ccout=`eval "$CC 2>&1" 2>/dev/null`
 ret=$?
 
 nf=`echo "$ccout" | grep 'not found' `
@@ -56,49 +127,83 @@ if [ $ret = 127 -a -n "$nf" ]; then
 	#
 	# ksh redirects even the error message from the shell, but we
 	# see that there is no executable because the exit code is 127
+	# we detect "command not found" if exit code is 127 and
+	# the message contains 'not found'
 	#
 	ccout=""
 fi
 
 if [ -n "$ccout" ]; then
-	echo "Found $CC"
-	echo "Creating empty '$2'"
-	:> $2
+	${echo} "Found $CC"
+	if [  ".$CC" = ".$DEF_CC" ]; then
+		${echo} "Creating empty '$PLATFORM_FILE', using $DEF_CC as default compiler"
+		if [ ${echo} = echo ]; then
+			:> $PLATFORM_FILE
+		else
+			echo "$DEF_CC"
+		fi
+	else
+		${echo} "Making $CC the default compiler in '$PLATFORM_FILE'"
+		if [ ${echo} = echo ]; then
+			:> $PLATFORM_FILE
+			echo DEFCCOM=$CC > $PLATFORM_FILE
+		else
+			echo "$CC"
+		fi
+	fi
 	exit
 fi
 
 #
-# If the current default is gcc, try cc.
-# If the current default is cc, try gcc.
+# If the current default is gcc or anything != cc, try cc.
+# Last resort: try gcc.
 #
-if [ ".$CC" = ".gcc" ]; then
+if [ ".$CC" = ".gcc" -o ".$CC" != ".cc" ]; then
 	XCC=cc
-	echo 'Trying to find cc'
-	ccout=`cc -c tt.$$.c 2>&1`
+	${echo} 'Trying to find cc'
+	ccout=`eval "$XCC -c tt.$$.c 2>&1" 2> /dev/null`
 	ret=$?
 	nf=`echo "$ccout" | grep 'not found' `
 	if [ $ret = 127 -a -n "$nf" ]; then
 		#
 		# ksh redirects even the error message from the shell, but we
 		# see that there is no executable because the exit code is 127
+		# we detect "command not found" if exit code is 127 and
+		# the message contains 'not found'
 		#
 		ccout=""
 	fi
-	if [ -n "$ccout" ]; then
-		CC=cc
+	xos=`echo "$PLATFORM_FILE" | grep sunos5 `
+	if [ -n "$xos" ]; then
+		xcc=`type "$XCC" | grep '/usr/ucb/*cc' `
+		if [ -n "$xcc" -a  -n "$ccout" ]; then
+			echo "Cannot use $XCC because $XCC is /usr/ucb/cc"
+		fi
+		if [ -z "$xcc" -a  -n "$ccout" ]; then
+			CC="$XCC"
+		fi
 	fi
-else
+fi
+if [ ".$CC" = ".$ARG_CC" ]; then
 	XCC=gcc
-	echo 'Trying to find GCC'
-	gcc -v 2> /dev/null && CC=gcc
+	${echo} 'Trying to find GCC'
+	eval "gcc -v" 2> /dev/null && CC=gcc
 fi
 
-if [ ".$CC" = ".$1" ]; then
-	echo "$XCC not found, keeping current global default"
-	echo "Creating empty '$2'"
-	:> $2
+if [ ".$CC" = ".$DEF_CC" ]; then
+	${echo} "$XCC not found, keeping current global default"
+	${echo} "Creating empty '$PLATFORM_FILE', using $DEF_CC as default compiler"
+	if [ ${echo} = echo ]; then
+		:> $PLATFORM_FILE
+	else
+		echo "$DEF_CC"
+	fi
 else
-	echo "Found $CC"
-	echo "Making $CC the default compiler in '$2'"
-	echo DEFCCOM=$CC > $2
+	${echo} "Found $CC"
+	${echo} "Making $CC the default compiler in '$PLATFORM_FILE'"
+	if [ ${echo} = echo ]; then
+		echo DEFCCOM=$CC > $PLATFORM_FILE
+	else
+		echo "$CC"
+	fi
 fi

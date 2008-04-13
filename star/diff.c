@@ -1,42 +1,46 @@
-/* @(#)diff.c	1.41 02/05/17 Copyright 1993 J. Schilling */
+/* @(#)diff.c	1.82 08/04/06 Copyright 1993-2008 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)diff.c	1.41 02/05/17 Copyright 1993 J. Schilling";
+	"@(#)diff.c	1.82 08/04/06 Copyright 1993-2008 J. Schilling";
 #endif
 /*
  *	List differences between a (tape) archive and
  *	the filesystem
  *
- *	Copyright (c) 1993 J. Schilling
+ *	Copyright (c) 1993-2008 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>
-#include <standard.h>
+#include <schily/stdlib.h>
+#include <schily/unistd.h>
+#include <schily/standard.h>
+#include <schily/stdlib.h>
+#include <schily/string.h>
+#include <schily/fcntl.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
 #include "diff.h"
-#include <schily.h>
-#include <dirdefs.h>	/*XXX Wegen S_IFLNK */
+#include <schily/schily.h>
+#include <schily/dirent.h>	/* XXX Wegen S_IFLNK */
 #include "starsubs.h"
+#include "checkerr.h"
+#include <schily/fetchdir.h>
+#ifdef	USE_FIND
+#include <schily/walk.h>
+#endif
 
 typedef	struct {
 	FILE	*cmp_file;
@@ -61,22 +65,47 @@ extern	int	verbose;
 extern	BOOL	tpath;
 extern	BOOL	interactive;
 
+#ifdef USE_ACL
+extern	BOOL	doacl;
+#else
+#define	doacl	FALSE
+#endif
+#ifdef USE_XATTR
+extern	BOOL	doxattr;
+#else
+#define	doxattr	FALSE
+#endif
+#ifdef USE_FFLAGS
+extern	BOOL	dofflags;
+#endif
+
+#ifdef	USE_FIND
+extern	BOOL	dofind;
+#endif
+
 EXPORT	void	diff		__PR((void));
-LOCAL	void	diff_tcb	__PR((FINFO * info));
-LOCAL	int	cmp_func	__PR((cmp_t * cmp, char* p, int amount));
-LOCAL	BOOL	cmp_file	__PR((FINFO * info));
-EXPORT	void	prdiffopts	__PR((FILE * f, char* label, int flags));
-LOCAL	void	prdopt		__PR((FILE * f, char* name, int printed));
+LOCAL	void	diff_tcb	__PR((FINFO *info));
+LOCAL	BOOL	linkeql		__PR((char *n1, char *n2));
+LOCAL	BOOL	patheql		__PR((char *n1, char *n2));
+LOCAL	BOOL	dirdiffs	__PR((FILE *f, FINFO *info));
+LOCAL	int	cmp_func	__PR((cmp_t *cmp, char *p, int amount));
+LOCAL	BOOL	cmp_file	__PR((FINFO *info));
+EXPORT	void	prdiffopts	__PR((FILE *f, char *label, int flags));
+LOCAL	void	prdopt		__PR((FILE *f, char *name, int printed));
 
 EXPORT void
 diff()
 {
+#ifdef	USE_FIND
+extern	struct WALK walkstate;
+#endif
 		FINFO	finfo;
 		TCB	tb;
 		char	name[PATH_MAX+1];
+		char	lname[PATH_MAX+1];
 	register TCB 	*ptb = &tb;
 
-	fillbytes((char *)&finfo, sizeof(finfo), '\0');
+	fillbytes((char *)&finfo, sizeof (finfo), '\0');
 
 	finfo.f_tcb = ptb;
 
@@ -91,23 +120,48 @@ diff()
 	if (!no_stats)
 		prdiffopts(stderr, "diffopts=", diffopts);
 
+#ifdef	USE_FIND
+	if (dofind) {
+		walkopen(&walkstate);
+		walkgethome(&walkstate);	/* Needed in case we chdir */
+	}
+#endif
 	for (;;) {
 		finfo.f_name = name;
+		finfo.f_lname = lname;
 		if (tcb_to_info(ptb, &finfo) == EOF)
-			return;
-		if (listfile) {
-			if (hash_lookup(finfo.f_name))
-				diff_tcb(&finfo);
-			else
-				void_file(&finfo);
-		} else if (!havepat || match(finfo.f_name)) {
-			diff_tcb(&finfo);
-		} else {
+			break;
+#ifdef	USE_FIND
+		if (dofind && !findinfo(&finfo)) {
 			void_file(&finfo);
+			goto cont;
 		}
+#endif
+
+		if (listfile && !hash_lookup(finfo.f_name)) {
+			void_file(&finfo);
+			goto cont;
+		}
+		if (hash_xlookup(finfo.f_name)) {
+			void_file(&finfo);
+			goto cont;
+		}
+		if (havepat && !match(finfo.f_name)) {
+			void_file(&finfo);
+			goto cont;
+		}
+		diff_tcb(&finfo);
+	cont:
 		if (get_tcb(ptb) == EOF)
 			break;
 	}
+#ifdef	USE_FIND
+	if (dofind) {
+		walkhome(&walkstate);
+		walkclose(&walkstate);
+		free(walkstate.twprivate);
+	}
+#endif
 }
 
 LOCAL void
@@ -120,7 +174,7 @@ diff_tcb(info)
 		FINFO	linfo;
 		FILE	*f;
 		int	diffs = 0;
-		BOOL	do_void;
+		BOOL	do_void = FALSE;	/* Make GCC happy */
 
 	f = tarf == stdout ? stderr : stdout; /* XXX FILE *vpr is the same */
 
@@ -128,20 +182,38 @@ diff_tcb(info)
 	finfo.f_lnamelen = 0;
 
 	if (!abs_path &&	/* XXX VVV siehe skip_slash() */
-	    (info->f_name[0] == '/' /*|| info->f_lname[0] == '/'*/))
+	    (info->f_name[0] == '/' /* || info->f_lname[0] == '/' */))
 		skip_slash(info);
 
 	if (is_volhdr(info)) {
 		void_file(info);
 		return;
 	}
-	if (!getinfo(info->f_name, &finfo)) {
-		xstats.s_staterrs++;
-		errmsg("Cannot stat '%s'.\n", info->f_name);
+	/*
+	 * Use getinfo() if we like to compare ACLs/xattr too.
+	 */
+	if (((doacl || doxattr)? !getinfo(info->f_name, &finfo):
+				!_getinfo(info->f_name, &finfo))) {
+		if (!errhidden(E_STAT, info->f_name)) {
+			if (!errwarnonly(E_STAT, info->f_name))
+				xstats.s_staterrs++;
+			errmsg("Cannot stat '%s'.\n", info->f_name);
+			(void) errabort(E_STAT, info->f_name, TRUE);
+		}
 		void_file(info);
 		return;
 	}
-	fillbytes(&tb, sizeof(TCB), '\0');
+	/*
+	 * We cannot compare the link count if this is a CPIO archive
+	 * and the link count is < 2. Even if the link count is >= 2, it
+	 * may not be exact.
+	 */
+	if ((props.pr_flags & PR_CPIO) && info->f_nlink < 2)
+		info->f_nlink = 0;
+	if (info->f_nlink == 0)		/* If archive has no link counts    */
+		finfo.f_nlink = 0;	/* always suppress nlink in listing. */
+
+	fillbytes(&tb, sizeof (TCB), '\0');
 
 /*XXX	name_to_tcb ist hier nicht mehr nötig !! */
 /*XXX	finfo.f_namelen = strlen(finfo.f_name);*/
@@ -151,14 +223,21 @@ diff_tcb(info)
 
 	if ((diffopts & D_PERM) &&
 			(info->f_mode & 07777) != (finfo.f_mode & 07777)) {
-		diffs |= D_PERM;
+		if ((diffopts & D_SYMPERM) != 0 || !is_symlink(&finfo))
+			diffs |= D_PERM;
 	/*
 	 * XXX Diff ACLs not yet implemented.
 	 */
 
 /* XXX hat ustar modes incl. filetype ???? */
-/*error("%o %o\n", info->f_mode, finfo.f_mode);*/
+/*error("%llo %llo\n", (Ullong)info->f_mode, (Ullong)finfo.f_mode);*/
 	}
+
+	if ((diffopts & D_NLINK) && info->f_nlink > 0 &&
+			info->f_nlink != finfo.f_nlink) {
+		diffs |= D_NLINK;
+	}
+
 	if ((diffopts & D_UID) && info->f_uid != finfo.f_uid) {
 		diffs |= D_UID;
 	}
@@ -178,13 +257,15 @@ diff_tcb(info)
 	 * XXX hier kann es bei ustar/cpio inkompatibel werden!
 	 *
 	 * Z.Zt. hat nur das STAR Format auch bei Hardlinks den Filetype.
-	 *       Soll man die teilweise bei fehlerhaften USTAR
-	 *       Implementierungen vorhandenen Filetype Bits verwenden?
+	 *	Soll man die teilweise bei fehlerhaften USTAR
+	 *	Implementierungen vorhandenen Filetype Bits verwenden?
+	 *
+	 * XXX CPIO EXUSTAR, ... haben auch den Filetyp.
 	 */
 	if ((diffopts & D_TYPE) &&
-			(info->f_filetype != finfo.f_filetype ||
-			 (is_special(info) && info->f_type != finfo.f_type))
-			 && (!fis_link(info) || H_TYPE(hdrtype) == H_STAR)) {
+	    (info->f_filetype != finfo.f_filetype ||
+	    (is_special(info) && info->f_type != finfo.f_type)) &&
+	    (!fis_link(info) || H_TYPE(hdrtype) == H_STAR)) {
 
 		if (fis_meta(info) && is_file(&finfo)) {
 			/* EMPTY */
@@ -192,8 +273,9 @@ diff_tcb(info)
 		} else {
 			if (debug) {
 				fprintf(f,
-				"%s: different filetype  %lo != %lo\n",
-				info->f_name, info->f_type, finfo.f_type);
+				"%s: different filetype  %llo != %llo\n",
+				info->f_name,
+				(Ullong)info->f_type, (Ullong)finfo.f_type);
 			}
 			diffs |= D_TYPE;
 		}
@@ -213,13 +295,15 @@ diff_tcb(info)
 #endif
 	}
 	if ((diffopts & D_MTIME) != 0) {
-		if (info->f_mtime != finfo.f_mtime)
-			diffs |= D_MTIME;
+		if ((diffopts & D_LMTIME) != 0 || !is_symlink(&finfo)) {
+			if (info->f_mtime != finfo.f_mtime)
+				diffs |= D_MTIME;
 #ifdef	should_we
-		if ((info->f_xflags & XF_MTIME) && (finfo.f_flags & F_NSECS) &&
-		    info->f_mnsec != finfo.f_mnsec)
-			diffs |= D_MTIME;
+			if ((info->f_xflags & XF_MTIME) && (finfo.f_flags & F_NSECS) &&
+			    info->f_mnsec != finfo.f_mnsec)
+				diffs |= D_MTIME;
 #endif
+		}
 	}
 	if ((diffopts & D_CTIME) != 0) {
 		if (info->f_ctime != finfo.f_ctime)
@@ -231,10 +315,20 @@ diff_tcb(info)
 #endif
 	}
 
+	if ((diffopts & D_DIR) && is_dir(info) && info->f_dir &&
+	    is_dir(&finfo)) {
+		if (dirdiffs(f, info))
+			diffs |= D_DIR;
+	}
+
 	if ((diffopts & D_HLINK) && is_link(info)) {
-		if (!getinfo(info->f_lname, &linfo)) {
-			xstats.s_staterrs++;
-			errmsg("Cannot stat '%s'.\n", info->f_lname);
+		if (!_getinfo(info->f_lname, &linfo)) {
+			if (!errhidden(E_STAT, info->f_lname)) {
+				if (!errwarnonly(E_STAT, info->f_lname))
+					xstats.s_staterrs++;
+				errmsg("Cannot stat '%s'.\n", info->f_lname);
+				(void) errabort(E_STAT, info->f_lname, TRUE);
+			}
 			linfo.f_ino = (ino_t)0;
 		}
 		if ((finfo.f_ino != linfo.f_ino) ||
@@ -247,29 +341,64 @@ diff_tcb(info)
 		}
 	}
 #ifdef	S_IFLNK
-	if (((diffopts & D_SLINK) || verbose) && is_symlink(&finfo)) {
-		if (read_symlink(info->f_name, &finfo, &tb)) {
+	if (((diffopts & (D_SLINK|D_SLPATH)) || verbose) && is_symlink(&finfo)) {
+		if (read_symlink(info->f_name, info->f_name, &finfo, &tb)) {
 			if ((diffopts & D_SLINK) && is_symlink(info) &&
-			    !streql(info->f_lname, finfo.f_lname)) {
+			    !linkeql(info->f_lname, finfo.f_lname)) {
 				diffs |= D_SLINK;
+			}
+			if ((diffopts & D_SLPATH) && is_symlink(info) &&
+			    !streql(info->f_lname, finfo.f_lname)) {
+				diffs |= D_SLPATH;
 			}
 		}
 	}
 #endif
 
-	if ((diffopts & D_SPARS) &&
-			is_sparse(info) != ((finfo.f_flags & F_SPARSE) != 0)) {
-		if (debug || verbose) {
-			fprintf(f, "%s: %s not sparse\n",
-				info->f_name,
-				is_sparse(info) ? "target":"source");
+	/*
+	 * Only plain files may have holes, so only open plain files.
+	 * We cannot compare the "sparseness" of hardlinks that do not
+	 * include data in the archive.
+	 */
+	if (diffopts & D_SPARS && is_a_file(&finfo) &&
+	    !(is_link(info) && info->f_size == 0)) {
+		/*
+		 * This is not the right place to check for SEEK_HOLE bit it is
+		 * the only way to avoid opening the file in case it does not
+		 * make sense.
+		 */
+#if	defined(SEEK_HOLE) && defined(SEEK_DATA)
+		int	fd;
+
+#ifndef	O_NDELAY
+#define	O_NDELAY	0
+#define	NDELAY
+#endif
+		if ((fd = open(finfo.f_name, O_RDONLY|O_NDELAY)) >= 0) {
+			if (sparse_file(&fd, &finfo))
+				finfo.f_flags |= F_SPARSE;
+			else
+				finfo.f_flags &= ~F_SPARSE;
+			close(fd);
 		}
-		diffs |= D_SPARS;
+#ifdef	NDELAY
+#undef	O_NDELAY
+#endif
+#endif
+		if (is_sparse(info) != ((finfo.f_flags & F_SPARSE) != 0)) {
+			if (debug || verbose) {
+				fprintf(f, "%s: %s not sparse\n",
+					info->f_name,
+					is_sparse(info) ? "target":"source");
+			}
+			diffs |= D_SPARS;
+		}
 	}
 
-	if ((diffopts & D_SIZE) && !is_link(info)
-					&& is_file(info) && is_file(&finfo)
-					&& info->f_size != finfo.f_size) {
+	if ((diffopts & D_SIZE) && !is_link(info) &&
+	    is_file(info) && is_file(&finfo) &&
+	    info->f_size != finfo.f_size) {
+
 		diffs |= D_SIZE;
 	}
 	/*
@@ -277,23 +406,87 @@ diff_tcb(info)
 	 * Rdev is usually 0 for other special file types but at least
 	 * the SunOS/Solaris 'tmpfs' has random values in rdev.
 	 */
-	if ((diffopts & D_RDEV) && is_dev(info) && is_dev(&finfo)
-					&& info->f_rdev != finfo.f_rdev) {
+	if ((diffopts & D_RDEV) && is_dev(info) && is_dev(&finfo) &&
+	    info->f_rdev != finfo.f_rdev) {
 		diffs |= D_RDEV;
 	}
-	if ((diffopts & D_DATA) && !is_meta(info) && is_file(info) && is_file(&finfo)
-					/* avoid permission denied error */
-					&& info->f_size > (off_t)0
-					&& info->f_size == finfo.f_size) {
-		if (!cmp_file(info)) {
+
+	/*
+	 * XXX Wann geht das evt. mit Hardlinks CPIO, neues Tar....
+	 */
+	if ((diffopts & D_DATA) && !is_meta(info) &&
+	    (info->f_rsize > (off_t)0 || !is_link(info)) &&
+	    is_file(info) && is_file(&finfo)) {
+
+		    /* avoid permission denied error */
+		if (info->f_size > (off_t)0 &&
+		    info->f_size == finfo.f_size) {
+			if (!cmp_file(info)) {
+				diffs |= D_DATA;
+			}
+			do_void = FALSE;
+		} else if (info->f_size != finfo.f_size) {
 			diffs |= D_DATA;
+			do_void = TRUE;
 		}
-		do_void = FALSE;
 	} else {
 		do_void = TRUE;
 	}
-	
+
+#ifdef USE_ACL
+	if (doacl && (diffopts & D_ACL)) {
+		if ((info->f_xflags & XF_ACL_ACCESS) !=
+		    (finfo.f_xflags & XF_ACL_ACCESS)) {
+			diffs |= D_ACL;
+		} else if ((info->f_xflags & XF_ACL_ACCESS) != 0) {
+			if (strcmp(info->f_acl_access, finfo.f_acl_access))
+				diffs |= D_ACL;
+		}
+		if ((info->f_xflags & XF_ACL_DEFAULT) !=
+		    (finfo.f_xflags & XF_ACL_DEFAULT)) {
+			diffs |= D_ACL;
+		} else if ((info->f_xflags & XF_ACL_DEFAULT) != 0) {
+			if (strcmp(info->f_acl_default, finfo.f_acl_default))
+				diffs |= D_ACL;
+		}
+	}
+#endif
+
+#ifdef USE_XATTR
+	if (doxattr && (diffopts & D_XATTR)) {
+		if ((info->f_xflags & XF_XATTR) !=
+		    (finfo.f_xflags & XF_XATTR)) {
+			diffs |= D_XATTR;
+		} else if ((info->f_xflags & XF_XATTR) != 0) {
+			register star_xattr_t	*x1 = info->f_xattr;
+			register star_xattr_t	*x2 = finfo.f_xattr;
+
+			for (; x1->name && x2->name; x1++, x2++) {
+				if (strcmp(x1->name, x2->name))
+					break;
+				if (x1->value_len != x2->value_len)
+					break;
+				if (memcmp(x1->value, x2->value, x2->value_len))
+					break;
+			}
+			if (x1->name || x2->name)
+				diffs |= D_XATTR;
+		}
+	}
+#endif
+
+#ifdef	USE_FFLAGS
+	if (dofflags && (diffopts & D_FFLAGS)) {
+		if (info->f_fflags != finfo.f_fflags)
+			diffs |= D_FFLAGS;
+	}
+#endif
+
 	if (diffs) {
+		if (errhidden(E_DIFF, info->f_name))
+			goto out;
+/*		if (!errwarnonly(E_DIFF, info->f_name))*/
+
 		if (tpath) {
 			fprintf(f, "%s\n", info->f_name);
 		} else {
@@ -306,8 +499,163 @@ diff_tcb(info)
 		list_file(info);
 		list_file(&finfo);
 	}
+	if (diffs)
+		errabort(E_DIFF, info->f_name, TRUE);
+out:
 	if (do_void)
 		void_file(info);
+}
+
+LOCAL BOOL
+linkeql(n1, n2)
+	register char	*n1;
+	register char	*n2;
+{
+	FINFO	l1info;
+	FINFO	l2info;
+extern	BOOL	follow;
+	BOOL	ofollow = follow;
+
+	/*
+	 * If the names are identical, return TRUE
+	 */
+	if (streql(n1, n2))
+		return (TRUE);
+	/*
+	 * Not equal if only one of both names is an abs. path name.
+	 */
+	if (*n1 != *n2 && (*n1 == '/' || *n2 == '/'))
+		return (FALSE);
+	/*
+	 * If the names point to the same inode, return TRUE
+	 */
+	follow = TRUE;
+	if (_getinfo(n1, &l1info) && _getinfo(n2, &l2info)) {
+		follow = ofollow;
+		if (l1info.f_dev == l2info.f_dev &&
+		    l1info.f_ino == l2info.f_ino) {
+			return (TRUE);
+		} else {
+			return (FALSE);
+		}
+	}
+	follow = ofollow;
+
+	return (patheql(n1, n2));
+}
+
+LOCAL BOOL
+patheql(n1, n2)
+	register char	*n1;
+	register char	*n2;
+{
+	while (n1[0] == '.' && n1[1] == '/') {
+		n1 += 2;
+		while (n1[0] == '/')
+			n1++;
+	}
+	while (n2[0] == '.' && n2[1] == '/') {
+		n2 += 2;
+		while (n2[0] == '/')
+			n2++;
+	}
+	for (; n1[0] != '\0' && n2[0]  != '\0'; n1++, n2++) {
+		if (n1[0] == '/') {
+			while (n1[1] == '.' && n1[2] == '/') {
+				n1 += 2;
+				while (n1[1] == '/')
+					n1++;
+			}
+		}
+		if (n2[0] == '/') {
+			while (n2[1] == '.' && n2[2] == '/') {
+				n2 += 2;
+				while (n2[1] == '/')
+					n2++;
+			}
+		}
+		if (n1[0] != n2[0])
+			break;
+	}
+	return (n1[0] == n2[0]);
+}
+
+LOCAL BOOL
+dirdiffs(f, info)
+	FILE	*f;
+	FINFO	*info;
+{
+	register char	**ep1;	   /* Directory entry pointer array (arch) */
+	register char	**ep2 = 0; /* Directory entry pointer array (disk) */
+	register char	*dp2;	   /* Directory names string from disk	   */
+	register char	**oa = 0;  /* Only in arch pointer array	   */
+	register char	**od = 0;  /* Only on disk pointer array	   */
+	register int	i;
+		int	ents1 = -1;
+		int	ents2;
+		int	dlen = 0;
+		int	alen = 0;
+		BOOL	diffs = FALSE;
+
+	/*
+	 * Old archives had only one nul at the end
+	 * xheader.c already increments info->f_dirlen in this case
+	 * but a newline may appear to be the last char.
+	 * Note that we receicve the space from the xheader
+	 * extract buffer.
+	 */
+	i = info->f_dirlen;
+	if (info->f_dir[i-1] != '\0')
+		info->f_dir[i-1] = '\0';	/* Kill '\n' */
+
+	ep1 = sortdir(info->f_dir, &ents1);	/* from archive */
+	dp2 = fetchdir(info->f_name, &ents2, 0, NULL);
+	if (dp2 == NULL) {
+		diffs = TRUE;
+		errmsg("Cannot read dir '%s'.\n", info->f_name);
+		goto no_dircmp;
+	}
+	ep2 = sortdir(dp2, &ents2);		/* from disk */
+
+	if (ents1 != ents2) {
+		if (debug || verbose > 2) {
+			fprintf(f, "Archive ents: %d Disk ents: %d '%s'\n",
+					ents1, ents2, info->f_name);
+		}
+		diffs = TRUE;
+	}
+
+	if (cmpdir(ents1, ents2, ep1, ep2, NULL, NULL, &alen, &dlen) > 0)
+		diffs = TRUE;
+
+	oa = __malloc(alen * sizeof (char *), "dir diff array");
+	od = __malloc(dlen * sizeof (char *), "dir diff array");
+	cmpdir(ents1, ents2, ep1, ep2, oa, od, &alen, &dlen);
+
+	if (debug || verbose > 1) {
+		for (i = 0; i < dlen; i++) {
+			fprintf(f, "Only on disk '%s': '%s'\n",
+					info->f_name, od[i] + 1);
+		}
+		for (i = 0; i < alen; i++) {
+			fprintf(f, "Only in archive '%s': '%s'\n",
+					info->f_name, oa[i] + 1);
+		}
+	}
+
+no_dircmp:
+	if (dp2)
+		free(dp2);
+	if (ep1)
+		free(ep1);
+	if (ep2)
+		free(ep2);
+	if (od)
+		free(od);
+	if (oa)
+		free(oa);
+
+	return (diffs);
 }
 
 #define	vp_cmp_func	((int(*)__PR((void *, char *, int)))cmp_func)
@@ -316,7 +664,7 @@ LOCAL int
 cmp_func(cmp, p, amount)
 	register cmp_t	*cmp;
 	register char	*p;
-		 int	amount;
+		int	amount;
 {
 	register int	cnt;
 
@@ -358,8 +706,12 @@ cmp_file(info)
 	}
 
 	if ((f = fileopen(info->f_name, "rub")) == (FILE *)NULL) {
-		xstats.s_openerrs++;
-		errmsg("Cannot open '%s'.\n", info->f_name);
+		if (!errhidden(E_OPEN, info->f_name)) {
+			if (!errwarnonly(E_OPEN, info->f_name))
+				xstats.s_openerrs++;
+			errmsg("Cannot open '%s'.\n", info->f_name);
+			(void) errabort(E_OPEN, info->f_name, TRUE);
+		}
 		void_file(info);
 		return (FALSE);
 	} else
@@ -388,6 +740,8 @@ prdiffopts(f, label, flags)
 	fprintf(f, "%s", label);
 	if (flags & D_PERM)
 		prdopt(f, "perm", printed++);
+	if (flags & D_SYMPERM)
+		prdopt(f, "symperm", printed++);
 	/*
 	 * XXX Diff ACLs not yet implemented.
 	 */
@@ -414,6 +768,8 @@ prdiffopts(f, label, flags)
 		prdopt(f, "hardlink", printed++);
 	if (flags & D_SLINK)
 		prdopt(f, "symlink", printed++);
+	if (flags & D_SLPATH)
+		prdopt(f, "sympath", printed++);
 	if (flags & D_SPARS)
 		prdopt(f, "sparse", printed++);
 	if (flags & D_ATIME)
@@ -422,6 +778,22 @@ prdiffopts(f, label, flags)
 		prdopt(f, "mtime", printed++);
 	if (flags & D_CTIME)
 		prdopt(f, "ctime", printed++);
+	if (flags & D_LMTIME)
+		prdopt(f, "lmtime", printed++);
+	if (flags & D_DIR)
+		prdopt(f, "dir", printed++);
+#ifdef USE_ACL
+	if (flags & D_ACL)
+		prdopt(f, "acl", printed++);
+#endif
+#ifdef USE_XATTR
+	if (flags & D_XATTR)
+		prdopt(f, "xattr", printed++);
+#endif
+#ifdef	USE_FFLAGS
+	if (flags & D_FFLAGS)
+		prdopt(f, "fflags", printed++);
+#endif
 	fprintf(f, "\n");
 }
 

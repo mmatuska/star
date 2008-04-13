@@ -1,4 +1,4 @@
-#ident "@(#)rules.prg	1.12 00/03/19 "
+#ident "@(#)rules.prg	1.15 06/07/07 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -6,19 +6,17 @@
 # Generic rules for program names
 #
 ###########################################################################
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
-# any later version.
+# Copyright (c) J. Schilling
+###########################################################################
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# See the file CDDL.Schily.txt in this distribution for details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING.  If not, write to
-# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file CDDL.Schily.txt from this distribution.
 ###########################################################################
 #
 # This file holds definitions that are common to all architectures.
@@ -26,6 +24,12 @@
 # if the current architecture requires some changes.
 #
 ###########################################################################
+#
+# Use the object file extension from the autoconf run for '$o' (.o).
+# It may be overwritten my the compiler configuration rules cc-*.rul
+#
+###########################################################################
+o=		$(OBJEXT)
 
 CLEAN_FILES=	core err
 
@@ -80,9 +84,11 @@ CHMOD=		@echo "	==> SEETING PERMISSIONS ON \"$@\""; chmod
 CHOWN=		@echo "	==> SETTING OWNER ON \"$@\""; chown
 CHGRP=		@echo "	==> SETTING GROUP ON \"$@\""; chgrp
 AR=		@echo "	==> ARCHIVING  \"$@\""; ar
+ARFLAGS=	cr
 #YACC=		@echo "	==> YACCING \"$@\""; yacc
 #LEX=		@echo "	==> LEXING \"$@\""; lex
 #AWK=		@echo "	==> AWKING \"$@\""; awk
+RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; true
 MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; makedepend
 MKDEP_OUT=	-f -
 MKDIR=		@echo "	==> MAKING DIRECTORY \"$@\""; $(UMASK); mkdir

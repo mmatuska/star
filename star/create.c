@@ -1,53 +1,94 @@
-/* @(#)create.c	1.65 02/05/17 Copyright 1985, 1995, 2001 J. Schilling */
+/* @(#)create.c	1.125 08/04/06 Copyright 1985, 1995, 2001-2008 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)create.c	1.65 02/05/17 Copyright 1985, 1995, 2001 J. Schilling";
+	"@(#)create.c	1.125 08/04/06 Copyright 1985, 1995, 2001-2008 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 1995, 2001 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2008 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <errno.h>	/* XXX seterrno() is better JS */
-#include <standard.h>
-#include <stdxlib.h>
-#include <unixstd.h>
-#include <dirdefs.h>
-#include <strdefs.h>
-#include <schily.h>
+#include <schily/errno.h>	/* XXX seterrno() is better JS */
+#include <schily/standard.h>
+#include <schily/stdlib.h>
+#include <schily/unistd.h>
+#include <schily/dirent.h>
+#include <schily/string.h>
+#include <schily/schily.h>
+#include <schily/idcache.h>
+#include "restore.h"
+#ifdef	USE_FIND
+#include <schily/stat.h>	/* Fuer stat_to_info() in starsubs.h */
+#include <schily/walk.h>
+#include <schily/find.h>
+#endif
 #include "starsubs.h"
+#include "checkerr.h"
+#include "fifo.h"
+#include <schily/fetchdir.h>
+
+#ifdef	USE_ACL
+
+#ifdef	OWN_ACLTEXT
+#if	defined(UNIXWARE) && defined(HAVE_ACL)
+#	define	HAVE_SUN_ACL
+#	define	HAVE_ANY_ACL
+#endif
+#endif
+/*
+ * HAVE_ANY_ACL currently includes HAVE_POSIX_ACL and HAVE_SUN_ACL.
+ * This definition must be in sync with the definition in acl_unix.c
+ * As USE_ACL is used in star.h, we are not allowed to change the
+ * value of USE_ACL before we did include star.h or we may not include
+ * star.h at all.
+ * HAVE_HP_ACL is currently not included in HAVE_ANY_ACL.
+ */
+#	ifndef	HAVE_ANY_ACL
+#	undef	USE_ACL		/* Do not try to get or set ACLs */
+#	endif
+#endif
+
+struct pdirs {
+	struct pdirs	*p_last;
+	dev_t		p_dev;
+	ino_t		p_ino;
+};
+
+typedef	struct	lname {
+	struct	lname	*l_lnext;	/* Next in list */
+		char	l_lname[1];	/* actually longer */
+} LNAME;
 
 typedef	struct	links {
-	struct	links	*l_next;
-		ino_t	l_ino;
-		dev_t	l_dev;
-		long	l_nlink;
-		short	l_namlen;
-		Uchar	l_flags;
+	struct	links	*l_next;	/* Next in list */
+	struct	lname	*l_lnames;	/* Link names for SVr4 cpio */
+		ino_t	l_ino;		/* Inode number (st_ino) */
+		dev_t	l_dev;		/* Filesys number (st_dev) */
+		Ulong	l_linkno;	/* Link serial number in compl. list */
+		long	l_nlink;	/* Link count for file */
+		short	l_namlen;	/* strlen(l_name) */
+		Uchar	l_flags;	/* Flags (see below) */
 		char	l_name[1];	/* actually longer */
 } LINKS;
 
 #define	L_ISDIR		1		/* This entry refers to a directory  */
 #define	L_ISLDIR	2		/* A dir, hard linked to another dir */
+#define	L_DATA		4		/* SVr4 cpio file data encountered   */
 
 #define	L_HSIZE		256		/* must be a power of two */
 
@@ -58,6 +99,9 @@ LOCAL	LINKS	*links[L_HSIZE];
 extern	FILE	*vpr;
 extern	FILE	*listf;
 
+extern	BOOL	pkglist;
+extern	BOOL	multivol;
+extern	long	hdrtype;
 extern	BOOL	tape_isreg;
 extern	dev_t	tape_dev;
 extern	ino_t	tape_ino;
@@ -69,15 +113,21 @@ extern	char	*bigptr;
 extern	BOOL	havepat;
 extern	dev_t	curfs;
 extern	Ullong	maxsize;
-extern	time_t	Newer;
+extern	struct timeval	Newer;
 extern	Ullong	tsize;
 extern	BOOL	prblockno;
 extern	BOOL	debug;
+extern	int	dumplevel;
+extern	int	verbose;
 extern	BOOL	silent;
+extern	BOOL	readnull;
+extern	BOOL	cflag;
 extern	BOOL	uflag;
 extern	BOOL	nodir;
 extern	BOOL	acctime;
 extern	BOOL	dirmode;
+extern	BOOL	paxfollow;
+extern	BOOL	doacl;
 extern	BOOL	nodesc;
 extern	BOOL	nomount;
 extern	BOOL	interactive;
@@ -85,34 +135,60 @@ extern	BOOL	nospec;
 extern	int	Fflag;
 extern	BOOL	abs_path;
 extern	BOOL	nowarn;
+extern	BOOL	match_tree;
 extern	BOOL	sparse;
 extern	BOOL	Ctime;
 extern	BOOL	nodump;
 extern	BOOL	nullout;
+extern	BOOL	linkdata;
 extern	BOOL	link_dirs;
+extern	BOOL	dodump;
 extern	BOOL	dometa;
+extern	BOOL	dumpmeta;
+extern	BOOL	lowmem;
+extern	BOOL	do_subst;
 
 extern	int	intr;
 
+/*
+ * Variables that control overwriting the stat() struct members
+ * controlled by the pkglist= option.
+ */
+LOCAL	BOOL	statmod = FALSE;
+LOCAL	uid_t	statuid = _BAD_UID;
+LOCAL	gid_t	statgid = _BAD_GID;
+LOCAL	mode_t	statmode = _BAD_MODE;
+
 EXPORT	void	checklinks	__PR((void));
-LOCAL	BOOL	take_file	__PR((char* name, FINFO * info));
+LOCAL	int	take_file	__PR((char *name, FINFO *info));
 EXPORT	int	_fileopen	__PR((char *name, char *mode));
 EXPORT	int	_fileread	__PR((int *fp, void *buf, int len));
-EXPORT	void	create		__PR((char* name));
-LOCAL	void	createi		__PR((char* name, int namlen, FINFO * info));
+EXPORT	void	create		__PR((char *name, BOOL Hflag, BOOL forceadd));
+LOCAL	void	createi		__PR((char *sname, char *name, int namlen, FINFO *info, struct pdirs *last));
 EXPORT	void	createlist	__PR((void));
-EXPORT	BOOL	read_symlink	__PR((char* name, FINFO * info, TCB * ptb));
-LOCAL	BOOL	read_link	__PR((char* name, int namlen, FINFO * info,
-								TCB * ptb));
+LOCAL	BOOL	get_metainfo	__PR((char *line));
+EXPORT	BOOL	read_symlink	__PR((char *sname, char *name, FINFO *info, TCB *ptb));
+LOCAL	LINKS	*find_link	__PR((FINFO *info));
+EXPORT	BOOL	last_cpio_link	__PR((FINFO *info));
+EXPORT	BOOL	xcpio_link	__PR((FINFO *info));
+LOCAL	BOOL	acpio_link	__PR((FINFO *info));
+EXPORT	void	flushlinks	__PR((void));
+LOCAL	void	flush_link	__PR((LINKS *lp));
+EXPORT	BOOL	read_link	__PR((char *name, int namlen, FINFO *info,
+								TCB *ptb));
 LOCAL	int	nullread	__PR((void *vp, char *cp, int amt));
-EXPORT	void	put_file	__PR((int *fp, FINFO * info));
-EXPORT	void	cr_file		__PR((FINFO * info,
+EXPORT	void	put_file	__PR((int *fp, FINFO *info));
+EXPORT	void	cr_file		__PR((FINFO *info,
 					int (*)(void *, char *, int),
-					void *arg, int amt, char* text));
-LOCAL	void	put_dir		__PR((char* dname, int namlen, FINFO * info,
-								TCB * ptb));
-LOCAL	BOOL	checkdirexclude	__PR((char *name, int namlen, FINFO *info));
-EXPORT	BOOL	checkexclude	__PR((char *name, int namlen, FINFO *info));
+					void *arg, int amt, char *text));
+LOCAL	void	put_dir		__PR((char *sname, char *dname, int namlen, FINFO *info,
+								TCB *ptb, struct pdirs *last));
+LOCAL	BOOL	checkdirexclude	__PR((char *sname, char *name, int namlen, FINFO *info));
+EXPORT	BOOL	checkexclude	__PR((char *sname, char *name, int namlen, FINFO *info));
+
+#ifdef	USE_FIND
+EXPORT	int	walkfunc	__PR((char *nm, struct stat *fs, int type, struct WALK *state));
+#endif
 
 EXPORT void
 checklinks()
@@ -126,14 +202,14 @@ checklinks()
 	register int	ndirs	= 0;
 	register int	nldirs	= 0;
 
-	for(i=0; i < L_HSIZE; i++) {
+	for (i = 0; i < L_HSIZE; i++) {
 		if (links[i] == (LINKS *)NULL)
 			continue;
 
 		curlen = 0;
 		used++;
 
-		for(lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
+		for (lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
 			curlen++;
 			nlinks++;
 			if ((lp->l_flags & L_ISDIR) != 0) {
@@ -151,13 +227,20 @@ checklinks()
 				 * directories are physical present in the
 				 * directory content.
 				 * As it is hard to find all links (we would
-				 * need top stat all directories as well as all
+				 * need to stat all directories as well as all
 				 * '.' and '..' entries, we only warn for non
 				 * directories.
 				 */
-				xstats.s_misslinks++;
-				errmsgno(EX_BAD, "Missing links to '%s'.\n",
+				if (cflag &&
+				    !errhidden(E_MISSLINK, lp->l_name)) {
+					if (!errwarnonly(E_MISSLINK, lp->l_name))
+						xstats.s_misslinks++;
+					errmsgno(EX_BAD,
+						"Missing links to '%s'.\n",
 								lp->l_name);
+					(void) errabort(E_MISSLINK, lp->l_name,
+									TRUE);
+				}
 			}
 		}
 		if (maxlen < curlen)
@@ -176,44 +259,90 @@ checklinks()
 	}
 }
 
-LOCAL BOOL
+/*
+ * Returns:
+ *	TRUE	take file
+ *	FALSE	do not take file
+ *	-1	pattern did not match
+ */
+LOCAL int
 take_file(name, info)
 	register char	*name;
 	register FINFO	*info;
 {
+	if ((info->f_flags & F_FORCE_ADD) != 0)
+		return (TRUE);
 	if (nodump && (info->f_flags & F_NODUMP) != 0)
 		return (FALSE);
 
 	if (havepat && !match(name)) {
-		return (FALSE);
+		return (-1);
 			/* Bei Directories ist f_size == 0 */
 	} else if (maxsize && info->f_size > maxsize) {
 		return (FALSE);
-	} else if (Newer && (Ctime ? info->f_ctime:info->f_mtime) <= Newer) {
+	} else if (dumplevel > 0) {
+		/*
+		 * For now, we cannot reliably deal with sub-second granularity
+		 * on all platforms. For this reason, some files to be on two
+		 * incrementals to make sure not to miss them completely.
+		 */
+		if (info->f_mtime >= Newer.tv_sec) {
+			/* EMPTY */
+			;
+		} else if (info->f_ctime >= Newer.tv_sec) {
+			if (dumpmeta)
+				info->f_xftype = XT_META;
+		} else {
+			return (FALSE);
+		}
+
+	} else if (Newer.tv_sec && (Ctime ? info->f_ctime:info->f_mtime) <=
+								Newer.tv_sec) {
 		/*
 		 * XXX nsec beachten wenn im Archiv!
 		 */
 		return (FALSE);
 	} else if (uflag && !update_newer(info)) {
 		return (FALSE);
-	} else if (tsize > 0 && tsize < (tarblocks(info->f_size)+1+2)) {
-		xstats.s_toobig++;
-		errmsgno(EX_BAD, "'%s' does not fit on tape. Not dumped.\n",
+	} else if (!multivol &&
+		    tsize > 0 && tsize < (tarblocks(info->f_size)+1+2)) {
+		if (!errhidden(E_FILETOOBIG, name)) {
+			if (!errwarnonly(E_FILETOOBIG, name))
+				xstats.s_toobig++;
+			errmsgno(EX_BAD,
+			"'%s' does not fit on tape. Not dumped.\n",
 								name);
+			(void) errabort(E_FILETOOBIG, name, TRUE);
+		}
 		return (FALSE);
 	} else if (props.pr_maxsize > 0 && info->f_size > props.pr_maxsize) {
-		xstats.s_toobig++;
-		errmsgno(EX_BAD, "'%s' file too big for current mode. Not dumped.\n",
+		if (!errhidden(E_FILETOOBIG, name)) {
+			if (!errwarnonly(E_FILETOOBIG, name))
+				xstats.s_toobig++;
+			errmsgno(EX_BAD,
+			"'%s' file too big for current mode. Not dumped.\n",
 								name);
+			(void) errabort(E_FILETOOBIG, name, TRUE);
+		}
 		return (FALSE);
 	} else if (pr_unsuptype(info)) {
-		xstats.s_isspecial++;
-		errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+		if (!errhidden(E_SPECIALFILE, name)) {
+			if (!errwarnonly(E_SPECIALFILE, name))
+				xstats.s_isspecial++;
+			errmsgno(EX_BAD,
+			"'%s' unsupported file type '%s'. Not dumped.\n",
 				name,  XTTONAME(info->f_xftype));
+			(void) errabort(E_SPECIALFILE, name, TRUE);
+		}
 		return (FALSE);
 	} else if (is_special(info) && nospec) {
-		xstats.s_isspecial++;
-		errmsgno(EX_BAD, "'%s' is not a file. Not dumped.\n", name);
+		if (!errhidden(E_SPECIALFILE, name)) {
+			if (!errwarnonly(E_SPECIALFILE, name))
+				xstats.s_isspecial++;
+			errmsgno(EX_BAD,
+			"'%s' is not a file. Not dumped.\n", name);
+			(void) errabort(E_SPECIALFILE, name, TRUE);
+		}
 		return (FALSE);
 	} else if (tape_isreg && is_tape(info)) {
 		errmsgno(EX_BAD, "'%s' is the archive. Not dumped.\n", name);
@@ -228,12 +357,25 @@ take_file(name, info)
 		 */
 		info->f_xftype = XT_META;
 		if (pr_unsuptype(info)) {
-			xstats.s_isspecial++;
-			errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+			if (!errhidden(E_SPECIALFILE, name)) {
+				if (!errwarnonly(E_SPECIALFILE, name))
+					xstats.s_isspecial++;
+				errmsgno(EX_BAD,
+				"'%s' unsupported file type '%s'. Not dumped.\n",
 				name,  XTTONAME(info->f_xftype));
+				(void) errabort(E_SPECIALFILE, name, TRUE);
+			}
 			return (FALSE);
 		}
 	}
+#ifdef	USE_ACL
+	/*
+	 * If we return (FALSE) here, the file would not be archived at all.
+	 * This is not what we want, so ignore return code from get_acls().
+	 */
+	if (doacl)
+		(void) get_acls(info);
+#endif  /* USE_ACL */
 	return (TRUE);
 }
 
@@ -246,7 +388,7 @@ _fileopen(name, smode)
 	int	omode = 0;
 	int	flag = 0;
 
-	if (!_cvmod (smode, &omode, &flag))
+	if (!_cvmod(smode, &omode, &flag))
 		return (-1);
 
 	if ((ret = _openfd(name, omode)) < 0)
@@ -255,17 +397,19 @@ _fileopen(name, smode)
 	return (ret);
 }
 
-int _fileread(fp, buf, len)
+int
+_fileread(fp, buf, len)
 	register int	*fp;
 	void	*buf;
 	int	len;
 {
 	register int	fd = *fp;
 	register int	ret;
-		 int	errcnt = 0;
+		int	errcnt = 0;
 
 retry:
-	while((ret = read(fd, buf, len)) < 0 && geterrno() == EINTR)
+	while ((ret = read(fd, buf, len)) < 0 && geterrno() == EINTR)
+		/* LINTED */
 		;
 	if (ret < 0 && geterrno() == EINVAL && ++errcnt < 100) {
 		off_t oo;
@@ -290,33 +434,51 @@ retry:
 			goto retry;
 		}
 	}
-	return(ret);
+	return (ret);
 }
 
 EXPORT void
-create(name)
+create(name, Hflag, forceadd)
 	register char	*name;
+		BOOL	Hflag;
+		BOOL	forceadd;
 {
 		FINFO	finfo;
 	register FINFO	*info	= &finfo;
+		BOOL	opaxfollow = paxfollow;	/* paxfollow supersedes follow */
 
-	if (name[0] == '.' && name[1] == '/')
-		for (name++; name[0] == '/'; name++);
+	if (name[0] == '.' && name[1] == '/') {
+		for (name++; name[0] == '/'; name++)
+			/* LINTED */
+			;
+	}
 	if (name[0] == '\0')
 		name = ".";
+	if (Hflag)
+		paxfollow = Hflag;
 	if (!getinfo(name, info)) {
-		xstats.s_staterrs++;
-		errmsg("Cannot stat '%s'.\n", name);
-	} else {
-		createi(name, strlen(name), info);
+		paxfollow = opaxfollow;
+		if (!errhidden(E_STAT, name)) {
+			if (!errwarnonly(E_STAT, name))
+				xstats.s_staterrs++;
+			errmsg("Cannot stat '%s'.\n", name);
+			(void) errabort(E_STAT, name, TRUE);
+		}
+		return;
 	}
+	if (forceadd)
+		info->f_flags |= F_FORCE_ADD;
+	paxfollow = opaxfollow;
+	createi(name, name, strlen(name), info, (struct pdirs *)0);
 }
 
 LOCAL void
-createi(name, namlen, info)
+createi(sname, name, namlen, info, last)
+		char	*sname;
 	register char	*name;
-		 int	namlen;
+		int	namlen;
 	register FINFO	*info;
+		struct pdirs *last;
 {
 		char	lname[PATH_MAX+1];
 		TCB	tb;
@@ -325,14 +487,18 @@ createi(name, namlen, info)
 		BOOL	was_link	= FALSE;
 		BOOL	do_sparse	= FALSE;
 
+	if (hash_xlookup(name))
+		return;
+
+	info->f_sname = sname;
 	info->f_name = name;	/* XXX Das ist auch in getinfo !!!?!!! */
 	info->f_namelen = namlen;
-	if (Fflag > 0 && !checkexclude(name, namlen, info))
+	if (Fflag > 0 && !checkexclude(sname, name, namlen, info))
 		return;
 
 #ifdef	nonono_NICHT_BEI_CREATE	/* XXX */
 	if (!abs_path &&	/* XXX VVV siehe skip_slash() */
-		(info->f_name[0] == '/' /*|| info->f_lname[0] == '/'*/))
+		(info->f_name[0] == '/' /* || info->f_lname[0] == '/' */))
 		skip_slash(info);
 		info->f_namelen -= info->f_name - name;
 		if (info->f_namelen == 0) {
@@ -342,11 +508,31 @@ createi(name, namlen, info)
 		/* XXX das gleiche mit f_lname !!!!! */
 	}
 #endif	/* nonono_NICHT_BEI_CREATE	XXX */
-	info->f_lname = lname;	/*XXX nur Übergangsweise!!!!!*/
+	info->f_lname = lname;	/* XXX nur Übergangsweise!!!!! */
 	info->f_lnamelen = 0;
 
 	if (prblockno)
-		(void)tblocks();		/* set curblockno */
+		(void) tblocks();		/* set curblockno */
+
+	if (do_subst && subst(info)) {
+		if (info->f_name[0] == '\0') {
+			if (verbose)
+			fprintf(vpr,
+				"'%s' substitutes to null string, skipping ...\n",
+							name);
+			return;
+		}
+	}
+
+	if (statmod) {
+		if (statmode != _BAD_MODE)
+			info->f_mode = statmode;
+		if (statuid != _BAD_UID)
+			info->f_uid = statuid;
+		if (statgid != _BAD_GID)
+			info->f_gid = statgid;
+	}
+
 	if (!(dirmode && is_dir(info)) &&
 				(info->f_namelen <= props.pr_maxsname)) {
 		/*
@@ -355,44 +541,59 @@ createi(name, namlen, info)
 		 * If we are writing directories after the files they
 		 * contain, we cannot allocate the space for tcb
 		 * from the buffer.
-		 * With very long names we will have to write out 
+		 * With very long names we will have to write out
 		 * other data before we can write the TCB, so we cannot
 		 * alloc tcb from buffer too.
 		 */
-		ptb = (TCB *)get_block();
-		info->f_flags |= F_TCB_BUF;
+		if ((ptb = (TCB *)get_block(props.pr_hdrsize)) == NULL)
+			ptb = &tb;
+		else
+			info->f_flags |= F_TCB_BUF;
 	}
 	info->f_tcb = ptb;
-	filltcb(ptb);
+	if ((props.pr_flags & PR_CPIO) == 0)
+		filltcb(ptb);
 	if (!name_to_tcb(info, ptb))	/* Name too long */
 		return;
 
+#ifndef	__PRE_CPIO__
+	if (is_symlink(info) && !read_symlink(sname, name, info, ptb)) {
+		return;
+	}
+#endif
 	info_to_tcb(info, ptb);
 	if (is_dir(info)) {
 		/*
 		 * If we have been requested to check for hard linked
 		 * directories, first look for possible hard links.
 		 */
-		if (link_dirs && /* info->f_nlink > 1 &&*/ read_link(name, namlen, info, ptb))
+		if (link_dirs && /* info->f_nlink > 1 && */ read_link(name, namlen, info, ptb))
 			was_link = TRUE;
 
 		if (was_link && !is_link(info))	/* link name too long */
 			return;
 
-		if (was_link) {
+		if (was_link && take_file(name, info) > 0) {
 			put_tcb(ptb, info);
 			vprint(info);
 		} else {
-			put_dir(name, namlen, info, ptb);
+			put_dir(sname, name, namlen, info, ptb, last);
 		}
-	} else if (!take_file(name, info)) {
+	} else if (take_file(name, info) <= 0) {	/* < TRUE */
 		return;
 	} else if (interactive && !ia_change(ptb, info)) {
 		fprintf(vpr, "Skipping ...\n");
-	} else if (is_symlink(info) && !read_symlink(name, info, ptb)) {
+#ifdef	__PRE_CPIO__
+	} else if (is_symlink(info) && !read_symlink(sname, name, info, ptb)) {
 		/* EMPTY */
 		;
+#endif
 	} else if (is_meta(info)) {
+		/*
+		 * XXX Currently only TAR supports meta files.
+		 * XXX If we ever change this, we may need to remove the
+		 * XXX ptb->dbuf references here.
+		 */
 		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
 			was_link = TRUE;
 
@@ -424,42 +625,84 @@ createi(name, namlen, info)
 		return;
 
 	} else if (is_file(info) && info->f_size != 0 && !nullout &&
-				(fd = _fileopen(name,"rb")) < 0) {
-		xstats.s_openerrs++;
-		errmsg("Cannot open '%s'.\n", name);
-	} else {
-		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb))
-			was_link = TRUE;
-
-		if (was_link && !is_link(info))	/* link name too long */
-			return;
-
-		do_sparse = (info->f_flags & F_SPARSE) && sparse &&
-						props.pr_flags & PR_SPARSE;
-
-		if (do_sparse && nullout &&
-				(fd = _fileopen(name,"rb")) < 0) {
-			xstats.s_openerrs++;
+				(fd = _fileopen(sname, "rb")) < 0) {
+		if (!errhidden(E_OPEN, name)) {
+			if (!errwarnonly(E_OPEN, name))
+				xstats.s_openerrs++;
 			errmsg("Cannot open '%s'.\n", name);
+			(void) errabort(E_OPEN, name, TRUE);
+		}
+	} else {
+		if (info->f_nlink > 1 && read_link(name, namlen, info, ptb) &&
+		    !linkdata) {
+			was_link = TRUE;
+		}
+		if (was_link && !is_link(info))	{ /* link name too long */
+			if (fd >= 0)
+				close(fd);
 			return;
 		}
+		/*
+		 * Special treatment for the idiosyncratic way of dealing with
+		 * hard links in the SVr4 CRC cpio archive format.
+		 * The link count is handled by calling read_link() in
+		 * cpiotcb_to_info() before.
+		 */
+		if ((props.pr_flags & PR_SV_CPIO_LINKS) != 0 &&
+		    info->f_nlink > 1) {
+			if (!last_cpio_link(info)) {	/* Ign. all but last */
+				if (fd >= 0)
+					close(fd);
+				return;
+			}
+			if (acpio_link(info)) {		/* Now extract all   */
+				put_file(&fd, info);
+				goto out;
+			}
+			/*
+			 * If the link count is increasing, do it the same way
+			 * as SVr4 cpio and archive the rest as plain files.
+			 */
+			if (is_file(info))
+				info->f_rsize = info->f_size;
+			info->f_xftype = info->f_rxftype;
+		}
 
-		if (was_link || !do_sparse) {
+		if (!is_file(info) || was_link || info->f_rsize == 0) {
+			/*
+			 * Don't dump the content of hardlinks and empty files.
+			 * Hardlinks currently have f_rsize == 0 !
+			 */
 			put_tcb(ptb, info);
 			vprint(info);
+			if (fd >= 0)
+				close(fd);
+			return;
 		}
-		if (is_file(info) && !was_link && info->f_rsize > 0) {
-			/*
-			 * Don't dump hardlinks and empty files
-			 * Hardlinks have f_rsize == 0 !
-			 */
-			if (do_sparse) {
-				if (!silent)
-					error("%s is sparse\n", info->f_name);
-				put_sparse(&fd, info);
-			} else {
-				put_file(&fd, info);
+
+		/*
+		 * In case we like to do sparse file handling via SEEK_HOLE we need
+		 * an open fd in order to check for a sparse file.
+		 */
+		do_sparse = sparse && (props.pr_flags & PR_SPARSE);
+		if (do_sparse && nullout &&
+				(fd = _fileopen(sname, "rb")) < 0) {
+			if (!errhidden(E_OPEN, name)) {
+				if (!errwarnonly(E_OPEN, name))
+					xstats.s_openerrs++;
+				errmsg("Cannot open '%s'.\n", name);
+				(void) errabort(E_OPEN, name, TRUE);
 			}
+			return;
+		}
+		if (do_sparse && sparse_file(&fd, info)) {
+			if (!silent)
+				error("%s is sparse\n", info->f_name);
+			put_sparse(&fd, info);
+		} else {
+			put_tcb(ptb, info);
+			vprint(info);
+			put_file(&fd, info);
 		}
 		/*
 		 * Reset access time of file.
@@ -470,6 +713,7 @@ createi(name, namlen, info)
 		 * If f == NULL, the file has not been accessed for read
 		 * and access time need not be reset.
 		 */
+out:
 		if (acctime && fd >= 0)
 			rs_acctime(fd, info);
 		if (fd >= 0)
@@ -482,30 +726,96 @@ createlist()
 {
 	register int	nlen;
 		char	*name;
-		int	nsize = PATH_MAX+1;	/* wegen laenge !!! */
+		int	nsize = PATH_MAX+1+512;	/* wegen laenge !!! */
 
+	/*
+	 * We need at least PATH_MAX+1 and add 512 to get better messages below
+	 */
 	name = __malloc(nsize, "name buffer");
 
-	for (nlen = 1; nlen > 0;) {
-		if ((nlen = fgetline(listf, name, nsize)) < 0)
+	for (nlen = 1; nlen > 0; ) {
+		if ((nlen = readnull ? ngetline(listf, name, nsize) :
+					fgetline(listf, name, nsize)) < 0)
 			break;
 		if (nlen == 0)
 			continue;
+		if (pkglist) {
+			if (!get_metainfo(name))
+				continue;
+			nlen = strlen(name);
+		}
 		if (nlen >= PATH_MAX) {
-			xstats.s_toolong++;
-			errmsgno(EX_BAD, "%s: Name too long (%d > %d).\n",
+			if (!errhidden(E_NAMETOOLONG, name)) {
+				if (!errwarnonly(E_NAMETOOLONG, name))
+					xstats.s_toolong++;
+				errmsgno(EX_BAD,
+				"%s: Name too long (%d >= %d).\n",
 							name, nlen, PATH_MAX);
+				(void) errabort(E_NAMETOOLONG, name, TRUE);
+			}
 			continue;
 		}
 		if (intr)
 			break;
 		curfs = NODEV;
-		create(name);
+		create(name, FALSE, FALSE); /* XXX Liste doch wie Kommandozeile? */
 	}
+	free(name);
+}
+
+LOCAL BOOL
+get_metainfo(line)
+	char	*line;
+{
+	char	*p;
+	char	*p2;
+	uid_t	uid;
+	gid_t	gid;
+	long	lid;
+
+	p = strchr(line, ' ');
+	if (p == NULL) {
+		statmod = FALSE;
+		return (TRUE);
+	}
+
+	*p++ = '\0';
+	statmod = TRUE;
+	statmode = _BAD_MODE;
+	statuid = _BAD_UID;
+	statgid = _BAD_GID;
+	if (*p == '?') {
+		p2 = ++p;
+	} else {
+		p2 = astolb(p, &lid, 8);
+		if (*p2 == ' ')
+			statmode = lid;
+	}
+	if (*p2 == ' ') {
+		p = ++p2;
+	} else {
+		errmsgno(EX_BAD, "%s: illegal mode\n", line);
+		return (FALSE);
+	}
+	p2 = strchr(p, ' ');
+	if (p2 != NULL) {
+		*p2++ = '\0';
+	} else {
+		errmsgno(EX_BAD, "%s: illegal uid\n", line);
+		return (FALSE);
+	}
+	if (!streql(p, "?") && ic_uidname(p, strlen(p), &uid))
+		statuid = uid;
+	p = p2;
+	if (!streql(p, "?") && ic_gidname(p, strlen(p), &gid))
+		statgid = gid;
+
+	return (TRUE);
 }
 
 EXPORT BOOL
-read_symlink(name, info, ptb)
+read_symlink(sname, name, info, ptb)
+	char	*sname;
 	char	*name;
 	register FINFO	*info;
 	TCB	*ptb;
@@ -515,17 +825,34 @@ read_symlink(name, info, ptb)
 	info->f_lname[0] = '\0';
 
 #ifdef	HAVE_READLINK
-	if ((len = readlink(name, info->f_lname, PATH_MAX)) < 0) {
-		xstats.s_rwerrs++;
-		errmsg("Cannot read link '%s'.\n", name);
+	if ((len = readlink(sname, info->f_lname, PATH_MAX)) < 0) {
+		if (!errhidden(E_READLINK, name)) {
+			if (!errwarnonly(E_READLINK, name))
+				xstats.s_rwerrs++;
+			errmsg("Cannot read link '%s'.\n", name);
+			(void) errabort(E_READLINK, name, TRUE);
+		}
 		return (FALSE);
 	}
 	info->f_lnamelen = len;
+	/*
+	 * string from readlink is not null terminated
+	 */
+	info->f_lname[len] = '\0';
+
 	if (len > props.pr_maxlnamelen) {
-		xstats.s_toolong++;
-		errmsgno(EX_BAD, "%s: Symbolic link too long.\n", name);
+		if (!errhidden(E_NAMETOOLONG, name)) {
+			if (!errwarnonly(E_NAMETOOLONG, name))
+				xstats.s_toolong++;
+			errmsgno(EX_BAD,
+			"%s: Symbolic link too long.\n", name);
+			(void) errabort(E_NAMETOOLONG, name, TRUE);
+		}
 		return (FALSE);
 	}
+	if ((props.pr_flags & PR_CPIO) != 0)
+		return (TRUE);
+
 	if (len > props.pr_maxslname) {
 		if (props.pr_flags & PR_XHDR)
 			info->f_xflags |= XF_LINKPATH;
@@ -533,24 +860,282 @@ read_symlink(name, info, ptb)
 			info->f_flags |= F_LONGLINK;
 	}
 	/*
-	 * string from readlink is not null terminated
-	 */
-	info->f_lname[len] = '\0';
-	/*
 	 * if linkname is not longer than props.pr_maxslname
 	 * that's all to do with linkname
 	 */
 	strncpy(ptb->dbuf.t_linkname, info->f_lname, props.pr_maxslname);
 	return (TRUE);
 #else
-	xstats.s_isspecial++;
-	errmsgno(EX_BAD, "'%s' unsupported file type '%s'. Not dumped.\n",
+	if (!errhidden(E_SPECIALFILE, name)) {
+		if (!errwarnonly(E_SPECIALFILE, name))
+			xstats.s_isspecial++;
+		errmsgno(EX_BAD,
+		"'%s' unsupported file type '%s'. Not dumped.\n",
 				name,  XTTONAME(info->f_xftype));
+		(void) errabort(E_SPECIALFILE, name, TRUE);
+	}
 	return (FALSE);
 #endif
 }
 
+LOCAL LINKS *
+find_link(info)
+	register FINFO	*info;
+{
+	register LINKS	*lp;
+
+	lp = links[l_hash(info)];
+
+	for (; lp != (LINKS *)NULL; lp = lp->l_next) {
+		if (lp->l_ino == info->f_ino && lp->l_dev == info->f_dev)
+			return (lp);
+	}
+	return ((LINKS *)NULL);
+}
+
+/*
+ * Return TRUE in case we found the last entry (the one that may have data)
+ * for a specific file.
+ */
+EXPORT BOOL
+last_cpio_link(info)
+	register FINFO	*info;
+{
+	register LINKS	*lp;
+
+	if ((lp = find_link(info)) != NULL) {
+		if ((!cflag && info->f_size > 0) ||
+		    lp->l_nlink <= 0 ||
+		    (lp->l_flags & L_DATA) != 0)
+			return (TRUE);
+		return (FALSE);
+	}
+	return (TRUE);
+}
+
+/*
+ * Extract all cpio CRC links.
+ * XXX This should be in extract.c
+ */
+EXPORT BOOL
+xcpio_link(info)
+	register FINFO	*info;
+{
+	register LINKS	*lp;
+		char	*name = info->f_name;
+		char	*lname = info->f_lname;
+		off_t	rsize = info->f_rsize;
+		int	xftype = info->f_xftype;
+
+	if ((lp = find_link(info)) != NULL) {
+		/*
+		 * We come here if the link count increases and we need to
+		 * archive more "files" as expected.
+		 */
+		if ((lp->l_flags & L_DATA) != 0)
+			return (FALSE);
+	}
+	info->f_xftype = info->f_rxftype;
+	extracti(info, NULL);			/* Extract as real node */
+	info->f_xftype = xftype;
+	info->f_rsize = 0;
+
+	if (lp != NULL) {
+		register LNAME	*ln;
+
+		lp->l_flags |= L_DATA;
+		info->f_lname = name;
+		info->f_name = lp->l_name;
+		extracti(info, NULL);		/* Extract link info->f_lname */
+
+		for (ln = lp->l_lnames; ln; ln = ln->l_lnext) {
+			if (streql(name, ln->l_lname))
+				continue;
+			info->f_name = ln->l_lname;
+			extracti(info, NULL);	/* Extract all other links */
+		}
+	}
+	info->f_name = name;
+	info->f_lname = lname;
+	info->f_rsize = rsize;
+	return (TRUE);
+}
+
+/*
+ * Archive all cpio CRC links.
+ */
 LOCAL BOOL
+acpio_link(info)
+	register FINFO	*info;
+{
+		TCB	tb;
+	register TCB	*ptb = info->f_tcb;
+	register LINKS	*lp;
+		int	namelen = info->f_namelen;
+		char	*name = info->f_name;
+		char	*lname = info->f_lname;
+		off_t	size = info->f_size;
+		off_t	rsize = info->f_rsize;
+
+	if ((lp = find_link(info)) != NULL) {
+		/*
+		 * We come here if the link count increases and we need to
+		 * archive more "files" as expected.
+		 */
+		if ((lp->l_flags & L_DATA) != 0)
+			return (FALSE);
+	}
+
+	info->f_size = 0;
+	info->f_rsize = 0;
+
+	if (lp != NULL) {
+		register LNAME	*ln;
+
+		lp->l_flags |= L_DATA;
+		info->f_lname = name;
+		info->f_namelen = strlen(lp->l_name);
+		info->f_name = lp->l_name;
+		info_to_tcb(info, ptb);
+		put_tcb(ptb, info);
+		vprint(info);
+
+		for (ln = lp->l_lnames; ln; ln = ln->l_lnext) {
+			if (streql(name, ln->l_lname))
+				continue;
+			info->f_namelen = strlen(ln->l_lname);
+			info->f_name = ln->l_lname;
+			info->f_flags &= ~F_TCB_BUF;
+			if ((ptb = (TCB *)get_block(props.pr_hdrsize)) == NULL)
+				ptb = &tb;
+			else
+				info->f_flags |= F_TCB_BUF;
+			info->f_tcb = ptb;
+			info_to_tcb(info, ptb);
+			put_tcb(ptb, info);
+			vprint(info);
+		}
+	}
+	info->f_namelen = namelen;
+	info->f_name  = name;
+	info->f_lname = lname;
+	info->f_size  = size;
+	info->f_rsize = rsize;
+	info->f_rsize = size;
+	info->f_xftype = info->f_rxftype;
+
+	info->f_flags &= ~F_TCB_BUF;
+	if ((ptb = (TCB *)get_block(props.pr_hdrsize)) == NULL)
+		ptb = &tb;
+	else
+		info->f_flags |= F_TCB_BUF;
+	info->f_tcb = ptb;
+	info_to_tcb(info, ptb);
+	put_tcb(ptb, info);
+	vprint(info);
+	return (TRUE);
+}
+
+/*
+ * Flush all SVr4 cpio -Hcrc links that have not yet been archived.
+ */
+EXPORT void
+flushlinks()
+{
+	register LINKS	*lp;
+	register int	i;
+
+	if ((props.pr_flags & PR_SV_CPIO_LINKS) == 0)
+		return;
+
+	for (i = 0; i < L_HSIZE; i++) {
+		if (links[i] == (LINKS *)NULL)
+			continue;
+
+		for (lp = links[i]; lp != (LINKS *)NULL; lp = lp->l_next) {
+			if ((lp->l_flags & (L_ISDIR|L_DATA)) == 0 &&
+			    (lp->l_nlink > 0))
+				flush_link(lp);
+		}
+	}
+}
+
+/*
+ * Flush a single cpio -Hcrc link.
+ */
+LOCAL void
+flush_link(lp)
+	register LINKS	*lp;
+{
+		TCB	tb;
+		TCB	*ptb;
+		FINFO	finfo;
+	register LNAME	*ln;
+		int	fd = 1;
+		BOOL	did_stat;
+		char	*name;
+
+	finfo.f_flags &= ~F_TCB_BUF;
+	if ((ptb = (TCB *)get_block(props.pr_hdrsize)) == NULL)
+		ptb = &tb;
+	else
+		finfo.f_flags |= F_TCB_BUF;
+	did_stat = getinfo(lp->l_name, &finfo);
+	name = lp->l_name;
+	for (ln = lp->l_lnames; ln; ln = ln->l_lnext) {
+		if (!did_stat) {
+			did_stat = getinfo(ln->l_lname, &finfo);
+			if (did_stat)
+				name = ln->l_lname;
+		}
+		fd++;
+	}
+	if (!did_stat) {
+		if (!errhidden(E_STAT, lp->l_name)) {
+			if (!errwarnonly(E_STAT, lp->l_name))
+				xstats.s_staterrs++;
+			errmsg("Cannot stat '%s'.\n", lp->l_name);
+			(void) errabort(E_STAT, lp->l_name, TRUE);
+		}
+		return;
+	}
+	finfo.f_name = lp->l_name;
+	finfo.f_namelen = strlen(lp->l_name);
+	finfo.f_lname = "";	/* XXX nur Übergangsweise!!!!! */
+	finfo.f_lnamelen = 0;
+
+	finfo.f_nlink = fd;
+	finfo.f_xftype = XT_LINK;
+	finfo.f_tcb = ptb;
+	fd = -1;
+	if (is_file(&finfo) && finfo.f_size != 0 && !nullout &&
+				(fd = _fileopen(name, "rb")) < 0) {
+		if (!errhidden(E_OPEN, name)) {
+			if (!errwarnonly(E_OPEN, name))
+				xstats.s_openerrs++;
+			errmsg("Cannot open '%s'.\n", name);
+			(void) errabort(E_OPEN, name, TRUE);
+		}
+		return;
+	}
+	if (acpio_link(&finfo))
+		put_file(&fd, &finfo);
+
+	if (acctime && fd >= 0)
+		rs_acctime(fd, &finfo);
+	if (fd >= 0)
+		close(fd);
+}
+
+/*
+ * Cheating with st_dev & st_ino for CPIO:
+ *	Do not use inode number 0 and start st_dev from an
+ *	obscure value...
+ */
+#define	dev_from_linkno(n)	(0x5555 + ((n) / 0xFFFF))
+#define	ino_from_linkno(n)	(1 +	  ((n) % 0xFFFF))
+
+EXPORT BOOL
 read_link(name, namlen, info, ptb)
 	char	*name;
 	int	namlen;
@@ -558,79 +1143,109 @@ read_link(name, namlen, info, ptb)
 	TCB	*ptb;
 {
 	register LINKS	*lp;
-	register LINKS	**lpp;
-		 int	i = l_hash(info);
+	static	Ulong	linkno = 0;
 
-	lp = links[i];
-	lpp = &links[i];
-
-	for (; lp != (LINKS *)NULL; lp = lp->l_next) {
-		if (lp->l_ino == info->f_ino && lp->l_dev == info->f_dev) {
-			if (lp->l_namlen > props.pr_maxlnamelen) {
-				xstats.s_toolong++;
-				errmsgno(EX_BAD, "%s: Link name too long.\n",
-								lp->l_name);
-				return (TRUE);
+	if ((lp = find_link(info)) != NULL) {
+		if (lp->l_namlen > props.pr_maxlnamelen) {
+			if (!errhidden(E_NAMETOOLONG, lp->l_name)) {
+				if (!errwarnonly(E_NAMETOOLONG, lp->l_name))
+					xstats.s_toolong++;
+				errmsgno(EX_BAD,
+				"%s: Link name too long.\n",
+							lp->l_name);
+				(void) errabort(E_NAMETOOLONG, lp->l_name,
+								TRUE);
 			}
-			if (lp->l_namlen > props.pr_maxslname) {
-				if (props.pr_flags & PR_XHDR)
-					info->f_xflags |= XF_LINKPATH;
-				else
-					info->f_flags |= F_LONGLINK;
-			}
-			if (--lp->l_nlink < 0) {
-				if (!nowarn)
-					errmsgno(EX_BAD,
-					"%s: Linkcount below zero (%ld)\n",
-						lp->l_name, lp->l_nlink);
-			}
-			/*
-			 * We found a hard link to a directory that is already
-			 * known in the link cache. Mark it for later
-			 * statistical analysis.
-			 */
-			if (lp->l_flags & L_ISDIR)
-				lp->l_flags |= L_ISLDIR;
-			/*
-			 * if linkname is not longer than props.pr_maxslname
-			 * that's all to do with linkname
-			 */
-			strncpy(ptb->dbuf.t_linkname, lp->l_name,
-							props.pr_maxslname);
-			info->f_lname = lp->l_name;
-			info->f_lnamelen = lp->l_namlen;
-			info->f_xftype = XT_LINK;
-
-			/*
-			 * With POSIX-1988, f_rsize is 0 for hardlinks
-			 *
-			 * XXX Should we add a property for old tar
-			 * XXX compatibility to keep the size field as before?
-			 */
-			info->f_rsize = (off_t)0;
-			/*
-			 * XXX This is the wrong place but the TCB ha already
-			 * XXX been set up (including size field) before.
-			 * XXX We only call info_to_tcb() to change size to 0.
-			 * XXX There should be a better way to deal with TCB.
-			 */
-			info_to_tcb(info, ptb);
-
-			/*
-			 * XXX Dies ist eine ungewollte Referenz auf den
-			 * XXX TAR Control Block, aber hier ist der TCB
-			 * XXX schon fertig und wir wollen nur den Typ
-			 * XXX Modifizieren.
-			 */
-			ptb->dbuf.t_linkflag = LNKTYPE;
 			return (TRUE);
 		}
+		if (lp->l_namlen > props.pr_maxslname) {
+			if (props.pr_flags & PR_XHDR)
+				info->f_xflags |= XF_LINKPATH;
+			else
+				info->f_flags |= F_LONGLINK;
+		}
+		if (--lp->l_nlink < 0) {
+			if (!nowarn && (info->f_flags & F_EXTRACT) == 0)
+				errmsgno(EX_BAD,
+				"%s: Linkcount below zero (%ld)\n",
+					lp->l_name, lp->l_nlink);
+		}
+		/*
+		 * We found a hard link to a directory that is already
+		 * known in the link cache. Mark it for later
+		 * statistical analysis.
+		 */
+		if (lp->l_flags & L_ISDIR)
+			lp->l_flags |= L_ISLDIR;
+		/*
+		 * if linkname is not longer than props.pr_maxslname
+		 * that's all to do with linkname
+		 */
+		if ((props.pr_flags & PR_CPIO) == 0) {
+			strncpy(ptb->dbuf.t_linkname, lp->l_name,
+						props.pr_maxslname);
+		}
+		info->f_lname = lp->l_name;
+		info->f_lnamelen = lp->l_namlen;
+		info->f_xftype = XT_LINK;
+
+		/*
+		 * With POSIX-1988, f_rsize is 0 for hardlinks
+		 *
+		 * XXX Should we add a property for old tar
+		 * XXX compatibility to keep the size field as before?
+		 */
+		if (!linkdata)
+			info->f_rsize = (off_t)0;
+		/*
+		 * XXX This is the wrong place but the TCB has already
+		 * XXX been set up (including size field) before.
+		 * XXX We only call info_to_tcb() to change size to 0.
+		 * XXX There should be a better way to deal with TCB.
+		 */
+		if ((info->f_flags & F_EXTRACT) == 0) {
+			/*
+			 * XXX Nicht bei extrakt
+			 */
+			info->f_dev = dev_from_linkno(lp->l_linkno);
+			info->f_ino = ino_from_linkno(lp->l_linkno);
+			info_to_tcb(info, ptb);
+			info->f_dev = lp->l_dev;
+			info->f_ino = lp->l_ino;
+		}
+		/*
+		 * XXX Dies ist eine ungewollte Referenz auf den
+		 * XXX TAR Control Block, aber hier ist der TCB
+		 * XXX schon fertig und wir wollen nur den Typ
+		 * XXX Modifizieren.
+		 */
+		if ((props.pr_flags & PR_CPIO) == 0)
+			ptb->dbuf.t_linkflag = LNKTYPE;
+		if ((props.pr_flags & PR_SV_CPIO_LINKS) != 0) {
+			register LNAME	*ln;
+
+			ln = (LNAME *)malloc(sizeof (*ln)+namlen);
+			if (ln == NULL) {
+				errmsg(
+				"Cannot alloc new link name for '%s'.\n",
+					name);
+			} else {
+				strcpy(ln->l_lname, name);
+				ln->l_lnext = lp->l_lnames;
+				lp->l_lnames = ln;
+			}
+		}
+		return (TRUE);
 	}
-	if ((lp = (LINKS *)malloc(sizeof(*lp)+namlen)) == (LINKS *)NULL) {
+	if ((lp = (LINKS *)malloc(sizeof (*lp)+namlen)) == (LINKS *)NULL) {
 		errmsg("Cannot alloc new link for '%s'.\n", name);
 	} else {
+		register LINKS	**lpp = &links[l_hash(info)];
+
 		lp->l_next = *lpp;
 		*lpp = lp;
+		lp->l_lnames = NULL;
+		lp->l_linkno = linkno++;
 		lp->l_ino = info->f_ino;
 		lp->l_dev = info->f_dev;
 		lp->l_nlink = info->f_nlink - 1;
@@ -640,6 +1255,17 @@ read_link(name, namlen, info, ptb)
 		else
 			lp->l_flags = 0;
 		strcpy(lp->l_name, name);
+
+		if ((info->f_flags & F_EXTRACT) == 0) {
+			/*
+			 * XXX Nicht bei extrakt
+			 */
+			info->f_dev = dev_from_linkno(lp->l_linkno);
+			info->f_ino = ino_from_linkno(lp->l_linkno);
+			info_to_tcb(info, ptb);
+			info->f_dev = lp->l_dev;
+			info->f_ino = lp->l_ino;
+		}
 	}
 	return (FALSE);
 }
@@ -681,8 +1307,15 @@ cr_file(info, func, arg, amt, text)
 	register off_t	size;
 	register int	i = 0;
 	register off_t	n;
+extern	m_stats	*stats;
 
 	size = info->f_rsize;
+
+	fifo_enter_critical();
+	stats->cur_size = size;
+	stats->cur_off = 0;
+	fifo_leave_critical();
+
 	if ((blocks = tarblocks(info->f_rsize)) == 0)
 		return;
 	if (amt == 0)
@@ -691,54 +1324,115 @@ cr_file(info, func, arg, amt, text)
 		amount = buf_wait(TBLOCK);
 		amount = min(amount, amt);
 
-		if ((i = (*func)(arg, bigptr, max(amount, TBLOCK))) <= 0)
-			break;
+		if ((props.pr_flags & PR_CPIO) == 0) {
+			if ((i = (*func)(arg, bigptr, max(amount, TBLOCK))) <= 0)
+				break;
+		} else {
+			if ((i = (*func)(arg, bigptr, amount)) <= 0)
+				break;
+		}
 
 		size -= i;
+		fifo_enter_critical();
+		stats->cur_off += i;
+		fifo_leave_critical();
+
 		if (size < 0) {			/* File increased in size */
 			n = tarblocks(size+i);	/* use expected size only */
 		} else {
 			n = tarblocks(i);
 		}
-		if (i % TBLOCK) {		/* Clear (better compression)*/
-			fillbytes(bigptr+i, TBLOCK - (i%TBLOCK), '\0');
+		if ((props.pr_flags & PR_CPIO) == 0) {
+
+			if (i % TBLOCK) {	/* Clear (better compression) */
+				fillbytes(bigptr+i, TBLOCK - (i%TBLOCK), '\0');
+			}
+			buf_wake(n*TBLOCK);
+		} else {
+			if (size < 0)		/* File increased in size */
+				buf_wake(size+i); /* use expected size only */
+			else
+				buf_wake(i);
+			n = blocks;
 		}
-		buf_wake(n*TBLOCK);
-	} while ((blocks -= n) >= 0 && i == amount && size >= 0);
+	} while ((blocks -= n) >= 0 && i > 0 && size >= 0);
 	if (i < 0) {
-		xstats.s_rwerrs++;
-		errmsg("Error %s '%s'.\n", text, info->f_name);
+		if (!errhidden(E_READ, info->f_name)) {
+			if (!errwarnonly(E_READ, info->f_name))
+				xstats.s_rwerrs++;
+			errmsg("Error %s '%s'.\n", text, info->f_name);
+			(void) errabort(E_READ, info->f_name, TRUE);
+		}
 	} else if ((blocks != 0 || size != 0) && func != nullread) {
-		xstats.s_sizeerrs++;
-		errmsgno(EX_BAD,
-		"'%s': file changed size (%s).\n",
-		info->f_name, size < 0 ? "increased":"shrunk");
+		if (!errhidden(size < 0 ? E_GROW:E_SHRINK, info->f_name)) {
+			if (!errwarnonly(size < 0 ? E_GROW:E_SHRINK, info->f_name))
+				xstats.s_sizeerrs++;
+			errmsgno(EX_BAD,
+			"'%s': file changed size (%s).\n",
+			info->f_name, size < 0 ? "increased":"shrunk");
+			(void) errabort(size < 0 ? E_GROW:E_SHRINK,
+							info->f_name, TRUE);
+		}
 	}
-	while(--blocks >= 0)
-		writeempty();
+	/*
+	 * If the file did shrink, fill up to expected size...
+	 */
+	if ((props.pr_flags & PR_CPIO) == 0) {
+		while (--blocks >= 0)
+			writeempty();
+	} else {
+		while (size > 0) {
+			amount = buf_wait(1);
+			amount = min(amount, size);
+			fillbytes(bigptr, amount, '\0');
+			buf_wake(amount);
+			size -= amount;
+		}
+	}
+	/*
+	 * Honour CPIO padding
+	 */
+	if ((amount = props.pr_pad) != 0) {
+		size = info->f_rsize;
+		if (info->f_flags & F_LONGNAME)
+			size += props.pr_hdrsize;
+		amount = (amount + 1 - (size & amount)) & amount;
+		while (amount-- > 0) {
+			buf_wait(1);
+			*bigptr = '\0';
+			buf_wake(1);
+		}
+	}
 }
 
 #define	newfs(i)	((i)->f_dev != curfs)
 
 LOCAL void
-put_dir(dname, namlen, info, ptb)
+put_dir(sname, dname, namlen, info, ptb, last)
+		char	*sname;
 	register char	*dname;
 	register int	namlen;
 	FINFO	*info;
 	TCB	*ptb;
+	struct pdirs	*last;
 {
 	static	int	depth	= -10;
 	static	int	dinit	= 0;
 		FINFO	nfinfo;
 	register FINFO	*ninfo	= &nfinfo;
-		DIR	*d;
+		DIR	*d = NULL;
 	struct	dirent	*dir;
 		long	offset	= 0L;
 		char	fname[PATH_MAX+1];	/* XXX */
 	register char	*name;
 	register char	*xdname;
-		 int	xlen;
-		 BOOL	putdir = FALSE;
+		int	xlen;
+		BOOL	putdir = FALSE;
+		BOOL	direrr = FALSE;
+		int	dlen;
+		char	*dp = NULL;
+	struct pdirs	thisd;
+	struct pdirs	*pd = last;
 
 	if (!dinit) {
 #ifdef	_SC_OPEN_MAX
@@ -752,105 +1446,255 @@ put_dir(dname, namlen, info, ptb)
 	if (nodump && (info->f_flags & F_NODUMP) != 0)
 		return;
 
-	if (!(d = opendir(dname))) {
-		xstats.s_openerrs++;
-		errmsg("Cannot open '%s'.\n", dname);
-	} else {
-		depth--;
-		if (!nodir) {
-			if (interactive && !ia_change(ptb, info)) {
-				fprintf(vpr, "Skipping ...\n");
-				closedir(d);
-				depth++;
-				return;
+	info->f_dir = NULL;
+	info->f_dirinos = NULL;
+	info->f_dirlen = 0;
+	info->f_dirents = 0;
+
+	switch (take_file(dname, info)) {
+
+	case -1:
+		if (match_tree)
+			return;
+		break;
+
+	case TRUE:
+		putdir = TRUE;
+	}
+
+	if ((!nodesc || dodump > 0) && (!nomount || !newfs(info))) {
+		/*
+		 * If this is a mounted directory and we have been called
+		 * with -M, it makes no sense to include the directorie's file
+		 * name list with -dump.
+		 * By not including this list, we also avoid error messages
+		 * like:
+		 *	star: Permission denied. Cannot open 'opt/SUNWddk'.
+		 *
+		 * which is a result of an automounted directory.
+		 *
+		 * Conclusion: try to use a filesystem snapshot whenever
+		 * possible.
+		 */
+		if (!lowmem) {
+			ino_t	*ino = NULL;
+			int	nents;
+
+			dp = fetchdir(sname, &nents, &dlen, dodump?&ino:NULL);
+			if (dp == NULL) {
+				if (!errhidden(E_OPEN, dname)) {
+					if (!errwarnonly(E_OPEN, dname))
+						xstats.s_openerrs++;
+					errmsg("Cannot open '%s'.\n", dname);
+					(void) errabort(E_OPEN, dname, TRUE);
+				}
+				direrr = TRUE;
+			} else {
+				info->f_dir = dp;
+				info->f_dirinos = ino;
+				info->f_dirlen = dlen;
+				info->f_dirents = nents;
+				/*
+				 * Don't count list terminator null Byte
+				 */
+				dlen--;
 			}
-			if (take_file(dname, info)) {
-				putdir = TRUE;
-				if (!dirmode)
-					put_tcb(ptb, info);
-				vprint(info);
+		} else if (!(d = opendir(sname))) {
+			if (!errhidden(E_OPEN, dname)) {
+				if (!errwarnonly(E_OPEN, dname))
+					xstats.s_openerrs++;
+				errmsg("Cannot open '%s'.\n", dname);
+				(void) errabort(E_OPEN, dname, TRUE);
 			}
+			direrr = TRUE;
 		}
-		if (!nodesc && (!nomount || !newfs(info))) {
+	}
+	depth--;
+	if (!nodir) {
+		if (interactive && !ia_change(ptb, info)) {
+			fprintf(vpr, "Skipping ...\n");
+			if (d)
+				closedir(d);
+			if (dp)
+				free(info->f_dir);
+			if (info->f_dirinos)
+				free(info->f_dirinos);
+			depth++;
+			return;
+		}
+		if (putdir) {
+			if (!dirmode)
+				put_tcb(ptb, info);
+			vprint(info);
+		}
+	}
+	if (direrr) {
+		depth++;
+		return;
+	}
 
-			strcpy(fname, dname);
-			xdname = &fname[namlen];
-			if (namlen && xdname[-1] != '/') {
-				namlen++;
-				*xdname++ = '/';
-			}
+	/*
+	 * Search parent dir structure for possible loops.
+	 */
+	thisd.p_last = last;
+	thisd.p_dev  = info->f_dev;
+	thisd.p_ino  = info->f_ino;
 
-			while ((dir = readdir(d)) != NULL && !intr) {
+	while (pd) {
+		if (pd->p_dev == info->f_dev &&
+		    pd->p_ino == info->f_ino) {
+			goto out;
+		}
+		pd = pd->p_last;
+	}
+
+	if (!nodesc && (!nomount || !newfs(info))) {
+
+		strcpy(fname, dname);
+		xdname = &fname[namlen];
+		if (namlen && xdname[-1] != '/') {
+			namlen++;
+			*xdname++ = '/';
+		}
+
+		while (!intr) {
+			if (d) {
+				if ((dir = readdir(d)) == NULL)
+					break;
 				if (streql(dir->d_name, ".") ||
 						streql(dir->d_name, ".."))
 					continue;
-				xlen = namlen + strlen(dir->d_name);
-				if (xlen > PATH_MAX) {
-					*xdname = '\0';
-					xstats.s_toolong++;
-					errmsgno(EX_BAD,
-						"%s%s: Name too long (%d > %d).\n",
-							fname, dir->d_name,
-							xlen, PATH_MAX);
-					continue;
-				}
+				name = dir->d_name;
+				xlen = namlen + strlen(name);
+			} else {
+				if (dlen <= 0)
+					break;
 
-				strcpy(xdname, dir->d_name);
-				name = fname;
-
-				if (name[0] == '.' && name[1] == '/') {
-					for (name++; name[0] == '/'; name++);
-					xlen -= name - fname;
-				}
-				if (name[0] == '\0') {
-					name = ".";
-					xlen = 1;
-				}
-				if (!getinfo(name, ninfo)) {
-					xstats.s_staterrs++;
-					errmsg("Cannot stat '%s'.\n", name);
-					continue;
-				}
-#ifdef	HAVE_SEEKDIR
-				if (is_dir(ninfo) && depth <= 0) {
-					seterrno(0);
-					offset = telldir(d);
-					if (geterrno())
-						errmsg("WARNING: telldir does not work.\n");
-					/*
-					 * XXX What should we do if telldir
-					 * XXX does not work.
-					 */
-					closedir(d);
-				}
-#endif
-				createi(name, xlen, ninfo);
-#ifdef	HAVE_SEEKDIR
-				if (is_dir(ninfo) && depth <= 0) {
-					if (!(d = opendir(dname))) {
-						xstats.s_openerrs++;
-						errmsg("Cannot open '%s'.\n",
-								dname);
-						break;
-					} else {
-						seterrno(0);
-						seekdir(d, offset);
-						if (geterrno())
-							errmsg("WARNING: seekdir does not work.\n");
-					}
-				}
-#endif
+				name = &dp[1];
+				xlen = strlen(name);
+				dp += xlen + 2;
+				dlen -= xlen + 2;
+				xlen += namlen;
 			}
+
+			if (xlen > PATH_MAX) {
+				char	xname[2*PATH_MAX+1];
+
+				*xdname = '\0';
+				js_snprintf(xname, sizeof (xname), "%s%s",
+					fname, name);
+				if (!errhidden(E_NAMETOOLONG, xname)) {
+					if (!errwarnonly(E_NAMETOOLONG, xname))
+						xstats.s_toolong++;
+					errmsgno(EX_BAD,
+					"%s%s: Name too long (%d > %d).\n",
+						fname, name,
+						xlen, PATH_MAX);
+					(void) errabort(E_NAMETOOLONG, xname,
+									TRUE);
+				}
+				continue;
+			}
+
+			strcpy(xdname, name);
+			name = fname;
+
+			if (name[0] == '.' && name[1] == '/') {
+				for (name++; name[0] == '/'; name++)
+					/* LINTED */
+					;
+				xlen -= name - fname;
+			}
+			if (name[0] == '\0') {
+				name = ".";
+				xlen = 1;
+			}
+			if (!getinfo(name, ninfo)) {
+				if (!errhidden(E_STAT, name)) {
+					if (!errwarnonly(E_STAT, name))
+						xstats.s_staterrs++;
+					errmsg("Cannot stat '%s'.\n", name);
+					(void) errabort(E_STAT, name, TRUE);
+				}
+				continue;
+			}
+#ifdef	HAVE_SEEKDIR
+			if (d && is_dir(ninfo) && depth <= 0) {
+				seterrno(0);
+				offset = telldir(d);
+				if (geterrno()) {
+					if (!errhidden(E_OPEN, dname)) {
+						if (!errwarnonly(E_OPEN, dname))
+							xstats.s_openerrs++;
+						errmsg(
+						"WARNING: telldir does not work on '%s'.\n",
+						dname);
+						(void) errabort(E_OPEN, dname,
+									TRUE);
+					}
+					/*
+					 * XXX xstats.s_openerrs is wrong here.
+					 * Avoid an endless loop on unseekable
+					 * directories.
+					 */
+					/* closedir() is past end of loop */
+					break;
+				}
+				closedir(d);
+			}
+#endif
+			createi(name, name, xlen, ninfo, &thisd);
+#ifdef	HAVE_SEEKDIR
+			if (d && is_dir(ninfo) && depth <= 0) {
+				if (!(d = opendir(sname))) {
+					if (!errhidden(E_OPEN, dname)) {
+						if (!errwarnonly(E_OPEN, dname))
+							xstats.s_openerrs++;
+						errmsg("Cannot open '%s'.\n",
+							dname);
+						(void) errabort(E_OPEN, dname,
+									TRUE);
+					}
+					break;
+				}
+				seterrno(0);
+				seekdir(d, offset);
+				if (geterrno()) {
+					if (!errhidden(E_OPEN, dname)) {
+						if (!errwarnonly(E_OPEN, dname))
+							xstats.s_openerrs++;
+						errmsg(
+						"WARNING: seekdir does not work on '%s'.\n",
+						dname);
+						(void) errabort(E_OPEN, dname,
+									TRUE);
+					}
+					/*
+					 * XXX xstats.s_openerrs is wrong here.
+					 * Avoid an endless loop on unseekable
+					 * directories.
+					 */
+					break;
+				}
+			}
+#endif
 		}
-		closedir(d);
-		depth++;
-		if (!nodir && dirmode && putdir)
-			put_tcb(ptb, info);
 	}
+out:
+	if (d)
+		closedir(d);
+	if (dp)
+		free(info->f_dir);
+	if (info->f_dirinos)
+		free(info->f_dirinos);
+	depth++;
+	if (!nodir && dirmode && putdir)
+		put_tcb(ptb, info);
 }
 
 LOCAL BOOL
-checkdirexclude(name, namlen, info)
+checkdirexclude(sname, name, namlen, info)
+	char	*sname;
 	char	*name;
 	int	namlen;
 	FINFO	*info;
@@ -867,23 +1711,23 @@ checkdirexclude(name, namlen, info)
 		*p++ = '/';
 	}
 	strcpy(p, ".mirror");
-	if (!getinfo(pname, &finfo)) {
+	if (!_getinfo(pname, &finfo)) {
 		strcpy(p, ".exclude");
-		if (!getinfo(pname, &finfo))
+		if (!_getinfo(pname, &finfo))
 			goto notfound;
 	}
 	if (is_file(&finfo)) {
 		if (OFflag == 3) {
 			nodesc++;
 			if (!dirmode)
-				createi(name, namlen, info);
-			create(pname);	/* Needed to strip off "./" */
+				createi(sname, name, namlen, info, (struct pdirs *)0);
+			create(pname, FALSE, FALSE);	/* Needed to strip off "./" */
 			if (dirmode)
-				createi(name, namlen, info);
+				createi(sname, name, namlen, info, (struct pdirs *)0);
 			nodesc--;
 		}
 		Fflag = OFflag;
-		return (FALSE);	
+		return (FALSE);
 	}
 notfound:
 	Fflag = OFflag;
@@ -891,7 +1735,8 @@ notfound:
 }
 
 EXPORT BOOL
-checkexclude(name, namlen, info)
+checkexclude(sname, name, namlen, info)
+	char	*sname;
 	char	*name;
 	int	namlen;
 	FINFO	*info;
@@ -907,7 +1752,7 @@ checkexclude(name, namlen, info)
 	if (is_dir(info)) {
 		/*
 		 * Exclude with -F -FF -FFFFF 1, 2, 5+
-		 */ 
+		 */
 		if (Fflag < 3 || Fflag > 4) {
 			if (streql(fn, "SCCS") ||	/* SCCS directory */
 			    streql(fn, "RCS"))		/* RCS directory  */
@@ -915,11 +1760,11 @@ checkexclude(name, namlen, info)
 		}
 		if (Fflag > 1 && streql(fn, "OBJ"))	/* OBJ directory  */
 			return (FALSE);
-		if (Fflag > 2 && !checkdirexclude(name, namlen, info))
+		if (Fflag > 2 && !checkdirexclude(sname, name, namlen, info))
 			return (FALSE);
 		return (TRUE);
 	}
-	if ((len = strlen(fn)) < 3)			/* Cannot match later*/
+	if ((len = strlen(fn)) < 3)		/* Will never match later */
 		return (TRUE);
 
 	if (Fflag > 1 && fn[len-2] == '.' && fn[len-1] == 'o')	/* obj files */
@@ -934,3 +1779,50 @@ checkexclude(name, namlen, info)
 
 	return (TRUE);
 }
+
+#ifdef	USE_FIND
+/*
+ * The callback function for treewalk()
+ *
+ * XXX errhidden() support not yet implemented.
+ */
+EXPORT int
+walkfunc(nm, fs, type, state)
+	char		*nm;
+	struct stat	*fs;
+	int		type;
+	struct WALK	*state;
+{
+	if (type == WALK_NS) {
+		errmsg("Cannot stat '%s'.\n", nm);
+		state->err = 1;
+		return (0);
+	} else if (type == WALK_SLN && (state->walkflags & WALK_PHYS) == 0) {
+		errmsg("Cannot follow symlink '%s'.\n", nm);
+		state->err = 1;
+		return (0);
+	} else if (type == WALK_DNR) {
+		if (state->flags & WALK_WF_NOCHDIR)
+			errmsg("Cannot chdir to '%s'.\n", nm);
+		else
+			errmsg("Cannot read '%s'.\n", nm);
+		state->err = 1;
+		return (0);
+	}
+	if (state->maxdepth >= 0 && state->level >= state->maxdepth)
+		state->flags |= WALK_WF_PRUNE;
+	if (state->mindepth >= 0 && state->level < state->mindepth)
+		return (0);
+
+	if (state->tree == NULL ||
+	    find_expr(nm, nm + state->base, fs, state, state->tree)) {
+		FINFO	finfo;
+
+		finfo.f_sname = nm + state->base;
+		finfo.f_name = nm;
+		stat_to_info(fs, &finfo);
+		createi(nm + state->base, nm, strlen(nm), &finfo, (struct pdirs *)0);
+	}
+	return (0);
+}
+#endif

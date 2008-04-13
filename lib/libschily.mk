@@ -1,4 +1,4 @@
-#ident @(#)libschily.mk	1.2 00/02/10 
+#ident @(#)libschily.mk	1.5 07/07/01 
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
@@ -10,6 +10,8 @@ VPATH=		.:stdio:$(ARCHDIR)
 INSDIR=		lib
 TARGETLIB=	schily
 CPPOPTS +=	-Istdio
+CPPOPTS +=	-DUSE_SCANSTACK	# Try to scan stack frames
+CPPOPTS +=	-DPORT_ONLY	# Add missing funcs line snprintf for porting
 include		Targets
 LIBS=		
 

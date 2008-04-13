@@ -159,6 +159,7 @@ case $basic_machine in
 		| sparc | sparclet | sparclite | sparc64 | v850)
 		basic_machine=$basic_machine-unknown
 		;;
+
 	# We use `pc' rather than `unknown'
 	# because (1) that's what they normally are, and
 	# (2) the word "unknown" tends to confuse beginning users.
@@ -183,7 +184,8 @@ case $basic_machine in
 	      | sparc64-* | mips64-* | mipsel-* \
 	      | mips64el-* | mips64orion-* | mips64orionel-*  \
 	      | mipstx39-* | mipstx39el-* \
-	      | f301-*)
+	      | f301-* \
+	      | x86-* | x86_64-*)
 		;;
 	# Recognize the various machine names and aliases which stand
 	# for a CPU type and a company and sometimes even an OS.
@@ -515,6 +517,12 @@ case $basic_machine in
 	rtpc | rtpc-*)
 		basic_machine=romp-ibm
 		;;
+	s390 | s390-*)
+		basic_machine=s390-ibm
+		;;
+	s390x | s390x-*)
+		basic_machine=s390x-ibm
+		;;
 	sequent)
 		basic_machine=i386-sequent
 		;;
@@ -718,7 +726,8 @@ case $os in
 	      | -ptx* | -coff* | -ecoff* | -winnt* | -domain* | -vsta* \
 	      | -udi* | -eabi* | -lites* | -ieee* | -go32* | -aux* \
 	      | -cygwin* | -pe* | -psos* | -moss* | -proelf* | -rtems* \
-	      | -mingw32* | -linux-gnu* | -uxpv* | -beos* | -os2* | -rhapsody* | -macos* )
+	      | -mingw32* | -linux-gnu* | -uxpv* | -beos* | -os2* \
+	      | -interix* | -uwin* | -mks* | -rhapsody* | -macos* )
 	# Remember, each alternative MUST END IN *, to match a version number.
 		;;
 	-linux*)

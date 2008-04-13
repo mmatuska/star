@@ -1,11 +1,11 @@
-#ident %W% %E% %Q%
+#ident @(#)align_test.mk	1.2 06/10/31 
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
 include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
-INSDIR=		include
+INSDIR=		include/schily/$(OARCH)
 TARGET=		align.h
 TARGETC=	align_test
 CPPOPTS +=	-D__OPRINTF__

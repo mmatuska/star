@@ -1,45 +1,53 @@
-/* @(#)diff.h	1.6 99/06/15 Copyright 1993 J. Schilling */
+/* @(#)diff.h	1.14 08/02/17 Copyright 1993-2008 J. Schilling */
 /*
  *	Definitions for the taylorable diff command
  *
- *	Copyright (c) 1993 J. Schilling
+ *	Copyright (c) 1993-2008 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#define	D_PERM	0x00001
-#define	D_TYPE	0x00002
-#define	D_NLINK	0x00004
-#define	D_UID	0x00010
-#define	D_GID	0x00020
-#define	D_UNAME	0x00040
-#define	D_GNAME	0x00080
+#define	D_PERM		0x000001
+#define	D_TYPE		0x000002
+#define	D_NLINK		0x000004
+#define	D_SYMPERM	0x000008
+#define	D_UID		0x000010
+#define	D_GID		0x000020
+#define	D_UNAME		0x000040
+#define	D_GNAME		0x000080
 #define	D_ID	(D_UID|D_GID|D_UNAME|D_GNAME)
-#define	D_SIZE	0x00100
-#define	D_DATA	0x00200
-#define	D_RDEV	0x00400
-#define	D_HLINK	0x01000
-#define	D_SLINK	0x02000
-#define	D_SPARS	0x04000
-#define	D_ATIME	0x10000
-#define	D_MTIME	0x20000
-#define	D_CTIME	0x40000
+#define	D_SIZE		0x000100
+#define	D_DATA		0x000200
+#define	D_RDEV		0x000400
+#define	D_HLINK		0x001000
+#define	D_SLINK		0x002000
+#define	D_SLPATH	0x004000
+#define	D_SPARS		0x008000
+#define	D_ATIME		0x010000
+#define	D_MTIME		0x020000
+#define	D_CTIME		0x040000
 #define	D_TIMES	(D_ATIME|D_MTIME|D_CTIME)
+#define	D_LMTIME	0x080000
+#define	D_XTIMES	(D_ATIME|D_MTIME|D_CTIME|D_LMTIME)
+#define	D_DIR		0x100000
+#define	D_ACL		0x200000
+#define	D_XATTR		0x400000
+#define	D_FFLAGS	0x800000
 
-#define	D_DEFLT	(~(D_NLINK|D_ATIME))
+/*
+ * Atime frequently changes, it makes no sense to check it by default.
+ * Mtime on symlinks cannot be copies, so do not check it too.
+ */
+#define	D_DEFLT	(~(D_SYMPERM|D_ATIME|D_LMTIME))
 #define	D_ALL	(~0L);
 
 extern	long	diffopts;

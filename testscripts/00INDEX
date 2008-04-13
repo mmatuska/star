@@ -1,6 +1,6 @@
 A recent version of the files is always on:
 
-	ftp://ftp.fokus.gmd.de/pub/unix/star/testscripts/
+	ftp://ftp.berlios.de/pub/star/testscripts/
 
 100char_longlink.tar		A tar archive containing a file with exactly 100 char and a link to it
 README.gtarfail			A description for the files 'gtarfail.tar' and 'gtarfail2.tar'

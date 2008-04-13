@@ -1,5 +1,5 @@
 #!/bin/sh
-#ident "@(#)mkdep-sco.sh	1.3 02/10/11 "
+#ident "@(#)mkdep-sco.sh	1.5 03/03/05 "
 ###########################################################################
 # Copyright 1999 by J. Schilling
 ###########################################################################
@@ -12,19 +12,15 @@
 # but as we don't need it with 'smake' or 'gmake' it seems to be sufficient.
 #
 ###########################################################################
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
-# any later version.
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only.
+# (the "License").  You may not use this file except in compliance
+# with the License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# See the file CDDL.Schily.txt in this distribution for details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING.  If not, write to
-# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file CDDL.Schily.txt from this distribution.
 ###########################################################################
 FILES=
 
@@ -37,11 +33,13 @@ for i in "$@"; do
 	*.c)	if [ ! -z "$FILES" ]; then
 			FILES="$FILES "
 		fi
-		FILES="$FILES$i"
+		# base name from $i
+		base=`echo $i | sed -e 's;[^/]*/;;'`
+		FILES="$FILES$base"
 		;;
 	esac
 done
 
 OFILES=`echo "$FILES" | sed -e 's;\([^.]*\)\.c;\1.o;g'`
 
-cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | grep -hv '^UX:' | sed -e 's;^;$OFILES: ;'
+cc -H -E 2>&1 > /dev/null "$@" | grep -hv '^"' | grep -hv '^UX:' | sed -e "s;^;$OFILES: ;"

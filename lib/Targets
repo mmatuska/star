@@ -1,13 +1,14 @@
 CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 		ffileread.c ffilewrite.c \
-		fgetline.c file_raise.c \
-		fileopen.c \
-		fileread.c fileseek.c  \
+		fgetline.c file_getraise.c file_raise.c \
+		fileopen.c filemopen.c \
+		filepos.c fileread.c fileseek.c  \
 		filesize.c \
 		filewrite.c flag.c flush.c  \
 		fpipe.c \
 		niread.c niwrite.c nixread.c nixwrite.c openfd.c \
-		fcons64.c fileopen64.c filesize64.c \
+		fcons64.c fileopen64.c filemopen64.c \
+		filepos64.c filesize64.c \
 		openfd64.c
 
 #
@@ -15,20 +16,26 @@ CFILES_STDIO=	cvmod.c dat.c fcons.c fdown.c \
 # Otherwise getfp.o would be made as dependency of avoffset
 #
 
-CFILES_REST=	astoi.c astoll.c \
-		comerr.c cmpbytes.c cmpnullbytes.c \
+CFILES_REST=	astoi.c astoll.c astoull.c \
+		comerr.c fcomerr.c cmpbytes.c cmpnullbytes.c \
 		error.c \
 		fconv.c fexec.c fillbytes.c \
 		format.c \
 		getfp.c \
 		getargs.c getav0.c geterrno.c \
 		getpagesize.c \
+		gethostname.c \
+		getnum.c getxnum.c \
+		gettnum.c getxtnum.c \
+		getperm.c \
 		jsprintf.c jssnprintf.c jssprintf.c \
 		match.c movebytes.c \
-		printf.c \
+		mem.c jmem.c fjmem.c \
 		raisecond.c \
+		rename.c \
 		saveargs.c seterrno.c \
-		sprintf.c strcatl.c streql.c \
-		swabbytes.c
+		strcatl.c streql.c \
+		swabbytes.c \
+		usleep.c
 
 CFILES=		$(CFILES_STDIO) $(CFILES_REST)

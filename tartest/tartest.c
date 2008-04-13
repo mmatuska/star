@@ -1,37 +1,39 @@
-/* @(#)tartest.c	1.3 02/06/19 Copyright 2002 J. Schilling */
+/* @(#)tartest.c	1.12 06/10/31 Copyright 2002-2006 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)tartest.c	1.3 02/06/19 Copyright 2002 J. Schilling";
+	"@(#)tartest.c	1.12 06/10/31 Copyright 2002-2006 J. Schilling";
 #endif
 /*
- *	Copyright (c) 20002 J. Schilling
+ *	Copyright (c) 2002-2006 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
-#include <stdxlib.h>
+#include <schily/stdlib.h>
 
 #include "star.h"
-#include <standard.h>
-#include <strdefs.h>
-#include <getargs.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/string.h>
+#include <schily/getargs.h>
+#include <schily/schily.h>
 
+#ifdef	NEED_O_BINARY
+#include <io.h>					/* for setmode() prototype */
+#include <schily/fcntl.h>			/* O_BINARY */
+#endif
+
+LOCAL	void	usage		__PR((int ret));
 EXPORT	int	main		__PR((int ac, char *av[]));
 LOCAL	BOOL	doit		__PR((FILE *f));
 LOCAL	BOOL	checkhdr	__PR((TCB *ptb));
@@ -40,8 +42,8 @@ LOCAL	BOOL	checktype	__PR((TCB *ptb));
 LOCAL	BOOL	checkid		__PR((char *ptr, char *text));
 LOCAL	BOOL	checkmagic	__PR((char *ptr));
 LOCAL	BOOL	checkvers	__PR((char *ptr));
-EXPORT	void	stolli		__PR((char* s, Ullong * ull, int len));
-LOCAL	Ulong	checksum	__PR((TCB * ptb));
+EXPORT	void	stolli		__PR((char *s, Ullong *ull, int len));
+LOCAL	Ulong	checksum	__PR((TCB *ptb));
 LOCAL	void	pretty_char	__PR((char *p, unsigned c));
 
 LOCAL	BOOL	verbose;
@@ -80,13 +82,17 @@ main(ac, av)
 	if (help)
 		usage(0);
 
-	printf("tartest %s (%s-%s-%s)\n\n", "1.3",
+	printf("tartest %s (%s-%s-%s)\n\n", "1.12",
 					HOST_CPU, HOST_VENDOR, HOST_OS);
 	printf("Copyright (C) 2002 Jörg Schilling\n");
 	printf("This is free software; see the source for copying conditions.  There is NO\n");
 	printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
 
 	printf("\nTesting for POSIX.1-1990 TAR compliance...\n");
+
+#ifdef	NEED_O_BINARY
+	setmode(fileno(stdin), O_BINARY);
+#endif
 
 	if (!doit(stdin)) {
 		printf(">>> Archive is not POSIX.1-1990 TAR standard compliant.\n");
@@ -169,7 +175,7 @@ doit(f)
 		stolli(ptb->ustar_dbuf.t_size, &size, 12);
 
 		if (ptb->ustar_dbuf.t_prefix[0]) {
-			js_snprintf(name, sizeof(name), "%.155s/%.100s",
+			js_snprintf(name, sizeof (name), "%.155s/%.100s",
 				ptb->ustar_dbuf.t_prefix,
 				ptb->ustar_dbuf.t_name);
 		} else {
@@ -216,10 +222,13 @@ doit(f)
 
 		if (!r || verbose) {
 			printf("*** %sFilename '%s'\n",
-						r==FALSE?"Failing ":"", name);
-			if (lname[0])
+						r == FALSE ?
+						"Failing ":"", name);
+			if (lname[0]) {
 				printf("*** %sLinkname '%s'\n",
-						r==FALSE?"Failing ":"", lname);
+						r == FALSE ?
+						"Failing ":"", lname);
+			}
 		}
 
 		/*
@@ -246,12 +255,14 @@ checkhdr(ptb)
 
 	if (ptb->ustar_dbuf.t_name[  0] != '\0' &&
 	    ptb->ustar_dbuf.t_name[ 99] != '\0' &&
+	    /* LINTED */
 	    ptb->ustar_dbuf.t_name[100] == '\0') {
 		printf("Warning: t_name[100] is a null character.\n");
 		errs++;
 	}
 	if (ptb->ustar_dbuf.t_linkname[  0] != '\0' &&
 	    ptb->ustar_dbuf.t_linkname[ 99] != '\0' &&
+	    /* LINTED */
 	    ptb->ustar_dbuf.t_linkname[100] == '\0') {
 		printf("Warning: t_linkname[100] is a null character.\n");
 		errs++;
@@ -316,7 +327,7 @@ checkhdr(ptb)
 #endif
 
 	if (errs)
-		ret= FALSE;
+		ret = FALSE;
 	return (ret);
 }
 
@@ -336,7 +347,7 @@ checkoctal(ptr, len, text)
 	char	endc = '\0';
 	char	cs[4];
 
-	for (i=0; i < len; i++) {
+	for (i = 0; i < len; i++) {
 /*		error("%d '%c'\n", i, ptr[i]);*/
 
 #ifdef		END_ALL_THESAME
@@ -457,7 +468,7 @@ checkid(ptr, text)
 	int	i;
 
 	if (ptr[0] == '\0') {
-		for (i=0; i < len; i++) {
+		for (i = 0; i < len; i++) {
 			if (ptr[i] != '\0') {
 				pretty_char(cs, ptr[i] & 0xFF);
 				printf(
@@ -492,11 +503,11 @@ checkmagic(ptr)
 	char	*ptr;
 {
 	BOOL	ret = TRUE;
-	char	mag[6] = "ustar";
+	char	*mag = "ustar";
 	char	cs[4];
 	int	i;
 
-	for (i=0; i < 6; i++) {
+	for (i = 0; i < 6; i++) {
 		if (ptr[i] != mag[i]) {
 			pretty_char(cs, ptr[i] & 0xFF);
 			printf(
@@ -518,11 +529,11 @@ checkvers(ptr)
 	char	*ptr;
 {
 	BOOL	ret = TRUE;
-	char	vers[3] = "00";
+	char	*vers = "00";
 	char	cs[4];
 	int	i;
 
-	for (i=0; i < 2; i++) {
+	for (i = 0; i < 2; i++) {
 		if (ptr[i] != vers[i]) {
 			pretty_char(cs, ptr[i] & 0xFF);
 			printf(
@@ -544,25 +555,25 @@ checkvers(ptr)
 EXPORT void /*char **/
 stolli(s, ull, len)
 	register char	*s;
-		 Ullong	*ull;
-		 int	len;
+		Ullong	*ull;
+		int	len;
 {
 	register Ullong	ret = (Ullong)0;
 	register char	c;
 	register int	t;
-	
-	while(*s == ' ') {
+
+	while (*s == ' ') {
 		if (--len < 0)
 			break;
 		s++;
 	}
 
-	for(;;) {
+	for (;;) {
 		if (--len < 0)
 			break;
 		c = *s++;
 /*		error("'%c'\n", c);*/
-		if(isoctal(c))
+		if (isoctal(c))
 			t = c - '0';
 		else
 			break;
@@ -578,14 +589,14 @@ stolli(s, ull, len)
  * Checsum function.
  * Returns 0 if the block contains nothing but null characters.
  */
-#define	CHECKS	sizeof(ptb->ustar_dbuf.t_chksum)
+#define	CHECKS	sizeof (ptb->ustar_dbuf.t_chksum)
 /*
- * We know, that sizeof(TCP) is 512 and therefore has no
+ * We know, that sizeof (TCP) is 512 and therefore has no
  * reminder when dividing by 8
  *
  * CHECKS is known to be 8 too, use loop unrolling.
  */
-#define	DO8(a)	a;a;a;a;a;a;a;a;
+#define	DO8(a)	a; a; a; a; a; a; a; a;
 
 LOCAL Ulong
 checksum(ptb)
@@ -599,28 +610,28 @@ checksum(ptb)
 		register	char	*ss;
 
 		ss = (char *)ptb;
-		for (i=sizeof(*ptb)/8; --i >= 0;) {
+		for (i = sizeof (*ptb)/8; --i >= 0; ) {
 			DO8(sum += *ss++);
 		}
 		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+			return (sum);
 
-		ss=(char *)ptb->ustar_dbuf.t_chksum;
+		ss = (char *)ptb->ustar_dbuf.t_chksum;
 		DO8(sum -= *ss++);
 		sum += CHECKS*' ';
 	} else {
 		us = (Uchar *)ptb;
-		for (i=sizeof(*ptb)/8; --i >= 0;) {
+		for (i = sizeof (*ptb)/8; --i >= 0; ) {
 			DO8(sum += *us++);
 		}
 		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+			return (sum);
 
-		us=(Uchar *)ptb->ustar_dbuf.t_chksum;
+		us = (Uchar *)ptb->ustar_dbuf.t_chksum;
 		DO8(sum -= *us++);
 		sum += CHECKS*' ';
 	}
-	return sum;
+	return (sum);
 }
 
 /*
@@ -646,10 +657,10 @@ pretty_char(p, c)
 		*p++ = '~';
 		*p++ = '^';
 		*p++ = c ^ 0300;
-	} else if (c >= SP8) {			      /* 8 bit char */
+	} else if (c >= SP8) {				/* 8 bit char */
 		*p++ = '~';
 		*p++ = c & 0177;
-	} else {				     /* normal char */
+	} else {					/* normal char */
 		*p++ = c;
 	}
 	*p = '\0';

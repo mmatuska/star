@@ -1,4 +1,4 @@
-. \" @(#)rmtstatus.3	1.1 02/11/11 Copyr 2002 J. Schilling
+. \" @(#)rmtstatus.3	1.2 07/05/06 Copyr 2002 J. Schilling
 . \" Manual page for rmtstatus
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -13,7 +13,7 @@
 .if n .ds o oe
 .if n .ds u ue
 .if n .ds s sz
-.TH RMTSTATUS 3L "02/11/11" "J\*org Schilling" "Schily\'s LIBRARY FUNCTIONS"
+.TH RMTSTATUS 3L "07/05/06" "J\*org Schilling" "Schily\'s LIBRARY FUNCTIONS"
 .SH NAME
 rmtstatus, rmtxstatus, _mtg2rmtg, _rmtg2mtg \- request MTIOCGET on a connection to a remote tape server
 .SH SYNOPSIS
@@ -27,9 +27,9 @@ rmtstatus, rmtxstatus, _mtg2rmtg, _rmtg2mtg \- request MTIOCGET on a connection 
 .LP
 .nf
 .B
-#include <librmt.h>
+#include <schily/librmt.h>
 .B
-#include <rmtio.h>
+#include <schily/rmtio.h>
 .sp
 .B
 int rmtstatus(int remfd, struct mtget *mtp);

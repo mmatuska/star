@@ -1,4 +1,4 @@
-/* @(#)cvt.c	1.6 01/11/13 Copyright 1998 J. Schilling */
+/* @(#)cvt.c	1.8 06/09/13 Copyright 1998 J. Schilling */
 /*
  *	Compatibility routines for 4.4BSD based C-libraries ecvt()/fcvt()
  *	and a working gcvt() that is needed on 4.4BSD and GNU libc systems.
@@ -11,24 +11,20 @@
  *	Copyright (c) 1998 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <stdxlib.h>
-#include <utypes.h>
-#include <standard.h>
+#include <schily/stdlib.h>
+#include <schily/utypes.h>
+#include <schily/standard.h>
 
 #ifdef	HAVE_DTOA	/* 4.4BSD floating point implementation */
 #ifdef	HAVE_DTOA_R
@@ -195,8 +191,8 @@ gcvt(number, ndigit, buf)
 	int	ndigit;
 	char	*buf;
 {
-		 int	sign;
-		 int	decpt;
+		int	sign;
+		int	decpt;
 	register char	*b;
 	register char	*rs;
 	register int	i;

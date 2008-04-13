@@ -1,4 +1,4 @@
-. \" @(#)rmtopen.3	1.1 02/11/11 Copyr 2002 J. Schilling
+. \" @(#)rmtopen.3	1.3 07/05/06 Copyr 2002 J. Schilling
 . \" Manual page for rmtopen
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -13,7 +13,7 @@
 .if n .ds o oe
 .if n .ds u ue
 .if n .ds s sz
-.TH RMTOPEN 3L "02/11/11" "J\*org Schilling" "Schily\'s LIBRARY FUNCTIONS"
+.TH RMTOPEN 3L "07/05/06" "J\*org Schilling" "Schily\'s LIBRARY FUNCTIONS"
 .SH NAME
 rmtopen, rmtclose, rmtread, rmtwrite, rmtseek, rmtioctl \- operate on a connection to a remote tape server
 .SH SYNOPSIS
@@ -27,9 +27,9 @@ rmtopen, rmtclose, rmtread, rmtwrite, rmtseek, rmtioctl \- operate on a connecti
 .LP
 .nf
 .B
-#include <librmt.h>
+#include <schily/librmt.h>
 .B
-#include <rmtio.h>
+#include <schily/rmtio.h>
 .sp
 .B
 int rmtopen(int remfd, char *pathname, int fmode);
@@ -213,6 +213,32 @@ rmtclose(remfd);
 
 .SH DIAGNOSTICS
 .SH NOTES
+While all other known
+.B rmt
+implementations limit the size of a single
+.B rmt
+command to 64 bytes, this implementation limits all standard
+command lines to 80 bytes and the file name to 4096 bytes.
+.LP
+Note that this may cause problems if the remote
+.B rmt
+server implementation is directly derived from the historic
+BSD server code. This is true for all BSD systems, for SunOS up
+to 5.9 and even for the GNU
+.B rmt
+server.
+.LP
+As some of the other
+.B rmt
+servers do not even implement bound checking, be prepared that
+other server implementations may dump core or at least stop honoring
+the
+.B rmt
+protocol.
+.LP
+If you like to use long file names, make sure that you also use the
+.B schily rmt
+server.
 .SH BUGS
 .LP
 If local and remote

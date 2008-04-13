@@ -1730,7 +1730,7 @@ if test $ac_cv_struct_tm = sys/time.h; then
 fi
 ])
 
-AC_DEFUN(AC_STRUCT_TIMEZONE,
+AC_DEFUN(AC_STRUCT_TM_ZONE,
 [AC_REQUIRE([AC_STRUCT_TM])dnl
 AC_CACHE_CHECK([for tm_zone in struct tm], ac_cv_struct_tm_zone,
 [AC_TRY_COMPILE([#include <sys/types.h>
@@ -2674,6 +2674,7 @@ AC_MSG_CHECKING([for executable suffix])
 AC_CACHE_VAL(ac_cv_exeext,
 [if test "$CYGWIN" = yes || test "$MINGW32" = yes || test "$EMXOS2" = yes; then
   ac_cv_exeext=.exe
+  ac_cv_xexeext=""
 else
   rm -f conftest*
   echo 'int main () { return 0; }' > conftest.$ac_ext
@@ -2686,17 +2687,42 @@ else
       esac
     done
   else
+    ccout=`eval "${CC-cc} 2>&1" 2> /dev/null`
+    ret=$?
+    nf=`echo "$ccout" | grep 'not found'`
+    if test $ret = 127 -a -n "$nf" ; then	# Korn Shell
+        ccout=""
+    fi
+    if test ! -n "$ccout" ; then
+        AC_MSG_ERROR([installation or configuration problem: C compiler ${CC-cc} not found.])
+    fi
     AC_MSG_ERROR([installation or configuration problem: compiler cannot create executables.])
+  fi
+  (./conftest ; exit) 2> /dev/null
+  if test $? != 0 ; then
+	ac_cv_xexeext="${ac_cv_exeext}"
+	(./conftest${ac_cv_xexeext} ; exit) 2> /dev/null
+	if test $? != 0 ; then
+		ac_cv_xexeext=""
+	fi
   fi
   rm -f conftest*
   test x"${ac_cv_exeext}" = x && ac_cv_exeext=no
+  test x"${ac_cv_xexeext}" = x && ac_cv_xexeext=no
 fi])
 EXEEXT=""
+XEXEEXT=""
 test x"${ac_cv_exeext}" != xno && EXEEXT=${ac_cv_exeext}
+test x"${ac_cv_xexeext}" != xno && XEXEEXT=${ac_cv_xexeext}
 AC_MSG_RESULT(${ac_cv_exeext})
+AC_MSG_CHECKING([for executable calling suffix])
+AC_MSG_RESULT(${ac_cv_xexeext})
 dnl Setting ac_exeext will implicitly change the ac_link command.
 ac_exeext=$EXEEXT
-AC_SUBST(EXEEXT)])
+ac_xexeext=$XEXEEXT
+AC_SUBST(EXEEXT)
+AC_SUBST(XEXEEXT)
+])
 
 
 dnl ### Checks for UNIX variants

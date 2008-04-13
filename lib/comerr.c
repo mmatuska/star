@@ -1,45 +1,37 @@
-/* @(#)comerr.c	1.28 02/10/07 Copyright 1985 J. Schilling */
+/* @(#)comerr.c	1.32 07/02/26 Copyright 1985-1989, 1995-2007 J. Schilling */
 /*
  *	Routines for printing command errors
  *
- *	Copyright (c) 1985 J. Schilling
+ *	Copyright (c) 1985-1989, 1995-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
-#include <unixstd.h>		/* include <sys/types.h> try to get size_t */
+#include <schily/mconfig.h>
+#include <schily/unistd.h>	/* include <sys/types.h> try to get size_t */
 #include <stdio.h>		/* Try again for size_t	*/
-#include <stdxlib.h>		/* Try again for size_t	*/
-#include <standard.h>
-#include <vadefs.h>
-#include <strdefs.h>
-#include <schily.h>
-#include <errno.h>
-#ifndef	HAVE_STRERROR
-extern	char	*sys_errlist[];
-extern	int	sys_nerr;
-#endif
+#include <schily/stdlib.h>	/* Try again for size_t	*/
+#include <schily/standard.h>
+#include <schily/varargs.h>
+#include <schily/string.h>
+#include <schily/schily.h>
+#include <schily/errno.h>
 
 EXPORT	int	on_comerr	__PR((void (*fun)(int, void *), void *arg));
 EXPORT	void	comerr		__PR((const char *, ...));
 EXPORT	void	comerrno	__PR((int, const char *, ...));
 EXPORT	int	errmsg		__PR((const char *, ...));
 EXPORT	int	errmsgno	__PR((int, const char *, ...));
-LOCAL	int	_comerr		__PR((int, int, const char *, va_list));
+EXPORT	int	_comerr		__PR((FILE *, int, int, const char *, va_list));
 EXPORT	void	comexit		__PR((int));
 EXPORT	char	*errmsgstr	__PR((int));
 
@@ -58,7 +50,7 @@ on_comerr(func, arg)
 {
 	ex_t	*fp;
 
-	fp = malloc(sizeof(*fp));
+	fp = malloc(sizeof (*fp));
 	if (fp == NULL)
 		return (-1);
 
@@ -71,9 +63,11 @@ on_comerr(func, arg)
 
 /* VARARGS1 */
 #ifdef	PROTOTYPES
-void comerr(const char *msg, ...)
+EXPORT void
+comerr(const char *msg, ...)
 #else
-void comerr(msg, va_alist)
+EXPORT void
+comerr(msg, va_alist)
 	char	*msg;
 	va_dcl
 #endif
@@ -85,16 +79,18 @@ void comerr(msg, va_alist)
 #else
 	va_start(args);
 #endif
-	(void)_comerr(TRUE, geterrno(), msg, args);
+	(void) _comerr(stderr, TRUE, geterrno(), msg, args);
 	/* NOTREACHED */
 	va_end(args);
 }
 
 /* VARARGS2 */
 #ifdef	PROTOTYPES
-void comerrno(int err, const char *msg, ...)
+EXPORT void
+comerrno(int err, const char *msg, ...)
 #else
-void comerrno(err, msg, va_alist)
+EXPORT void
+comerrno(err, msg, va_alist)
 	int	err;
 	char	*msg;
 	va_dcl
@@ -107,16 +103,18 @@ void comerrno(err, msg, va_alist)
 #else
 	va_start(args);
 #endif
-	(void)_comerr(TRUE, err, msg, args);
+	(void) _comerr(stderr, TRUE, err, msg, args);
 	/* NOTREACHED */
 	va_end(args);
 }
 
 /* VARARGS1 */
 #ifdef	PROTOTYPES
-int errmsg(const char *msg, ...)
+EXPORT int
+errmsg(const char *msg, ...)
 #else
-int errmsg(msg, va_alist)
+EXPORT int
+errmsg(msg, va_alist)
 	char	*msg;
 	va_dcl
 #endif
@@ -129,16 +127,18 @@ int errmsg(msg, va_alist)
 #else
 	va_start(args);
 #endif
-	ret = _comerr(FALSE, geterrno(), msg, args);
+	ret = _comerr(stderr, FALSE, geterrno(), msg, args);
 	va_end(args);
 	return (ret);
 }
 
 /* VARARGS2 */
 #ifdef	PROTOTYPES
-int errmsgno(int err, const char *msg, ...)
+EXPORT int
+errmsgno(int err, const char *msg, ...)
 #else
-int errmsgno(err, msg, va_alist)
+EXPORT int
+errmsgno(err, msg, va_alist)
 	int	err;
 	char	*msg;
 	va_dcl
@@ -152,7 +152,7 @@ int errmsgno(err, msg, va_alist)
 #else
 	va_start(args);
 #endif
-	ret = _comerr(FALSE, err, msg, args);
+	ret = _comerr(stderr, FALSE, err, msg, args);
 	va_end(args);
 	return (ret);
 }
@@ -177,7 +177,9 @@ int errmsgno(err, msg, va_alist)
 	 */
 #define	silent_error(e)		((e) < 0)
 #endif
-LOCAL int _comerr(exflg, err, msg, args)
+EXPORT int
+_comerr(f, exflg, err, msg, args)
+	FILE		*f;
 	int		exflg;
 	int		err;
 	const char	*msg;
@@ -186,23 +188,23 @@ LOCAL int _comerr(exflg, err, msg, args)
 	char	errbuf[20];
 	char	*errnam;
 	char	*prognam = get_progname();
-	
+
 	if (silent_error(err)) {
-		error("%s: %r", prognam, msg, args);
+		js_fprintf(f, "%s: %r", prognam, msg, args);
 	} else {
 		errnam = errmsgstr(err);
 		if (errnam == NULL) {
-			(void)js_snprintf(errbuf, sizeof (errbuf),
+			(void) js_snprintf(errbuf, sizeof (errbuf),
 						"Error %d", err);
 			errnam = errbuf;
 		}
-		error("%s: %s. %r", prognam, errnam, msg, args);
+		js_fprintf(f, "%s: %s. %r", prognam, errnam, msg, args);
 	}
 	if (exflg) {
 		comexit(err);
 		/* NOTREACHED */
 	}
-	return(err);
+	return (err);
 }
 
 EXPORT void

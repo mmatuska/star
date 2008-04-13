@@ -1,49 +1,48 @@
-/* @(#)longnames.c	1.34 02/05/09 Copyright 1993, 1995, 2001 J. Schilling */
+/* @(#)longnames.c	1.48 06/10/31 Copyright 1993, 1995, 2001-2006 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)longnames.c	1.34 02/05/09 Copyright 1993, 1995, 2001 J. Schilling";
+	"@(#)longnames.c	1.48 06/10/31 Copyright 1993, 1995, 2001-2006 J. Schilling";
 #endif
 /*
  *	Handle filenames that cannot fit into a single
  *	string of 100 charecters
  *
- *	Copyright (c) 1993, 1995, 2001 J. Schilling
+ *	Copyright (c) 1993, 1995, 2001-2006 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <standard.h>
-#include <strdefs.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/string.h>
+#include <schily/schily.h>
 #include "starsubs.h"
 #include "movearch.h"
+#include "checkerr.h"
 
-LOCAL	void	enametoolong	__PR((char* name, int len, int maxlen));
-LOCAL	char*	split_posix_name __PR((char* name, int namlen, int add));
-EXPORT	BOOL	name_to_tcb	__PR((FINFO * info, TCB * ptb));
-EXPORT	void	tcb_to_name	__PR((TCB * ptb, FINFO * info));
-EXPORT	void	tcb_undo_split	__PR((TCB * ptb, FINFO * info));
-EXPORT	int	tcb_to_longname	__PR((TCB * ptb, FINFO * info));
-EXPORT	void	write_longnames	__PR((FINFO * info));
-LOCAL	void	put_longname	__PR((FINFO * info,
-					char* name, int namelen, char* tname,
+extern	BOOL	no_dirslash;
+
+LOCAL	void	enametoolong	__PR((char *name, int len, int maxlen));
+LOCAL	char	*split_posix_name __PR((char *name, int namlen, int add));
+EXPORT	BOOL	name_to_tcb	__PR((FINFO *info, TCB *ptb));
+EXPORT	void	tcb_to_name	__PR((TCB *ptb, FINFO *info));
+EXPORT	void	tcb_undo_split	__PR((TCB *ptb, FINFO *info));
+EXPORT	int	tcb_to_longname	__PR((TCB *ptb, FINFO *info));
+EXPORT	void	write_longnames	__PR((FINFO *info));
+LOCAL	void	put_longname	__PR((FINFO *info,
+					char *name, int namelen, char *tname,
 							Ulong  xftype));
 
 LOCAL void
@@ -52,9 +51,13 @@ enametoolong(name, len, maxlen)
 	int	len;
 	int	maxlen;
 {
-	xstats.s_toolong++;
-	errmsgno(EX_BAD, "%s: Name too long (%d > %d chars)\n",
+	if (!errhidden(E_NAMETOOLONG, name)) {
+		if (!errwarnonly(E_NAMETOOLONG, name))
+			xstats.s_toolong++;
+		errmsgno(EX_BAD, "%s: Name too long (%d > %d chars)\n",
 							name, len, maxlen);
+		(void) errabort(E_NAMETOOLONG, name, TRUE);
+	}
 }
 
 
@@ -64,22 +67,30 @@ split_posix_name(name, namlen, add)
 	int	namlen;
 	int	add;
 {
-	register char	*low;
-	register char	*high;
+	register char	*low;	/* Lower margin to start searching for '/' */
+	register char	*high;	/* Upper margin to start searching for '/' */
 
 	if (namlen+add > props.pr_maxprefix+1+props.pr_maxsname) {
 		/*
-		 * Cannot split
+		 * Name too long to be split (does not fit in pfx + '/' + name)
 		 */
-		if (props.pr_maxnamelen <= props.pr_maxsname) /* No longnames*/
+		if ((props.pr_nflags & PR_LONG_NAMES) == 0) /* No longnames */
 			enametoolong(name, namlen+add,
 				props.pr_maxprefix+1+props.pr_maxsname);
 		return (NULL);
 	}
+	/*
+	 * 'low' is set to (namelen - 100) because we cannot split more than
+	 * 100 chars before the end of the name.
+	 * 'high' is set to 155 because we cannot put more than 155 chars into
+	 * the prefix.
+	 * Then start to look backwards from the rightmost position if there is
+	 * slash where we may split.
+	 */
 	low = &name[namlen+add - props.pr_maxsname];
 	if (--low < name)
 		low = name;
-	high = &name[props.pr_maxprefix>namlen ? namlen:props.pr_maxprefix];
+	high = &name[props.pr_maxprefix > namlen ? namlen:props.pr_maxprefix];
 
 #ifdef	DEBUG
 error("low: %d:%s high: %d:'%c',%s\n",
@@ -90,10 +101,15 @@ error("low: %d:%s high: %d:'%c',%s\n",
 		if (*high == '/')
 			break;
 	if (high < low) {
-		if (props.pr_maxnamelen <= props.pr_maxsname) {
-			xstats.s_toolong++;
-			errmsgno(EX_BAD, "%s: Name too long (cannot split)\n",
+		if ((props.pr_nflags & PR_LONG_NAMES) == 0) {
+			if (!errhidden(E_NAMETOOLONG, name)) {
+				if (!errwarnonly(E_NAMETOOLONG, name))
+					xstats.s_toolong++;
+				errmsgno(EX_BAD,
+				"%s: Name too long (cannot split)\n",
 									name);
+				(void) errabort(E_NAMETOOLONG, name, TRUE);
+			}
 		}
 		return (NULL);
 	}
@@ -120,7 +136,18 @@ name_to_tcb(info, ptb)
 	if (namelen == 0)
 		raisecond("name_to_tcb: namelen", 0L);
 
-	if (is_dir(info) && name[namelen-1] != '/')
+	/*
+	 * We need a test without 'add' because we currently never add a slash
+	 * at the end of a directiry name when in CPIO mode.
+	 */
+	if (namelen > props.pr_maxnamelen) {
+		enametoolong(name, namelen, props.pr_maxnamelen);
+		return (FALSE);
+	}
+	if ((props.pr_flags & PR_CPIO) != 0)
+		return (TRUE);
+
+	if (is_dir(info) && !no_dirslash && name[namelen-1] != '/')
 		add++;
 
 	if ((namelen+add) <= props.pr_maxsname) {	/* Fits in shortname */
@@ -131,13 +158,18 @@ name_to_tcb(info, ptb)
 		return (TRUE);
 	}
 
+	if (namelen+add > props.pr_maxnamelen) {	/* Now we know 'add' */
+		enametoolong(name, namelen+add, props.pr_maxnamelen);
+		return (FALSE);
+	}
 	if (props.pr_nflags & PR_POSIX_SPLIT)
 		np = split_posix_name(name, namelen, add);
 	if (np == NULL) {
 		/*
-		 * cannot split
+		 * Cannot split
+		 * (namelen+add <= props.pr_maxnamelen) has been checked before
 		 */
-		if (namelen+add <= props.pr_maxnamelen) {
+		if (props.pr_nflags & PR_LONG_NAMES) {
 			if (props.pr_flags & PR_XHDR)
 				info->f_xflags |= XF_PATH;
 			else
@@ -147,11 +179,21 @@ name_to_tcb(info, ptb)
 			strncpy(ptb->dbuf.t_name, name, props.pr_maxsname);
 			return (TRUE);
 		} else {
-			enametoolong(name, namelen+add, props.pr_maxnamelen);
+			/*
+			 * In case of PR_POSIX_SPLIT we did already print the
+			 * error message.
+			 */
+			if ((props.pr_nflags & PR_POSIX_SPLIT) == 0) {
+				enametoolong(name, namelen+add,
+							props.pr_maxnamelen);
+			}
 			return (FALSE);
 		}
 	}
 
+	/*
+	 * Do actual splitting based on split name pointer 'np'.
+	 */
 	if (add)
 		strcatl(ptb->dbuf.t_name, &np[1], "/", (char *)NULL);
 	else
@@ -171,25 +213,27 @@ tcb_to_name(ptb, info)
 	TCB	*ptb;
 	FINFO	*info;
 {
+	/*
+	 * Name has already been set up from somwhere else.
+	 * We have nothing to do.
+	 */
+	if (info->f_flags & F_HAS_NAME)
+		return;
+
 	if ((info->f_flags & F_LONGLINK) == 0 &&	/* name from 'K' head*/
-	    (info->f_xflags & XF_LINKPATH) == 0 &&	/* name from 'x' head*/
-	    ptb->dbuf.t_linkname[NAMSIZ-1] != '\0') {
-		extern	char	longlinkname[];
+	    (info->f_xflags & XF_LINKPATH) == 0) {	/* name from 'x' head*/
 
 		/*
 		 * Our caller has set ptb->dbuf.t_linkname[NAMSIZ] to '\0'
 		 * if the link name len is exactly 100 chars.
 		 */
-		info->f_lname = longlinkname;
 		strcpy(info->f_lname, ptb->dbuf.t_linkname);
 	}
 
 	/*
-	 * Name has already been set up because it is a very long name or
-	 * because it has been setup from somwhere else.
-	 * We have nothing to do.
+	 * Name has already been set up because it is a very long name.
 	 */
-	if (info->f_flags & (F_LONGNAME|F_HAS_NAME))
+	if (info->f_flags & F_LONGNAME)
 		return;
 	/*
 	 * Name has already been set up from a POSIX.1-2001 extended header.
@@ -199,8 +243,8 @@ tcb_to_name(ptb, info)
 
 	if (props.pr_nflags & PR_POSIX_SPLIT) {
 		strcatl(info->f_name, ptb->dbuf.t_prefix,
-						*ptb->dbuf.t_prefix?"/":"",
-						ptb->dbuf.t_name, NULL);
+					*ptb->dbuf.t_prefix?"/":"",
+					ptb->dbuf.t_name, (char *)NULL);
 	} else {
 		strcpy(info->f_name, ptb->dbuf.t_name);
 	}
@@ -233,7 +277,9 @@ tcb_undo_split(ptb, info)
  * XXX the allocated data holds one byte more than needed as movearch.c
  * XXX adds a second null byte to the buffer to enforce null-termination.
  */
+#ifdef	__needed__
 char	longlinkname[PATH_MAX+1];
+#endif
 
 EXPORT int
 tcb_to_longname(ptb, info)
@@ -250,9 +296,18 @@ tcb_to_longname(ptb, info)
 	info->f_size = ull;
 	info->f_rsize = info->f_size;
 	if (info->f_size > PATH_MAX) {
-		xstats.s_toolong++;
-		errmsgno(EX_BAD, "Long name too long (%lld) ignored.\n",
+		/*
+		 * We do not know the name here,
+		 * we only have the short ptb->dbuf.t_name
+		 */
+/*		if (!errhidden(E_NAMETOOLONG, name)) {*/
+/*			if (!errwarnonly(E_NAMETOOLONG, name))*/
+				xstats.s_toolong++;
+			errmsgno(EX_BAD,
+			"Long name too long (%lld) ignored.\n",
 							(Llong)info->f_size);
+/*			(void) errabort(E_NAMETOOLONG, name, TRUE);*/
+/*		}*/
 		void_file(info);
 		return (get_tcb(ptb));
 	}
@@ -279,7 +334,6 @@ tcb_to_longname(ptb, info)
 			void_file(info);
 			return (get_tcb(ptb));
 		}
-		info->f_lname = longlinkname;
 		info->f_lnamelen = info->f_size -1;
 		info->f_flags |= F_LONGLINK;
 		move.m_data = info->f_lname;
@@ -319,13 +373,16 @@ put_longname(info, name, namelen, tname, xftype)
 	Ulong	xftype;
 {
 	FINFO	finfo;
+	TCB	tb;
 	TCB	*ptb;
 	move_t	move;
 
-	fillbytes((char *)&finfo, sizeof(finfo), '\0');
+	fillbytes((char *)&finfo, sizeof (finfo), '\0');
 
-	ptb = (TCB *)get_block();
-	finfo.f_flags |= F_TCB_BUF;
+	if ((ptb = (TCB *)get_block(TBLOCK)) == NULL)
+		ptb = &tb;
+	else
+		finfo.f_flags |= F_TCB_BUF;
 	filltcb(ptb);
 
 	strcpy(ptb->dbuf.t_name, tname);
@@ -339,6 +396,7 @@ put_longname(info, name, namelen, tname, xftype)
 		move.m_flags |= MF_ADDSLASH;
 		namelen++;
 	}
+	finfo.f_mode = TUREAD|TUWRITE;
 	finfo.f_rsize = finfo.f_size = namelen;
 	finfo.f_xftype = xftype;
 	info_to_tcb(&finfo, ptb);

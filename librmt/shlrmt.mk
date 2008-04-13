@@ -1,4 +1,4 @@
-#ident @(#)shlrmt.mk	1.3 02/11/10 
+#ident @(#)shlrmt.mk	1.4 05/06/13 
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
@@ -14,7 +14,7 @@ CPPOPTS +=	-DUSE_REMOTE
 CPPOPTS +=	-DUSE_RCMD_RSH
 CPPOPTS +=	-DUSE_LARGEFILES
 include		Targets
-LIBS=		
+LIBS=		-lschily -lc
 
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.shl

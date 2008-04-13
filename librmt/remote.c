@@ -1,37 +1,33 @@
 /*#define	USE_REMOTE*/
 /*#define	USE_RCMD_RSH*/
 /*#define	NO_LIBSCHILY*/
-/* @(#)remote.c	1.54 03/02/16 Copyright 1990-2003 J. Schilling */
+/* @(#)remote.c	1.65 08/03/23 Copyright 1990-2008 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)remote.c	1.54 03/02/16 Copyright 1990-2003 J. Schilling";
+	"@(#)remote.c	1.65 08/03/23 Copyright 1990-2008 J. Schilling";
 #endif
 /*
  *	Remote tape client interface code
  *
- *	Copyright (c) 1990-2003 J. Schilling
+ *	Copyright (c) 1990-2008 J. Schilling
  *
  *	TOTO:
  *		Signal handler for SIGPIPE
  *		check rmtaborted for exit() / clean abort of connection
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; see the file COPYING.  If not, write to the Free Software
- * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 
 /*#undef	USE_REMOTE*/
 /*#undef	USE_RCMD_RSH*/
@@ -51,16 +47,14 @@ static	char sccsid[] =
 #endif
 
 #include <stdio.h>
-#include <stdxlib.h>
-#include <unixstd.h>
-#include <fctldefs.h>
-#ifdef	HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
+#include <schily/stdlib.h>
+#include <schily/unistd.h>
+#include <schily/fcntl.h>
+#include <schily/ioctl.h>
 #ifdef	HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
-#include <errno.h>
+#include <schily/errno.h>
 #include <signal.h>
 #ifdef	HAVE_NETDB_H
 #include <netdb.h>
@@ -68,12 +62,12 @@ static	char sccsid[] =
 #ifdef	HAVE_PWD_H
 #include <pwd.h>
 #endif
-#include <standard.h>
-#include <strdefs.h>
-#include <utypes.h>
-#include <mtiodefs.h>
-#include <librmt.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/string.h>
+#include <schily/utypes.h>
+#include <schily/mtio.h>
+#include <schily/librmt.h>
+#include <schily/schily.h>
 #include <ctype.h>
 
 #if	defined(SIGDEFER) || defined(SVR4)
@@ -87,8 +81,13 @@ static	char sccsid[] =
 #ifdef	IS_CYGWIN
 #define	privport_ok()	(1)
 #else
+#ifdef	HAVE_GETPPRIV
+#define	privport_ok()	ppriv_ok()
+#else
 #define	privport_ok()	(geteuid() == 0)
 #endif
+#endif
+
 
 #ifdef	NO_LIBSCHILY
 
@@ -101,20 +100,17 @@ static	char sccsid[] =
  * needed.
  * For this reason, the portability in this compilation mode is limited.
  */
-#include <vadefs.h>
-#ifndef	HAVE_ERRNO_DEF
-extern	int	errno;
-#endif
-#define	geterrno()	(errno)
-#define	seterrno(err)	(errno = (err))
-#define	js_snprintf	snprintf
-#define	_niread		_lniread
-#define	_niwrite	_lniwrite
-#define	movebytes(f,t,n) memmove((t), (f), (n))
-#define	astoll(s,np)	*np = atoll(s);
-#define	comerrno(e,s)	{_errmsgno(e, s); rmt_exit(e);}
-#define	errmsgno	_errmsgno
-#define	errmsgstr	strerror
+#include <schily/varargs.h>
+#define	geterrno()		(errno)
+#define	seterrno(err)		(errno = (err))
+#define	js_snprintf		snprintf
+#define	_niread			_lniread
+#define	_niwrite		_lniwrite
+#define	movebytes(f, t, n)	memmove((t), (f), (n))
+#define	astoll(s, np)		{*np = atoll(s); }
+#define	comerrno(e, s)		{_errmsgno(e, s); rmt_exit(e); }
+#define	errmsgno		_errmsgno
+#define	errmsgstr		strerror
 
 LOCAL	int _niread	__PR((int f, void *buf, int count));
 LOCAL	int _niwrite	__PR((int f, void *buf, int count));
@@ -210,32 +206,32 @@ EXPORT	void	rmtinit			__PR((int (*errmsgn)(int, const char *, ...),
 EXPORT	int	rmtdebug		__PR((int dlevel));
 EXPORT	char	*rmtfilename		__PR((char *name));
 EXPORT	char	*rmthostname		__PR((char *hostname, int hnsize, char *rmtspec));
-EXPORT	int	rmtgetconn		__PR((char* host, int trsize, int excode));
+EXPORT	int	rmtgetconn		__PR((char *host, int trsize, int excode));
 
 #ifdef	USE_REMOTE
 LOCAL	void	rmtabrt			__PR((int sig));
 LOCAL	BOOL	okuser			__PR((char *name));
 LOCAL	void	rmtoflags		__PR((int fmode, char *cmode));
-EXPORT	int	rmtopen			__PR((int fd, char* fname, int fmode));
+EXPORT	int	rmtopen			__PR((int fd, char *fname, int fmode));
 EXPORT	int	rmtclose		__PR((int fd));
-EXPORT	int	rmtread			__PR((int fd, char* buf, int count));
-EXPORT	int	rmtwrite		__PR((int fd, char* buf, int count));
+EXPORT	int	rmtread			__PR((int fd, char *buf, int count));
+EXPORT	int	rmtwrite		__PR((int fd, char *buf, int count));
 EXPORT	off_t	rmtseek			__PR((int fd, off_t offset, int whence));
 EXPORT	int	rmtioctl		__PR((int fd, int cmd, int count));
 LOCAL	int	rmtmapold		__PR((int cmd));
 LOCAL	int	rmtmapnew		__PR((int cmd));
 LOCAL	Llong	rmtxgstatus		__PR((int fd, int cmd));
-LOCAL	int	rmt_v1_status		__PR((int fd, struct rmtget* mtp));
-LOCAL	int	rmt_v0_status		__PR((int fd, struct mtget* mtp));
-EXPORT	int	rmxtstatus		__PR((int fd, struct rmtget* mtp));
-EXPORT	int	rmtstatus		__PR((int fd, struct mtget* mtp));
-LOCAL	Llong	rmtcmd			__PR((int fd, char* name, char* cbuf));
-LOCAL	void	rmtsendcmd		__PR((int fd, char* name, char* cbuf));
+LOCAL	int	rmt_v1_status		__PR((int fd, struct rmtget *mtp));
+LOCAL	int	rmt_v0_status		__PR((int fd, struct mtget *mtp));
+EXPORT	int	rmxtstatus		__PR((int fd, struct rmtget *mtp));
+EXPORT	int	rmtstatus		__PR((int fd, struct mtget *mtp));
+LOCAL	Llong	rmtcmd			__PR((int fd, char *name, char *cbuf));
+LOCAL	void	rmtsendcmd		__PR((int fd, char *name, char *cbuf));
 LOCAL	int	rmtfillrdbuf		__PR((int fd));
 LOCAL	int	rmtreadchar		__PR((int fd, char *cp));
 LOCAL	int	rmtreadbuf		__PR((int fd, char *buf, int count));
-LOCAL	int	rmtgetline		__PR((int fd, char* line, int count));
-LOCAL	Llong	rmtgetstatus		__PR((int fd, char* name));
+LOCAL	int	rmtgetline		__PR((int fd, char *line, int count));
+LOCAL	Llong	rmtgetstatus		__PR((int fd, char *name));
 LOCAL	int	rmtaborted		__PR((int fd));
 EXPORT	void	_rmtg2mtg		__PR((struct mtget *mtp, struct rmtget *rmtp));
 EXPORT	int	_mtg2rmtg		__PR((struct rmtget *rmtp, struct mtget *mtp));
@@ -245,6 +241,9 @@ LOCAL	int	_rcmdrsh		__PR((char **ahost, int inport,
 						const char *remuser,
 						const char *cmd,
 						const char *rsh));
+#ifdef	HAVE_GETPPRIV
+LOCAL	BOOL	ppriv_ok		__PR((void));
+#endif
 #endif
 
 #endif
@@ -300,9 +299,9 @@ rmtfilename(name)
 
 EXPORT char *
 rmthostname(hostname, hnsize, rmtspec)
-		 char	*hostname;
+		char	*hostname;
 	register int	hnsize;
-		 char	*rmtspec;
+		char	*rmtspec;
 {
 	register int	i;
 	register char	*hp;
@@ -326,7 +325,7 @@ rmthostname(hostname, hnsize, rmtspec)
 
 EXPORT int
 rmtgetconn(host, trsize, excode)
-	char	*host;		/* The host name to connect to		     */
+	char	*host;		/* The host name to connect to		    */
 	int	trsize;		/* Max transfer size for SO_SNDBUF/SO_RCVBUF */
 	int	excode;		/* If != 0 use value to exit() in this func  */
 {
@@ -577,7 +576,7 @@ rmtopen(fd, fname, fmode)
 	char	*fname;
 	int	fmode;
 {
-	char	cbuf[CMD_SIZE];
+	char	cbuf[4096+CMD_SIZE];
 	char	cmode[CMD_SIZE];
 	int	ret;
 
@@ -588,7 +587,16 @@ rmtopen(fd, fname, fmode)
 	 * operating systems.
 	 */
 	rmtoflags(fmode, cmode);
-	js_snprintf(cbuf, CMD_SIZE, "O%s\n%d %s\n", fname, fmode & O_ACCMODE, cmode);
+	ret = js_snprintf(cbuf, sizeof (cbuf), "O%s\n%d %s\n",
+				fname, fmode & O_ACCMODE, cmode);
+	if (ret < 0 || ret >= sizeof (cbuf)) {
+#ifdef	ENAMETOOLONG
+		seterrno(ENAMETOOLONG);
+#else
+		seterrno(EINVAL);
+#endif
+		return (-1);
+	}
 	ret = rmtcmd(fd, "open", cbuf);
 	if (ret < 0)
 		return (ret);
@@ -618,7 +626,11 @@ rmtread(fd, buf, count)
 	int	n;
 	int	amt = 0;
 
-	js_snprintf(cbuf, CMD_SIZE, "R%d\n", count);
+	n = js_snprintf(cbuf, CMD_SIZE, "R%d\n", count);
+	if (n < 0 || n >= CMD_SIZE) {				/* Paranoia */
+		seterrno(EINVAL);
+		return (-1);
+	}
 	n = rmtcmd(fd, "read", cbuf);
 	if (n < 0)
 		return (-1);
@@ -649,8 +661,13 @@ rmtwrite(fd, buf, count)
 	int	count;
 {
 	char	cbuf[CMD_SIZE];
+	int	n;
 
-	js_snprintf(cbuf, CMD_SIZE, "W%d\n", count);
+	n = js_snprintf(cbuf, CMD_SIZE, "W%d\n", count);
+	if (n < 0 || n >= CMD_SIZE) {				/* Paranoia */
+		seterrno(EINVAL);
+		return (-1);
+	}
 	rmtsendcmd(fd, "write", cbuf);
 	if (_niwrite(fd, buf, count) != count)
 		rmtaborted(fd);
@@ -664,19 +681,30 @@ rmtseek(fd, offset, whence)
 	int	whence;
 {
 	char	cbuf[CMD_SIZE];
+	int	n;
 
 	switch (whence) {
 
-	case 0: whence = SEEK_SET; break;
-	case 1: whence = SEEK_CUR; break;
-	case 2: whence = SEEK_END; break;
+	case SEEK_SET: whence = 0; break;
+	case SEEK_CUR: whence = 1; break;
+	case SEEK_END: whence = 2; break;
+#ifdef	SEEK_DATA
+	case SEEK_DATA: whence = 3; break;
+#endif
+#ifdef	SEEK_HOLE
+	case SEEK_HOLE: whence = 4; break;
+#endif
 
 	default:
 		seterrno(EINVAL);
 		return (-1);
 	}
 
-	js_snprintf(cbuf, CMD_SIZE, "L%lld\n%d\n", (Llong)offset, whence);
+	n = js_snprintf(cbuf, CMD_SIZE, "L%lld\n%d\n", (Llong)offset, whence);
+	if (n < 0 || n >= CMD_SIZE) {				/* Paranoia */
+		seterrno(EINVAL);
+		return (-1);
+	}
 	return ((off_t)rmtcmd(fd, "seek", cbuf));
 }
 
@@ -722,7 +750,11 @@ rmtioctl(fd, cmd, count)
 		}
 	}
 
-	js_snprintf(cbuf, CMD_SIZE, "%c%d\n%d\n", c, cmd, count);
+	i = js_snprintf(cbuf, CMD_SIZE, "%c%d\n%d\n", c, cmd, count);
+	if (i < 0 || i >= CMD_SIZE) {				/* Paranoia */
+		seterrno(EINVAL);
+		return (-1);
+	}
 	return (rmtcmd(fd, "ioctl", cbuf));
 }
 
@@ -817,9 +849,14 @@ rmtxgstatus(fd, cmd)
 	char	cmd;
 {
 	char	cbuf[CMD_SIZE];
+	int	n;
 
 			/* No newline */
-	js_snprintf(cbuf, CMD_SIZE, "s%c", cmd);
+	n = js_snprintf(cbuf, CMD_SIZE, "s%c", cmd);
+	if (n < 0 || n >= CMD_SIZE) {				/* Paranoia */
+		seterrno(EINVAL);
+		return (-1);
+	}
 	seterrno(0);
 	return (rmtcmd(fd, "extended status", cbuf));
 }
@@ -1121,7 +1158,7 @@ rmtaborted(fd)
 /* ARGSUSED */
 EXPORT int
 rmtgetconn(host, trsize, excode)
-	char	*host;		/* The host name to connect to		     */
+	char	*host;		/* The host name to connect to		    */
 	int	trsize;		/* Max transfer size for SO_SNDBUF/SO_RCVBUF */
 	int	excode;		/* If != 0 use value to exit() in this func  */
 {
@@ -1379,12 +1416,12 @@ _mtg2rmtg(rmtp, mtp)
  * If we make a separate file for libschily, we would need these include files:
  *
  * socketpair():	sys/types.h + sys/socket.h
- * dup2():		unixstd.h (hat auch sys/types.h)
- * strrchr():		strdefs.h
+ * dup2():		schily/unistd.h (hat auch sys/types.h)
+ * strrchr():		schily/string.h
  *
  * and make sure that we use sigset() instead of signal() if possible.
  */
-#include <waitdefs.h>
+#include <schily/wait.h>
 LOCAL int
 _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 	char		**ahost;
@@ -1450,6 +1487,21 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 			_exit(EX_BAD);
 			/* NOTREACHED */
 		}
+		if (getuid() != geteuid() &&
+#ifdef	HAVE_SETREUID
+		    setreuid(-1, pw->pw_uid) == -1) {
+#else
+#ifdef	HAVE_SETEUID
+		    seteuid(pw->pw_uid) == -1) {
+#else
+		    setuid(pw->pw_uid) == -1) {
+#endif
+#endif
+			errmsg("seteuid(%lld) failed.\n",
+							(Llong)pw->pw_uid);
+			_exit(EX_BAD);
+			/* NOTREACHED */
+		}
 
 		/*
 		 * Fork again to completely detach from parent
@@ -1502,7 +1554,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 		av0 = rsh;
 		if ((p = strrchr(rsh, '/')) != NULL)
 			av0 = ++p;
-		execlp(rsh, av0, *ahost, "-l", remuser, cmd, NULL);
+		execlp(rsh, av0, *ahost, "-l", remuser, cmd, (char *)NULL);
 
 		rmt_errmsgno(geterrno(), "execlp '%s' failed.\n", rsh);
 		_exit(EX_BAD);
@@ -1518,5 +1570,32 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 	}
 	return (-1);	/* keep gcc happy */
 }
+
+#ifdef	HAVE_GETPPRIV
+#include <priv.h>
+
+LOCAL BOOL
+ppriv_ok()
+{
+	priv_set_t	*privset;
+	BOOL		net_privaddr = FALSE;
+
+
+	if ((privset = priv_allocset()) == NULL) {
+		return (FALSE);
+	}
+	if (getppriv(PRIV_EFFECTIVE, privset) == -1) {
+		priv_freeset(privset);
+		return (FALSE);
+	}
+	if (priv_ismember(privset, PRIV_NET_PRIVADDR)) {
+		net_privaddr = TRUE;
+	}
+	priv_freeset(privset);
+
+	return (net_privaddr);
+}
+#endif	/* HAVE_GETPPRIV */
+
 #endif	/* USE_RCMD_RSH */
 #endif	/* USE_REMOTE */

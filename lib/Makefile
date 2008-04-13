@@ -1,12 +1,11 @@
-#ident "%W% %E% %Q%"
+#ident "@(#)Makefile	1.5 06/07/21 "
 ###########################################################################
 SRCROOT=	..
 RULESDIR=	RULES
 include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
-#MK_FILES= libschily.mk libschily_p.mk shlschily.mk
-MK_FILES= libschily.mk
+MK_FILES= libschily.mk libschily_p.mk $(NO_SHL)shlschily.mk
 
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.mks

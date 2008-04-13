@@ -1,4 +1,4 @@
-#ident "@(#)r-make.tag	1.1 97/01/18 "
+#ident "@(#)r-make.tag	1.3 07/12/01 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -6,24 +6,20 @@
 # Tag building rules for make
 #
 ###########################################################################
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
-# any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING.  If not, write to
-# the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+# Copyright (c) J. Schilling
 ###########################################################################
-TAGS:		$(CFILES) $(HFILES)
-		$(ETAGS) $(CFILES) $(HFILES)
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
+#
+# See the file CDDL.Schily.txt in this distribution for details.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file CDDL.Schily.txt from this distribution.
+###########################################################################
+TAGS:		$(CFILES) $(CFILES_TAG) $(HFILES) $(HFILES_TAG)
+		$(ETAGS) $(CFILES) $(CFILES_TAG) $(HFILES) $(HFILES_TAG)
 
-
-tags:		$(CFILES) $(HFILES)
-		$(CTAGS) -t $(CFILES) $(HFILES)
-
+tags:		$(CFILES) $(CFILES_TAG) $(HFILES) $(HFILES_TAG)
+		$(CTAGS) -t $(CFILES) $(CFILES_TAG) $(HFILES) $(HFILES_TAG)

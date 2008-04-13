@@ -1,43 +1,41 @@
-/* @(#)header.c	1.73 03/02/01 Copyright 1985, 1995 J. Schilling */
+/* @(#)header.c	1.135 08/04/06 Copyright 1985, 1994-2007 J. Schilling */
 #ifndef lint
 static	char sccsid[] =
-	"@(#)header.c	1.73 03/02/01 Copyright 1985, 1995 J. Schilling";
+	"@(#)header.c	1.135 08/04/06 Copyright 1985, 1994-2007 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
  *	archive headers
  *
- *	Copyright (c) 1985, 1995 J. Schilling
+ *	Copyright (c) 1985, 1994-2007 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; see the file COPYING.  If not, write to the Free Software
- * Foundation, 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
+#include <schily/mconfig.h>
 #include <stdio.h>
-#include <stdxlib.h>
+#include <schily/stdlib.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <dirdefs.h>
-#include <standard.h>
-#include <strdefs.h>
+#include <schily/dirent.h>
+#include <schily/standard.h>
+#include <schily/string.h>
 #define	__XDEV__	/* Needed to activate _dev_major()/_dev_minor() */
-#include <device.h>
-#include <schily.h>
+#include <schily/device.h>
+#include <schily/schily.h>
+#include <schily/idcache.h>
 #include "starsubs.h"
+#include "fifo.h"
 
 	/* ustar */
 LOCAL	char	magic[TMAGLEN] = TMAGIC;
@@ -46,37 +44,69 @@ LOCAL	char	stmagic[STMAGLEN] = STMAGIC;
 	/* gnu tar */
 LOCAL	char	gmagic[GMAGLEN] = GMAGIC;
 
-LOCAL	char	*hdrtxt[] = {
-	/* 0 */	"UNDEFINED",
-	/* 1 */	"unknown tar",
-	/* 2 */	"old tar",
-	/* 3 */	"star",
-	/* 4 */	"gnu tar",
-	/* 5 */	"ustar",
-	/* 6 */	"xstar",
-	/* 7 */	"xustar",
-	/* 8 */	"exustar",
-	/* 9 */	"pax",		/* USTAR POSIX.1-2001 */
-	/*10 */	"suntar",
-	/*11 */	"res11",	/* Reserved */
-	/*12 */	"res12",	/* Reserved */
-	/*13 */	"res13",	/* Reserved */
-	/*14 */	"res14",	/* Reserved */
-	/*15 */	"bar",
-	/*16 */	"cpio binary",
-	/*17 */	"cpio -c",
-	/*18 */	"cpio",
-	/*19 */	"cpio crc",
-	/*20 */	"cpio ascii",
-	/*21 */	"cpio ascii crc",
+typedef struct {
+	char	*h_name;
+	char	*h_text;
+	Int8_t	h_type;
+	UInt8_t	h_flags;
+} htab_t;
+
+#define	HF_RO	0x01	/* Read only entry - may not be set via cmd line */
+
+LOCAL	htab_t	htab[] = {
+/* 0 */	{ "UNDEFINED",	"Undefined archive",			H_UNDEF, HF_RO	},
+/* 1 */	{ "unknown tar", "Unknown tar format", 			H_TAR,   HF_RO	},
+/* 2 */	{ "v7tar",	"Old UNIX V7 tar format",		H_V7TAR,  0	},
+/* 3 */	{ "tar",	"Old BSD tar format",			H_OTAR,  0	},
+/* 4 */	{ "star",	"Old star format from 1985",		H_STAR,  0	},
+/* 5 */	{ "gnutar",	"GNU tar format 1989 (violates POSIX)",	H_GNUTAR, 0	},
+/* 6 */	{ "ustar",	"Standard POSIX.1-1988 tar format",	H_USTAR, 0	},
+/* 7 */	{ "xstar",	"Extended standard tar (star 1994)",	H_XSTAR, 0	},
+/* 8 */	{ "xustar",	"'xstar' format without tar signature",	H_XUSTAR, 0	},
+/* 9 */	{ "exustar",	"'xustar' format - always x-header",	H_EXUSTAR, 0	},
+/*10 */	{ "pax",	"Extended POSIX.1-2001 standard tar",	H_PAX,    0	},
+/*11 */	{ "suntar",	"Sun's extended pre-POSIX.1-2001",	H_SUNTAR, 0	},
+
+/*15 */	{ "bar",	"SunOS 4.x bar format",			H_BAR,    HF_RO	},
+
+/*16 */	{ "bin",	"cpio UNIX V7 binary format",		H_CPIO_BIN, 0	},
+/*17 */	{ "cpio",	"cpio POSIX.1-1988 format",		H_CPIO_CHR, 0	},
+/*18 */	{ "odc",	"cpio POSIX.1-1988 with SYSv compat",	H_CPIO_ODC, 0	},
+/*19 */	{ "nbin",	"CPIO NBIN",				H_CPIO_NBIN, HF_RO	},
+/*20 */	{ "crcbin",	"CPIO CRCBIN",				H_CPIO_CRC, HF_RO	},
+/*21 */	{ "asc",	"SYSvr4 cpio ascii expanded device #",	H_CPIO_ASC, 0	},
+/*22 */	{ "crc",	"'asc' format + CRC",			H_CPIO_ACRC, 0	},
+
+	{ NULL,		NULL, 					0, 0 },
+};
+
+/*
+ * Compression names
+ */
+LOCAL	char	*cnames[] = {
+	"unknown",
+	"pack",
+	"gzip",
+	"lzw",
+	"freeze",
+	"lzh",
+	"pkzip",
+	"bzip2",
+	"lzo",
+	"7z",
 };
 
 extern	FILE	*tty;
 extern	FILE	*vpr;
+extern	const	char	*tarfiles[];		/* Cycle list of all archives	*/
+extern	int	tarfindex;			/* Current index in list	*/
+extern	BOOL	multivol;
 extern	long	hdrtype;
 extern	long	chdrtype;
+extern	int	cmptype;
 extern	int	version;
 extern	int	swapflg;
+extern	BOOL	print_artype;
 extern	BOOL	debug;
 extern	BOOL	numeric;
 extern	int	verbose;
@@ -87,67 +117,73 @@ extern	BOOL	signedcksum;
 extern	BOOL	nowarn;
 extern	BOOL	nullout;
 extern	BOOL	modebits;
+extern	BOOL	linkdata;
 
 extern	Ullong	tsize;
 
 extern	char	*bigbuf;
 extern	int	bigsize;
 
-LOCAL	Ulong	checksum	__PR((TCB * ptb));
-LOCAL	Ulong	bar_checksum	__PR((TCB * ptb));
+LOCAL	Ulong	checksum	__PR((TCB *ptb));
+LOCAL	Ulong	bar_checksum	__PR((TCB *ptb));
 LOCAL	BOOL	signedtarsum	__PR((TCB *ptb, Ulong ocheck));
-LOCAL	BOOL	isstmagic	__PR((char* s));
+EXPORT	BOOL	tarsum_ok	__PR((TCB *ptb));
+LOCAL	BOOL	isstmagic	__PR((char *s));
 LOCAL	BOOL	isxmagic	__PR((TCB *ptb));
-LOCAL	BOOL	ismagic		__PR((char* s));
-LOCAL	BOOL	isgnumagic	__PR((char* s));
-LOCAL	BOOL	strxneql	__PR((char* s1, char* s2, int l));
-LOCAL	BOOL	ustmagcheck	__PR((TCB * ptb));
-LOCAL	void	print_hdrtype	__PR((int type));
-EXPORT	int	get_hdrtype	__PR((TCB * ptb, BOOL isrecurse));
-EXPORT	int	get_compression	__PR((TCB * ptb));
-EXPORT	int	get_tcb		__PR((TCB * ptb));
-EXPORT	void	put_tcb		__PR((TCB * ptb, FINFO * info));
-EXPORT	void	write_tcb	__PR((TCB * ptb, FINFO * info));
-EXPORT	void	put_volhdr	__PR((char* name));
-EXPORT	BOOL	get_volhdr	__PR((FINFO * info, char* vhname));
-EXPORT	void	info_to_tcb	__PR((FINFO * info, TCB * ptb));
-LOCAL	void	info_to_star	__PR((FINFO * info, TCB * ptb));
-LOCAL	void	info_to_ustar	__PR((FINFO * info, TCB * ptb));
-LOCAL	void	info_to_xstar	__PR((FINFO * info, TCB * ptb));
-LOCAL	void	info_to_gnutar	__PR((FINFO * info, TCB * ptb));
-EXPORT	int	tcb_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	tar_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	star_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	ustar_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	xstar_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	gnutar_to_info	__PR((TCB * ptb, FINFO * info));
-LOCAL	void	cpiotcb_to_info	__PR((TCB * ptb, FINFO * info));
+LOCAL	BOOL	ismagic		__PR((char *s));
+LOCAL	BOOL	isgnumagic	__PR((char *s));
+LOCAL	BOOL	strxneql	__PR((char *s1, char *s2, int l));
+LOCAL	BOOL	ustmagcheck	__PR((TCB *ptb));
+EXPORT	void	print_hdrtype	__PR((FILE *f, int type));
+EXPORT	char	*hdr_name	__PR((int type));
+EXPORT	char	*hdr_text	__PR((int type));
+EXPORT	int	hdr_type	__PR((char *name));
+EXPORT	void	hdr_usage	__PR((void));
+EXPORT	int	get_hdrtype	__PR((TCB *ptb, BOOL isrecurse));
+LOCAL	int	get_xhtype	__PR((TCB *ptb, int htype));
+EXPORT	int	get_compression	__PR((TCB *ptb));
+EXPORT	char	*get_cmpname	__PR((int type));
+EXPORT	int	get_tcb		__PR((TCB *ptb));
+EXPORT	void	put_tcb		__PR((TCB *ptb, FINFO *info));
+EXPORT	void	write_tcb	__PR((TCB *ptb, FINFO *info));
+EXPORT	void	info_to_tcb	__PR((FINFO *info, TCB *ptb));
+LOCAL	void	info_to_star	__PR((FINFO *info, TCB *ptb));
+LOCAL	void	info_to_ustar	__PR((FINFO *info, TCB *ptb));
+LOCAL	void	info_to_xstar	__PR((FINFO *info, TCB *ptb));
+LOCAL	void	info_to_gnutar	__PR((FINFO *info, TCB *ptb));
+EXPORT	int	tcb_to_info	__PR((TCB *ptb, FINFO *info));
+LOCAL	void	tar_to_info	__PR((TCB *ptb, FINFO *info));
+LOCAL	void	star_to_info	__PR((TCB *ptb, FINFO *info));
+LOCAL	void	ustar_to_info	__PR((TCB *ptb, FINFO *info));
+LOCAL	void	xstar_to_info	__PR((TCB *ptb, FINFO *info));
+LOCAL	void	gnutar_to_info	__PR((TCB *ptb, FINFO *info));
 LOCAL	int	ustoxt		__PR((int ustype));
-EXPORT	BOOL	ia_change	__PR((TCB * ptb, FINFO * info));
-LOCAL	BOOL	checkeof	__PR((TCB * ptb));
-LOCAL	BOOL	eofblock	__PR((TCB * ptb));
-LOCAL	void	astoo_cpio	__PR((char* s, Ulong * l, int cnt));
-LOCAL	void	stoli		__PR((char* s, Ulong * l));
-EXPORT	void	stolli		__PR((char* s, Ullong * ull));
-LOCAL	void	litos		__PR((char* s, Ulong l, int fieldw));
-EXPORT	void	llitos		__PR((char* s, Ullong ull, int fieldw));
-LOCAL	void	stob		__PR((char* s, Ulong * l, int fieldw));
-LOCAL	void	stollb		__PR((char* s, Ullong * ull, int fieldw));
-LOCAL	void	btos		__PR((char* s, Ulong l, int fieldw));
-LOCAL	void	llbtos		__PR((char* s, Ullong ull, int fieldw));
+LOCAL	BOOL	checkeof	__PR((TCB *ptb));
+LOCAL	BOOL	eofblock	__PR((TCB *ptb));
+LOCAL	void	stoli		__PR((char *s, Ulong * l));
+EXPORT	void	stolli		__PR((char *s, Ullong *ull));
+LOCAL	void	litos		__PR((char *s, Ulong l, int fieldw));
+EXPORT	void	llitos		__PR((char *s, Ullong ull, int fieldw));
+LOCAL	void	stob		__PR((char *s, Ulong *l, int fieldw));
+LOCAL	void	stollb		__PR((char *s, Ullong *ull, int fieldw));
+#if	DEV_MINOR_BITS > 21
+LOCAL	void	btos		__PR((char *s, Ulong l, int fieldw));
+#endif
+LOCAL	void	llbtos		__PR((char *s, Ullong ull, int fieldw));
+LOCAL	void	print_hrange	__PR((char *type, Ullong ull));
 EXPORT	void	dump_info	__PR((FINFO *info));
 
 /*
  * XXX Hier sollte eine tar/bar universelle Checksummenfunktion sein!
  */
-#define	CHECKS	sizeof(ptb->ustar_dbuf.t_chksum)
+#define	CHECKS	sizeof (ptb->ustar_dbuf.t_chksum)
 /*
- * We know, that sizeof(TCP) is 512 and therefore has no
+ * We know, that sizeof (TCP) is 512 and therefore has no
  * reminder when dividing by 8
  *
  * CHECKS is known to be 8 too, use loop unrolling.
  */
-#define	DO8(a)	a;a;a;a;a;a;a;a;
+#define	DO8(a)	a; a; a; a; a; a; a; a;
 
 LOCAL Ulong
 checksum(ptb)
@@ -159,34 +195,36 @@ checksum(ptb)
 
 	if (signedcksum) {
 		register	char	*ss;
+		register	long	ssum = 0;
 
 		ss = (char *)ptb;
-		for (i=sizeof(*ptb)/8; --i >= 0;) {
-			DO8(sum += *ss++);
+		for (i = sizeof (*ptb)/8; --i >= 0; ) {
+			DO8(ssum += *ss++);
 		}
-		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+		if (ssum == 0L)		/* Block containing 512 nul's */
+			return (0);
 
-		ss=(char *)ptb->ustar_dbuf.t_chksum;
-		DO8(sum -= *ss++);
-		sum += CHECKS*' ';
+		ss = (char *)ptb->ustar_dbuf.t_chksum;
+		DO8(ssum -= *ss++);
+		ssum += CHECKS*' ';
+		sum = ssum;
 	} else {
 		us = (Uchar *)ptb;
-		for (i=sizeof(*ptb)/8; --i >= 0;) {
+		for (i = sizeof (*ptb)/8; --i >= 0; ) {
 			DO8(sum += *us++);
 		}
 		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+			return (sum);
 
-		us=(Uchar *)ptb->ustar_dbuf.t_chksum;
+		us = (Uchar *)ptb->ustar_dbuf.t_chksum;
 		DO8(sum -= *us++);
 		sum += CHECKS*' ';
 	}
-	return sum;
+	return (sum);
 }
 #undef	CHECKS
 
-#define	CHECKS	sizeof(ptb->bar_dbuf.t_chksum)
+#define	CHECKS	sizeof (ptb->bar_dbuf.t_chksum)
 
 LOCAL Ulong
 bar_checksum(ptb)
@@ -198,28 +236,30 @@ bar_checksum(ptb)
 
 	if (signedcksum) {
 		register	char	*ss;
+		register	long	ssum = 0;
 
 		ss = (char *)ptb;
-		for (i=sizeof(*ptb); --i >= 0;)
-			sum += *ss++;
-		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+		for (i = sizeof (*ptb); --i >= 0; )
+			ssum += *ss++;
+		if (ssum == 0L)		/* Block containing 512 nul's */
+			return (0);
 
-		for (i=CHECKS, ss=(char *)ptb->bar_dbuf.t_chksum; --i >= 0;)
-			sum -= *ss++;
-		sum += CHECKS*' ';
+		for (i = CHECKS, ss = (char *)ptb->bar_dbuf.t_chksum; --i >= 0; )
+			ssum -= *ss++;
+		ssum += CHECKS*' ';
+		sum = ssum;
 	} else {
 		us = (Uchar *)ptb;
-		for (i=sizeof(*ptb); --i >= 0;)
+		for (i = sizeof (*ptb); --i >= 0; )
 			sum += *us++;
 		if (sum == 0L)		/* Block containing 512 nul's */
-			return(sum);
+			return (sum);
 
-		for (i=CHECKS, us=(Uchar *)ptb->bar_dbuf.t_chksum; --i >= 0;)
+		for (i = CHECKS, us = (Uchar *)ptb->bar_dbuf.t_chksum; --i >= 0; )
 			sum -= *us++;
 		sum += CHECKS*' ';
 	}
-	return sum;
+	return (sum);
 }
 #undef	CHECKS
 
@@ -231,6 +271,9 @@ signedtarsum(ptb, ocheck)
 	BOOL	osigned = signedcksum;
 	Ulong	check;
 
+	if (ocheck == 0)
+		return (FALSE);
+
 	signedcksum = !signedcksum;
 	check = checksum(ptb);
 	if (ocheck == check) {
@@ -240,6 +283,25 @@ signedtarsum(ptb, ocheck)
 	}
 	signedcksum = osigned;
 	return (FALSE);
+}
+
+/*
+ * XXX Shouldn't we use this or something similar from get_tcb() too?
+ */
+EXPORT BOOL
+tarsum_ok(ptb)
+	TCB	*ptb;
+{
+	Ulong	ocheck;
+	Ulong	check;
+
+	stoli(ptb->dbuf.t_chksum, &ocheck);
+	if (ocheck == 0)
+		return (FALSE);
+	check = checksum(ptb);
+	if (ocheck != check && !signedtarsum(ptb, ocheck))
+		return (FALSE);
+	return (TRUE);
 }
 
 LOCAL BOOL
@@ -255,6 +317,8 @@ isstmagic(s)
  * This is star's upcoming new standard format. This format understands star's
  * old extended POSIX format and in future will write POSIX.1-2001 extensions
  * using 'x' headers.
+ * Star also detects the archive format from the value of
+ * the "SCHILY.archtype=" POSIX.1-2001 header tag.
  */
 LOCAL BOOL
 isxmagic(ptb)
@@ -265,8 +329,26 @@ isxmagic(ptb)
 	/*
 	 * prefix[130] is is granted to be '\0' with 'xstar'.
 	 */
-	if (ptb->xstar_dbuf.t_prefix[130] != '\0')
+	if (ptb->xstar_dbuf.t_prefix[130] == '\0') {
+		/*
+		 * True for all 'standard' TCBs except with typeflag 'M'
+		 */
+		/* EMPTY */
+		;
+	} else if (ptb->ustar_dbuf.t_typeflag == 'M') {
+		/*
+		 * We come only here if we try to read in a multivol archive
+		 * starting past volume #0. If we start with volume #0, all
+		 * multi volume headers are skiped by the low level multi
+		 * volume handling code.
+		 */
+		if ((ptb->xstar_in_dbuf.t_offset[11] != ' ') &&
+		    ((ptb->xstar_in_dbuf.t_offset[0] & 0x80) == 0))
+			return (FALSE);
+	} else {
 		return (FALSE);
+	}
+
 	/*
 	 * If atime[0]...atime[10] or ctime[0]...ctime[10]
 	 * is not a POSIX octal number it cannot be 'xstar'.
@@ -289,9 +371,9 @@ isxmagic(ptb)
 	 * Check for both POSIX compliant end of number characters.
 	 */
 	if ((ptb->xstar_dbuf.t_atime[11] != ' ' &&
-	     ptb->xstar_dbuf.t_atime[11] != '\0') ||
+	    ptb->xstar_dbuf.t_atime[11]  != '\0') ||
 	    (ptb->xstar_dbuf.t_ctime[11] != ' ' &&
-	     ptb->xstar_dbuf.t_ctime[11] != '\0'))
+	    ptb->xstar_dbuf.t_ctime[11]  != '\0'))
 		return (FALSE);
 
 	return (TRUE);
@@ -333,17 +415,71 @@ ustmagcheck(ptb)
 	return (FALSE);
 }
 
-LOCAL void
-print_hdrtype(type)
+EXPORT void
+print_hdrtype(f, type)
+	FILE	*f;
 	int	type;
 {
-	BOOL	isswapped = H_ISSWAPPED(type);
+		BOOL	isswapped = H_ISSWAPPED(type);
 
 	if (H_TYPE(type) > H_MAX_ARCH)
 		type = H_UNDEF;
 	type = H_TYPE(type);
 
-	error("%s%s archive.\n", isswapped?"swapped ":"", hdrtxt[type]);
+	fprintf(f, "%s%s archive.\n", isswapped?"swapped ":"", hdr_name(type));
+}
+
+EXPORT char *
+hdr_name(type)
+	int	type;
+{
+	register htab_t	*htp = htab;
+
+	for (; htp->h_name; htp++) {
+		if (htp->h_type == type)
+			return (htp->h_name);
+	}
+	return (htab->h_name);
+}
+
+EXPORT char *
+hdr_text(type)
+	int	type;
+{
+	register htab_t	*htp = htab;
+
+	for (; htp->h_name; htp++) {
+		if (htp->h_type == type)
+			return (htp->h_text);
+	}
+	return (htab->h_text);
+}
+
+EXPORT int
+hdr_type(name)
+	char	*name;
+{
+	register htab_t	*htp = htab;
+
+	for (; htp->h_name; htp++) {
+		if (htp->h_flags & HF_RO)
+			continue;
+		if (streql(name, htp->h_name))
+			return (htp->h_type);
+	}
+	return (-1);
+}
+
+EXPORT void
+hdr_usage()
+{
+	register htab_t	*htp = htab;
+
+	for (; htp->h_name; htp++) {
+		if (htp->h_flags & HF_RO)
+			continue;
+		error("\t%s\t%s\n", htp->h_name, htp->h_text);
+	}
 }
 
 EXPORT int
@@ -356,6 +492,8 @@ get_hdrtype(ptb, isrecurse)
 	int	ret = H_UNDEF;
 
 	stoli(ptb->dbuf.t_chksum, &ocheck);
+	if (ocheck == 0)
+		goto nottar;
 	check = checksum(ptb);
 	if (ocheck != check && !signedtarsum(ptb, ocheck)) {
 		if (debug && !isrecurse) {
@@ -372,7 +510,7 @@ get_hdrtype(ptb, isrecurse)
 			ret = H_XSTAR;
 		else
 			ret = H_STAR;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (ustmagcheck(ptb)) {			/* 'ustar\000' POSIX magic */
@@ -391,17 +529,17 @@ get_hdrtype(ptb, isrecurse)
 			else
 				ret = H_USTAR;
 		}
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (isgnumagic(&ptb->dbuf.t_vers)) {	/* 'ustar  ' GNU magic */
 		ret = H_GNUTAR;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if ((ptb->dbuf.t_mode[6] == ' ' && ptb->dbuf.t_mode[7] == '\0')) {
 		ret = H_OTAR;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (ptb->ustar_dbuf.t_typeflag == LF_VOLHDR ||
@@ -412,7 +550,7 @@ get_hdrtype(ptb, isrecurse)
 		 */
 		if (debug) error("gnutar buggy archive.\n");
 		ret = H_GNUTAR;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	/*
@@ -420,7 +558,7 @@ get_hdrtype(ptb, isrecurse)
 	 * we found a header with a correct tar checksum.
 	 */
 	ret = H_TAR;
-	if (debug) print_hdrtype(ret);
+	if (debug) print_hdrtype(stderr, ret);
 	return (ret);
 
 nottar:
@@ -428,9 +566,12 @@ nottar:
 		stoli(ptb->bar_dbuf.t_chksum, &ocheck);
 		check = bar_checksum(ptb);
 
-		if (ocheck == check) {
+		if (ocheck == 0) {
+			/* EMPTY */
+			;
+		} else if (ocheck == check) {
 			ret = H_BAR;
-			if (debug) print_hdrtype(ret);
+			if (debug) print_hdrtype(stderr, ret);
 			return (ret);
 		} else if (debug && !isrecurse) {
 			errmsgno(EX_BAD,
@@ -441,34 +582,60 @@ nottar:
 
 	}
 	if (strxneql((char *)ptb, "070701", 6)) {
-		ret = H_CPIO_ASC;
-		if (debug) print_hdrtype(ret);
+		/*
+		 * CPIO ASCII hex header with expanded device numbers
+		 */
+		ret = H_CPIO_ASC;		/* cpio -c */
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (strxneql((char *)ptb, "070702", 6)) {
-		ret = H_CPIO_ACRC;
-		if (debug) print_hdrtype(ret);
+		/*
+		 * CPIO ASCII hex header with expanded device numbers and CRC
+		 */
+		ret = H_CPIO_ACRC;		/* cpio -Hcrc */
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (strxneql((char *)ptb, "070707", 6)) {
-		ret = H_CPIO_CHR;
-		if (debug) print_hdrtype(ret);
+		/*
+		 * POSIX small (6 octal digit device numbers)
+		 */
+		ret = H_CPIO_CHR;		/* cpio -Hodc */
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 
 	}
 	if (strxneql((char *)ptb, "\161\301", 2)) {
+		/*
+		 * 0161 0301 -> 0x71 0xC1 -> 070701
+		 */
 		ret = H_CPIO_NBIN;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (strxneql((char *)ptb, "\161\302", 2)) {
+		/*
+		 * 0161 0302 -> 0x71 0xC2 -> 070702
+		 */
 		ret = H_CPIO_CRC;
-		if (debug) print_hdrtype(ret);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
-	if (strxneql((char *)ptb, "\161\307", 2)) {
-		ret = H_CPIO_BIN;
-		if (debug) print_hdrtype(ret);
+	if (strxneql((char *)ptb, "\161\307", 2) ||
+	    strxneql((char *)ptb, "\307\161", 2)) {
+		/*
+		 * cpio default
+		 * 0161 0307 -> 0x71 0xC7 -> 070707
+		 * 0307 0161 -> 0xC7 0x71 -> 0143561
+		 *
+		 * If strlen(info->f_name) is odd, we may autodetect
+		 * whether this archive has been swapped as whole.
+		 * cpio_checkswab() returns either H_CPIO_BIN or
+		 * H_SWAPPED(H_CPIO_BIN).
+		 */
+		ret = cpio_checkswab(ptb);
+		if (debug) print_hdrtype(stderr, ret);
 		return (ret);
 	}
 	if (debug) error("no tar archive??\n");
@@ -479,12 +646,83 @@ nottar:
 		rret = get_hdrtype(ptb, TRUE);
 		swabbytes((char *)ptb, TBLOCK);
 		rret = H_SWAPPED(rret);
-		if (debug) print_hdrtype(rret);
+		if (debug) print_hdrtype(stderr, rret);
 		return (rret);
 	}
 
-	if (debug) print_hdrtype(ret);
+	if (debug) print_hdrtype(stderr, ret);
 	return (ret);
+}
+
+LOCAL int
+get_xhtype(ptb, htype)
+	TCB	*ptb;
+	int	htype;
+{
+	FINFO	finfo;
+	Ullong	ull;
+	int	xhsiz = bigsize-TBLOCK;
+	char	*xhp = &bigbuf[TBLOCK];
+	BOOL	swapped;
+	int	t;
+	GINFO	gsav;
+extern	GINFO	*grip;				/* Global read info pointer */
+
+	gsav = *grip;				/* Save old content */
+
+	t = H_TYPE(htype);
+	if (t < H_TARMIN || t > H_TARMAX)
+		return (htype);
+
+	swapped = H_ISSWAPPED(htype);
+	/*
+	 * Swap TCB & io buffer.
+	 */
+	if (swapped) {
+		swabbytes(ptb, TBLOCK);
+		swabbytes(bigbuf, bigsize);
+	}
+
+	if (ptb->ustar_dbuf.t_typeflag != 'g' &&
+	    ptb->ustar_dbuf.t_typeflag != 'x')
+		goto out;
+
+	/*
+	 * File size is strlen of extended header
+	 */
+	stolli(ptb->dbuf.t_size, &ull);
+	finfo.f_size = ull;
+	finfo.f_rsize = (off_t)finfo.f_size;
+
+	if (xhsiz > ull)
+		xhsiz = ull;
+
+	/*
+	 * Mark the path name and link name pointer uninitalized to avoid that
+	 * xhparse() will try to copy a possible path= or lpath= entry in the
+	 * first extended header to finfo->f_name & finfo->f_lname.
+	 */
+	finfo.f_name = NULL;
+	finfo.f_lname = NULL;
+
+	grip->archtype = H_UNDEF;
+	xhparse(&finfo, xhp, xhp+xhsiz);
+	if (grip->archtype != H_UNDEF) {
+		htype = grip->archtype;
+		if (swapped)
+			htype = H_SWAPPED(htype);
+	}
+	*grip = gsav;				/* Restore old content */
+
+out:
+	/*
+	 * Swap back TCB & io buffer.
+	 */
+	if (swapped) {
+		swabbytes(ptb, TBLOCK);
+		swabbytes(bigbuf, bigsize);
+	}
+	return (htype);
 }
 
 EXPORT int
@@ -494,16 +732,41 @@ get_compression(ptb)
 	char	*p = (char *)ptb;
 
 	if (p[0] == '\037') {
-		if ((p[1] == '\037') ||	/* Packed	     */
-		    (p[1] == '\213') ||	/* Gzip compressed   */
-		    (p[1] == '\235') ||	/* LZW compressed    */
-		    (p[1] == '\236') ||	/* Freezed 	     */
-		    (p[1] == '\240'))	/* SCO LZH compressed*/
-		return (C_GZIP);
+		if (p[1] == '\036')	/* Packed		*/
+			return (C_PACK);
+		if (p[1] == '\213')	/* Gzip compressed	*/
+			return (C_GZIP);
+		if (p[1] == '\235')	/* LZW compressed	*/
+			return (C_LZW);
+		if (p[1] == '\236')	/* Freezed		*/
+			return (C_FREEZE);
+		if (p[1] == '\240')	/* SCO LZH compressed	*/
+			return (C_LZH);
 	}
+	if (p[0] == 'P' && p[1] == 'K' && p[2] == '\003' && p[3] == '\004')
+		return (C_PKZIP);
 	if (p[0] == 'B' && p[1] == 'Z' && p[2] == 'h')
 		return (C_BZIP2);
+	if (p[0] == '\211' && p[1] == 'L' && p[2] == 'Z' && p[3] == 'O')
+		return (C_LZO);
+
+	/*
+	 * p[6] && p[7] contain the version number
+	 */
+	if (p[0] == '7' && p[1] == 'z' && p[2] == '\274' && p[3] == '\257' &&
+	    p[4] == '\047' && p[5] == '\034')
+		return (C_7Z);
 	return (C_NONE);
+}
+
+EXPORT char *
+get_cmpname(type)
+	int	type;
+{
+	if (type < 0 || type > C_MAX)
+		type = C_NONE;
+
+	return (cnames[type]);
 }
 
 EXPORT int
@@ -512,25 +775,43 @@ get_tcb(ptb)
 {
 	Ulong	check;
 	Ulong	ocheck;
-	BOOL	eof;
+	BOOL	eof = FALSE;
 
+	/*
+	 * bei der Option -i wird ein genulltes File
+	 * fehlerhaft als EOF Block erkannt !
+	 * wenn nicht t_magic gesetzt ist.
+	 */
 	do {
-		/*
-		 * bei der Option -i wird ein genulltes File
-		 * fehlerhaft als EOF Block erkannt !
-		 * wenn nicht t_magic gesetzt ist.
-		 */
-		if (readblock((char *)ptb) == EOF) {
-			errmsgno(EX_BAD, "Hard EOF on input, first EOF block is missing.\n");
-			return (EOF);
-		}
 		/*
 		 * First tar control block
 		 */
 		if (swapflg < 0) {
 			BOOL	swapped;
 
+			if (peekblock((char *)ptb, TBLOCK) == EOF) {
+				/*
+				 * The minimal size of a senseful TAR archive is
+				 * 3 blocks (1536).
+				 * The minimal size of a senseful CPIO archive is
+				 * 26+2 + 26+12 = 66 bytes for a BIN archive, but
+				 * a CPIO archive in whole needs to a multiple of
+				 * 512 bytes.
+				 */
+				errmsgno(EX_BAD,
+				"Hard EOF on input, first EOF block is missing at %lld.\n",
+				tblocks());
+				return (EOF);
+			}
 			hdrtype = get_hdrtype(ptb, FALSE);
+			hdrtype = get_xhtype(ptb, hdrtype);
+			if (print_artype) {
+				printf("%s: ", tarfiles[tarfindex]);
+				if (cmptype != C_NONE)
+					printf("%s compressed ", get_cmpname(cmptype));
+				print_hdrtype(stdout, hdrtype);
+				exit(0);
+			}
 			swapped = H_ISSWAPPED(hdrtype);
 			if (chdrtype != H_UNDEF &&
 					swapped != H_ISSWAPPED(chdrtype)) {
@@ -539,33 +820,47 @@ get_tcb(ptb)
 			}
 			if (swapped) {
 				swapflg = 1;
-				swabbytes((char *)ptb, TBLOCK);	/* copy of TCB*/
-				swabbytes(bigbuf, bigsize);	/* io buffer */
+				/*
+				 * We swap everything already read here.
+				 * We tell the input routines later (inside the
+				 * buf_resume() call) that further swapping is
+				 * needed.
+				 */
+				swabbytes((char *)ptb, TBLOCK);	/* copy of TCB */
+				swabbytes(bigbuf, bigsize);	/* io buffer  */
 			} else {
 				swapflg = 0;
 			}
-			/*
-			 * wake up fifo (first block ist swapped)
-			 */
-			buf_resume();
 			if (H_TYPE(hdrtype) == H_BAR) {
 				comerrno(EX_BAD, "Can't handle bar archives (yet).\n");
 			}
-			if (H_TYPE(hdrtype) >= H_CPIO_BASE) {
-/* XXX JS Test */if (H_TYPE(hdrtype) == H_CPIO_CHR) {
-/* XXX JS Test */FINFO info;
-/* XXX JS Test */tcb_to_info(ptb, &info);
-/* XXX JS Test */}
-				comerrno(EX_BAD, "Can't handle cpio archives (yet).\n");
-			}
 			if (H_TYPE(hdrtype) == H_UNDEF) {
-				switch (get_compression(ptb)) {
+				int	t;
 
+				switch (t = get_compression(ptb)) {
+
+				case C_NONE:
+					break;
+				case C_PACK:
 				case C_GZIP:
-					comerrno(EX_BAD, "Archive is compressed, try to use the -z option.\n");
+				case C_LZW:
+				case C_FREEZE:
+				case C_LZH:
+				case C_PKZIP:
+					comerrno(EX_BAD, "Archive is '%s' compressed, try to use the -z option.\n",
+							get_cmpname(t));
 					break;
 				case C_BZIP2:
-					comerrno(EX_BAD, "Archive is bzip2 compressed, try to use the -bz option.\n");
+					comerrno(EX_BAD, "Archive is 'bzip2' compressed, try to use the -bz option.\n");
+					break;
+				case C_LZO:
+					comerrno(EX_BAD, "Archive is 'lzop' compressed, try to use the -bz option.\n");
+					break;
+				case C_7Z:
+					comerrno(EX_BAD, "Archive is '7z' compressed, try to use the -7z option.\n");
+					break;
+				default:
+					errmsgno(EX_BAD, "WARNING: Unknown compression type %d.\n", t);
 					break;
 				}
 				if (!ignoreerr) {
@@ -575,22 +870,48 @@ get_tcb(ptb)
 			}
 			if (chdrtype != H_UNDEF && chdrtype != hdrtype) {
 				errmsgno(EX_BAD, "Found: ");
-				print_hdrtype(hdrtype);
+				print_hdrtype(stderr, hdrtype);
 				errmsgno(EX_BAD, "WARNING: extracting as ");
-				print_hdrtype(chdrtype);
+				print_hdrtype(stderr, chdrtype);
 				hdrtype = chdrtype;
 			}
 			setprops(hdrtype);
+			/*
+			 * Wake up fifo (first block has been swapped above)
+			 * buf_resume() will trigger a shadow call to
+			 * setprops() in the fifo process to make sure that
+			 * the props structure is correct even in the second
+			 * process.
+			 */
+			buf_resume();
+			buf_rwake(props.pr_hdrsize); /* eat up archive header */
+		} else {
+			if (readblock((char *)ptb, props.pr_hdrsize) == EOF) {
+				errmsgno(EX_BAD,
+				"Hard EOF on input, first EOF block is missing at %lld.\n",
+				tblocks());
+				return (EOF);
+			}
 		}
-		eof = (ptb->dbuf.t_name[0] == '\0') && checkeof(ptb);
-		if (eof && !ignoreerr) {
-			return (EOF);
+
+		if (H_TYPE(hdrtype) >= H_CPIO_BASE) {
+			/*
+			 * CPIO EOF check is currently in cpiotcb_to_info()
+			 * There is no checksum for the CPIO header.
+			 */
+			check = ocheck = 1;
+		} else {
+			eof = (ptb->dbuf.t_name[0] == '\0') && checkeof(ptb);
+			if (eof && !ignoreerr) {
+				return (EOF);
+			}
+			/*
+			 * XXX Hier muß eine Universalchecksummenüberprüfung hin
+			 * XXX Shouldn't we use tarsum_ok() from here?
+			 */
+			stoli(ptb->dbuf.t_chksum, &ocheck);
+			check = checksum(ptb);
 		}
-		/*
-		 * XXX Hier muß eine Universalchecksummenüberprüfung hin
-		 */
-		stoli(ptb->dbuf.t_chksum, &ocheck);
-		check = checksum(ptb);
 		/*
 		 * check == 0 : genullter Block.
 		 */
@@ -623,7 +944,7 @@ get_tcb(ptb)
 				if (isgnumagic(tmagic))
 					return (0);
 				break;
-			case H_STAR: 
+			case H_STAR:
 				tmagic = ptb->star_dbuf.t_magic;
 				if (ptb->dbuf.t_vers < STVERSION ||
 				    isstmagic(tmagic))
@@ -633,9 +954,54 @@ get_tcb(ptb)
 			case H_TAR:
 			case H_OTAR:
 				return (0);
+
+			case H_CPIO_CHR:		/* cpio -Hodc */
+				if (strxneql((char *)ptb, "070707", 6))
+					return (0);
+				break;
+			case H_CPIO_ASC:		/* cpio -c */
+				if (strxneql((char *)ptb, "070701", 6))
+					return (0);
+				break;
+			case H_CPIO_ACRC:		/* cpio -Hcrc */
+				if (strxneql((char *)ptb, "070702", 6))
+					return (0);
+				break;
+			case H_CPIO_NBIN:
+			case H_CPIO_CRC:
+				errmsgno(EX_BAD, "Unimplemented %ld cpio format.\n",
+					hdrtype);
+				break;
+			case H_CPIO_BIN:		/* cpio default */
+				if (strxneql((char *)ptb, "\161\307", 2))
+					return (0);
+				if (strxneql((char *)ptb, "\307\161", 2))
+					return (0);
+				break;
 			}
-			errmsgno(EX_BAD, "Wrong magic at: %lld: '%.8s'.\n",
-							tblocks(), tmagic);
+			switch (H_TYPE(hdrtype)) {
+
+			case H_CPIO_CHR:		/* cpio -Hodc */
+			case H_CPIO_ASC:		/* cpio -c */
+			case H_CPIO_ACRC:		/* cpio -Hcrc */
+							/* First Block# is 0 */
+				errmsgno(EX_BAD, "Wrong magic at: %lld: '%.6s'.\n",
+						tblocks(), (char *)ptb);
+				break;
+			case H_CPIO_NBIN:
+			case H_CPIO_CRC:
+			case H_CPIO_BIN:		/* cpio default */
+							/* First Block# is 0 */
+				errmsgno(EX_BAD, "Wrong magic at: %lld: '0%6.6o'.\n",
+						tblocks(),
+						(((char *)ptb)[0] & 0xFF) * 256 +
+						(((char *)ptb)[1] & 0xFF));
+				break;
+			default:
+							/* First Block# is 0 */
+				errmsgno(EX_BAD, "Wrong magic at: %lld: '%.8s'.\n",
+						tblocks(), tmagic);
+			}
 			/*
 			 * Allow buggy gnu Volheaders & Multivolheaders to work
 			 */
@@ -652,6 +1018,10 @@ get_tcb(ptb)
 							tblocks(),
 							ocheck, check);
 		}
+		if (ignoreerr) {
+			if (H_TYPE(hdrtype) >= H_CPIO_BASE)
+				cpio_resync();
+		}
 	} while (ignoreerr);
 	exprstats(EX_BAD);
 	/* NOTREACHED */
@@ -666,6 +1036,13 @@ put_tcb(ptb, info)
 	TCB	tb;
 	int	x1 = 0;
 	int	x2 = 0;
+	BOOL	xhdr = FALSE;
+extern	BOOL	ghdr;
+
+	if ((props.pr_flags & PR_CPIO) != 0) {
+		put_cpioh(ptb, info);
+		return;
+	}
 
 	if (info->f_flags & (F_LONGNAME|F_LONGLINK))
 		x1++;
@@ -673,7 +1050,7 @@ put_tcb(ptb, info)
 		x1++;
 
 /*XXX start alter code und Test */
-	if (( (info->f_flags & F_ADDSLASH) ? 1:0 +
+	if (((info->f_flags & F_ADDSLASH) ? 1:0 +
 	    info->f_namelen > props.pr_maxsname &&
 	    (ptb->dbuf.t_prefix[0] == '\0' || H_TYPE(hdrtype) == H_GNUTAR)) ||
 		    info->f_lnamelen > props.pr_maxslname)
@@ -686,13 +1063,39 @@ info->f_namelen, ptb->dbuf.t_prefix, info->f_lnamelen);
 	}
 /*XXX ende alter code und Test */
 
-	if (x1 || x2 || (info->f_xflags != 0)) {
+	if (x1 || x2 || (info->f_xflags != 0) || ghdr)
+		xhdr = TRUE;
+
+	if (!multivol && tsize > 0) {
+		Llong	left;
+		off_t	size = info->f_rsize;
+
+		left = tsize - tblocks();
+		if (xhdr)
+			left -= 6;	/* Extimated for Longname/Longlink */
+
+		if (is_link(info))
+			size = 0L;
+						/* file + tcb + EOF */
+		if (left < (tarblocks(size)+1+2)) {
+extern	BOOL	use_fifo;
+			if ((info->f_flags & F_TCB_BUF) != 0) {
+				movetcb(ptb, &tb);
+				ptb = &tb;
+				info->f_flags &= ~F_TCB_BUF;
+			}
+			nextotape();
+			newvolhdr((char *)NULL, 0, use_fifo);
+		}
+	}
+
+	if (xhdr) {
 		if ((info->f_flags & F_TCB_BUF) != 0) {	/* TCB is on buffer */
 			movetcb(ptb, &tb);
 			ptb = &tb;
 			info->f_flags &= ~F_TCB_BUF;
 		}
-		if (info->f_xflags != 0)
+		if ((info->f_xflags != 0) || ghdr)
 			info_to_xhdr(info, ptb);
 		else
 			write_longnames(info);
@@ -705,81 +1108,21 @@ write_tcb(ptb, info)
 	TCB	*ptb;
 	register FINFO	*info;
 {
-	if (tsize > 0) {
-		TCB	tb;
-		Llong	left;
-		off_t	size = info->f_rsize;
+	char	*addr;
 
-		left = tsize - tblocks();
-
-		if (is_link(info))
-			size = 0L;
-						/* file + tcb + EOF */
-		if (left < (tarblocks(size)+1+2)) {
-			if ((info->f_flags & F_TCB_BUF) != 0) {
-				movetcb(ptb, &tb);
-				ptb = &tb;
-				info->f_flags &= ~F_TCB_BUF;
-			}
-			nexttape();
-		}
-	}
 	if (!nullout) {				/* 17 (> 16) Bit !!! */
 		if (props.pr_fillc == '0')
 			litos(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 7);
 		else
 			litos(ptb->dbuf.t_chksum, checksum(ptb) & 0x1FFFF, 6);
 	}
-	if ((info->f_flags & F_TCB_BUF) != 0)	/* TCB is on buffer */
-		put_block();
-	else
-		writeblock((char *)ptb);
-}
-
-EXPORT void
-put_volhdr(name)
-	char	*name;
-{
-	FINFO	finfo;
-	TCB	tb;
-	struct timeval tv;
-
-	if (name == 0)
-		return;
-	if ((props.pr_flags & PR_VOLHDR) == 0)
-		return;
-
-	gettimeofday(&tv, (struct timezone *)0);
-
-	fillbytes((char *)&finfo, sizeof (FINFO), '\0');
-	filltcb(&tb);
-	finfo.f_name = name;
-	finfo.f_namelen = strlen(name);
-	finfo.f_xftype = XT_VOLHDR;
-	finfo.f_mtime = tv.tv_sec;
-	finfo.f_mnsec = tv.tv_usec*1000;
-	finfo.f_tcb = &tb;
-
-	if (!name_to_tcb(&finfo, &tb))	/* Name too long */
-		return;
-
-	info_to_tcb(&finfo, &tb);
-	put_tcb(&tb, &finfo);
-	vprint(&finfo);
-}
-
-EXPORT BOOL
-get_volhdr(info, vhname)
-	FINFO	*info;
-	char	*vhname;
-{
-	error("Volhdr: %s\n", info->f_name);
-
-	if (vhname) {
-		return (streql(info->f_name, vhname));
-	} else { 
-		return (TRUE);
+	if ((info->f_flags & F_TCB_BUF) != 0) {	/* TCB is on buffer */
+		addr = (char *)ptb;
+		put_block(TBLOCK);
+	} else {
+		addr = writeblock((char *)ptb);
 	}
+	marktcb(addr);
 }
 
 EXPORT void
@@ -790,6 +1133,11 @@ info_to_tcb(info, ptb)
 	if (nullout)
 		return;
 
+	if (H_TYPE(hdrtype) >= H_CPIO_BASE) {
+		cpioinfo_to_tcb(info, ptb);
+		return;
+	}
+
 	if (props.pr_fillc == '0') {
 		/*
 		 * This is a POSIX compliant header, it is allowed to use
@@ -797,9 +1145,9 @@ info_to_tcb(info, ptb)
 		 * '\0' as last char.
 		 */
 		if (modebits)
-			litos(ptb->dbuf.t_mode, (info->f_mode|info->f_type) & 0xFFFF, 7);
+			litos(ptb->dbuf.t_mode, (Ulong)(info->f_mode|info->f_type) & 0xFFFF, 7);
 		else
-			litos(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 7);
+			litos(ptb->dbuf.t_mode, (Ulong)info->f_mode & 0xFFFF, 7);
 
 		if (info->f_uid > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_UID;
@@ -819,9 +1167,9 @@ info_to_tcb(info, ptb)
 		 * and a '\0' as last char.
 		 */
 		if (modebits)
-			litos(ptb->dbuf.t_mode, (info->f_mode|info->f_type) & 0xFFFF, 6);
+			litos(ptb->dbuf.t_mode, (Ulong)(info->f_mode|info->f_type) & 0xFFFF, 6);
 		else
-			litos(ptb->dbuf.t_mode, info->f_mode & 0xFFFF, 6);
+			litos(ptb->dbuf.t_mode, (Ulong)info->f_mode & 0xFFFF, 6);
 
 		if (info->f_uid > MAXOCTAL6 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_UID;
@@ -829,7 +1177,7 @@ info_to_tcb(info, ptb)
 /* XXX */
 		litos(ptb->dbuf.t_uid, info->f_uid & MAXOCTAL6, 6);
 
-		if (info->f_gid > MAXOCTAL7 && (props.pr_flags & PR_XHDR)) {
+		if (info->f_gid > MAXOCTAL6 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_GID;
 		}
 /* XXX */
@@ -844,7 +1192,7 @@ info_to_tcb(info, ptb)
 		litos(ptb->dbuf.t_size, (Ulong)info->f_rsize, 11);
 	} else {
 		if (info->f_rsize > MAXOCTAL11 &&
-		   (props.pr_flags & PR_BASE256) == 0) {
+		    (props.pr_flags & PR_BASE256) == 0) {
 			litos(ptb->dbuf.t_size, (Ulong)0, 11);
 		} else {
 			llitos(ptb->dbuf.t_size, (Ullong)info->f_rsize, 11);
@@ -882,7 +1230,7 @@ info_to_star(info, ptb)
 {
 	ptb->dbuf.t_vers = STVERSION;
 	litos(ptb->dbuf.t_filetype, info->f_filetype & 0xFFFF, 6);	/* XXX -> 7 ??? */
-	litos(ptb->dbuf.t_type, info->f_type & 0xFFFF, 11);
+	litos(ptb->dbuf.t_type, (Ulong)info->f_type & 0xFFFF, 11);
 #ifdef	needed
 	/* XXX we need to do something if st_rdev is > 32 bits */
 	if ((info->f_rdevmaj > MAXOCTAL7 || info->f_rdevmin > MAXOCTAL7) &&
@@ -907,13 +1255,13 @@ info_to_star(info, ptb)
 	ptb->dbuf.t_magic[1] = 'a';
 	ptb->dbuf.t_magic[2] = 'r';
 	if (!numeric) {
-		nameuid(ptb->dbuf.t_uname, STUNMLEN, info->f_uid);
+		ic_nameuid(ptb->dbuf.t_uname, STUNMLEN, info->f_uid);
 		/* XXX Korrektes overflowchecking */
 		if (ptb->dbuf.t_uname[STUNMLEN-1] != '\0' &&
 		    props.pr_flags & PR_XHDR) {
 			info->f_xflags |= XF_UNAME;
 		}
-		namegid(ptb->dbuf.t_gname, STGNMLEN, info->f_gid);
+		ic_namegid(ptb->dbuf.t_gname, STGNMLEN, info->f_gid);
 		/* XXX Korrektes overflowchecking */
 		if (ptb->dbuf.t_gname[STGNMLEN-1] != '\0' &&
 		    props.pr_flags & PR_XHDR) {
@@ -929,7 +1277,7 @@ info_to_star(info, ptb)
 		}
 	}
 
-	if (is_sparse(info)) {
+	if (is_sparse(info) || is_multivol(info)) {
 		if (info->f_size > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_REALSIZE;
 		}
@@ -938,6 +1286,23 @@ info_to_star(info, ptb)
 			litos(ptb->xstar_in_dbuf.t_realsize, (Ulong)info->f_size, 11);
 		} else {
 			llitos(ptb->xstar_in_dbuf.t_realsize, (Ullong)info->f_size, 11);
+		}
+	}
+	if (is_multivol(info)) {
+		if (info->f_contoffset > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
+			info->f_xflags |= XF_OFFSET;
+		}
+		if ((info->f_xflags & XF_OFFSET) == 0) {
+			/*
+			 * Don't fill out contoffset if we have a xheader.
+			 */
+			if (info->f_contoffset <= MAXINT32) {
+				litos(ptb->xstar_in_dbuf.t_offset,
+					(Ulong)info->f_contoffset, 11);
+			} else {
+				llitos(ptb->xstar_in_dbuf.t_offset,
+					(Ullong)info->f_contoffset, 11);
+			}
 		}
 	}
 }
@@ -965,9 +1330,9 @@ info_to_ustar(info, ptb)
 
 	if (!numeric) {
 		/* XXX Korrektes overflowchecking fuer xhdr */
-		nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
+		ic_nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
 		/* XXX Korrektes overflowchecking fuer xhdr */
-		namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
+		ic_namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
 		if (*ptb->ustar_dbuf.t_uname) {
 			info->f_uname = ptb->ustar_dbuf.t_uname;
 			info->f_umaxlen = TUNMLEN;
@@ -1044,7 +1409,7 @@ info_to_xstar(info, ptb)
 		ptb->xstar_dbuf.t_xmagic[1] = 'a';
 		ptb->xstar_dbuf.t_xmagic[2] = 'r';
 	}
-	if (is_sparse(info)) {
+	if (is_sparse(info) || is_multivol(info)) {
 		if (info->f_size > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
 			info->f_xflags |= XF_REALSIZE;
 		}
@@ -1053,6 +1418,23 @@ info_to_xstar(info, ptb)
 			litos(ptb->xstar_in_dbuf.t_realsize, (Ulong)info->f_size, 11);
 		} else {
 			llitos(ptb->xstar_in_dbuf.t_realsize, (Ullong)info->f_size, 11);
+		}
+	}
+	if (is_multivol(info)) {
+		if (info->f_contoffset > MAXOCTAL11 && (props.pr_flags & PR_XHDR)) {
+			info->f_xflags |= XF_OFFSET;
+		}
+		if ((info->f_xflags & XF_OFFSET) == 0) {
+			/*
+			 * Don't fill out contoffset if we have a xheader.
+			 */
+			if (info->f_contoffset <= MAXINT32) {
+				litos(ptb->xstar_in_dbuf.t_offset,
+					(Ulong)info->f_contoffset, 11);
+			} else {
+				llitos(ptb->xstar_in_dbuf.t_offset,
+					(Ullong)info->f_contoffset, 11);
+			}
 		}
 	}
 }
@@ -1068,8 +1450,8 @@ info_to_gnutar(info, ptb)
 	strcpy(ptb->gnu_dbuf.t_magic, gmagic);
 
 	if (!numeric) {
-		nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
-		namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
+		ic_nameuid(ptb->ustar_dbuf.t_uname, TUNMLEN, info->f_uid);
+		ic_namegid(ptb->ustar_dbuf.t_gname, TGNMLEN, info->f_gid);
 		if (*ptb->ustar_dbuf.t_uname) {
 			info->f_uname = ptb->ustar_dbuf.t_uname;
 			info->f_umaxlen = TUNMLEN;
@@ -1121,8 +1503,7 @@ static	BOOL	modewarn = FALSE;
 	 * present. Keep f_lname and f_name, don't read LF_LONGLINK/LF_LONGNAME
 	 * in this case.
 	 */
-	if ((info->f_flags & F_HAS_NAME) == 0)
-		info->f_lname = ptb->dbuf.t_linkname;
+	info->f_namelen = info->f_lnamelen = 0;
 	info->f_uname = info->f_gname = NULL;
 	info->f_umaxlen = info->f_gmaxlen = 0L;
 	info->f_xftype = XT_BAD;
@@ -1133,20 +1514,24 @@ static	BOOL	modewarn = FALSE;
 	info->f_fflags = 0L;
 	info->f_nlink = 0;
 	info->f_dir = NULL;
+	info->f_dirinos = NULL;
+	info->f_dirents = 0;
+	info->f_llsize = 0;
 
-/* XXX JS Test */if (H_TYPE(hdrtype) >= H_CPIO_BASE) {
-/* XXX JS Test */cpiotcb_to_info(ptb, info);
-/* XXX JS Test */list_file(info);
-/* XXX JS Test */return (ret);
-/* XXX JS Test */}
+	tcb_to_xhdr_reset();	/* Falsch wenn wir mehr als @ in list wollen */
+
+	if (H_TYPE(hdrtype) >= H_CPIO_BASE)
+		return (cpiotcb_to_info(ptb, info));
 
 	while (pr_isxheader(ptb->dbuf.t_linkflag)) {
 		/*
 		 * Handle POSIX.1-2001 extensions.
 		 */
 		if ((ptb->dbuf.t_linkflag == LF_XHDR ||
+				    ptb->dbuf.t_linkflag == LF_GHDR ||
 				    ptb->dbuf.t_linkflag == LF_VU_XHDR)) {
 			ret = tcb_to_xhdr(ptb, info);
+			info->f_flags &= ~F_DATA_SKIPPED;
 			if (ret != 0)
 				return (ret);
 
@@ -1161,15 +1546,17 @@ static	BOOL	modewarn = FALSE;
 			while (ptb->dbuf.t_linkflag == LF_LONGLINK ||
 				    ptb->dbuf.t_linkflag == LF_LONGNAME) {
 				ret = tcb_to_longname(ptb, info);
+				info->f_flags &= ~F_DATA_SKIPPED;
 			}
 		}
 	}
 	if (!pr_validtype(ptb->dbuf.t_linkflag)) {
 		errmsgno(EX_BAD,
-		"WARNING: Archive contains unknown typeflag '%c' (0x%02X).\n",
-			ptb->dbuf.t_linkflag, ptb->dbuf.t_linkflag);
+		"WARNING: Archive contains unknown typeflag '%c' (0x%02X) at %lld.\n",
+			ptb->dbuf.t_linkflag, ptb->dbuf.t_linkflag, tblocks());
 	}
 
+	/* LINTED */
 	if (ptb->dbuf.t_name[NAMSIZ] == '\0') {
 		if (ptb->dbuf.t_name[NAMSIZ-1] == '\0') {
 			if (!nowarn && !modewarn) {
@@ -1182,9 +1569,11 @@ static	BOOL	modewarn = FALSE;
 			"WARNING: Archive violates POSIX 1003.1 (100 char filename is null terminated).\n");
 			namewarn = TRUE;
 		}
+		/* LINTED */
 		ptb->dbuf.t_name[NAMSIZ] = ' ';
 	}
-	stoli(ptb->dbuf.t_mode, &info->f_mode);
+	stoli(ptb->dbuf.t_mode, &ul);
+	info->f_mode = ul;
 	if (info->f_mode & ~07777) {
 		if (!nowarn && !modebits && H_TYPE(hdrtype) == H_USTAR && !posixwarn) {
 			errmsgno(EX_BAD,
@@ -1193,29 +1582,68 @@ static	BOOL	modewarn = FALSE;
 		}
 		info->f_mode &= 07777;
 	}
-	if ((info->f_xflags & XF_UID) == 0)
-		stoli(ptb->dbuf.t_uid, &info->f_uid);
-	if ((info->f_xflags & XF_UID) == 0)
-		stoli(ptb->dbuf.t_gid, &info->f_gid);
+	if ((info->f_xflags & XF_UID) == 0) {
+		stoli(ptb->dbuf.t_uid, &ul);
+		info->f_uid = ul;
+		if (info->f_uid != ul) {
+			print_hrange("uid", (Ullong)ul);
+			info->f_flags |= F_BAD_UID;
+			info->f_uid = ic_uid_nobody();
+		}
+	}
+	if ((info->f_xflags & XF_UID) == 0) {
+		stoli(ptb->dbuf.t_gid, &ul);
+		info->f_gid = ul;
+		if (info->f_gid != ul) {
+			print_hrange("gid", (Ullong)ul);
+			info->f_flags |= F_BAD_GID;
+			info->f_gid = ic_gid_nobody();
+		}
+	}
+
+	/*
+	 * Possible flags from extended header:
+	 * XF_SIZE|XF_REALSIZE	Found either	"size" or
+	 *					"SCHILY.realsize" and "size"
+	 * XF_REALSIZE		Found only	"SCHILY.realsize"
+	 * 0			Found neither	"SCHILY.realsize" nor "size"
+	 */
 	if ((info->f_xflags & XF_SIZE) == 0) {
 		stolli(ptb->dbuf.t_size, &ull);
-		info->f_size = ull;
+		if ((info->f_xflags & XF_SIZE) == 0) {
+			info->f_rsize = info->f_llsize = ull;
+			if (info->f_rsize != ull) {
+				print_hrange("size", ull);
+				info->f_rsize = 0,
+				info->f_flags |= (F_BAD_META | F_BAD_SIZE);
+			}
+		}
+		if ((info->f_xflags & XF_REALSIZE) == 0)
+			info->f_size = ull;
 	}
 
 	switch (ptb->dbuf.t_linkflag) {
 
 	case LNKTYPE:
+		if (linkdata)
+			break;
+		if (props.pr_flags & PR_LINK_DATA)
+			break;
+		/* FALLTHROUGH */
 	case DIRTYPE:
 	case CHRTYPE:
 	case BLKTYPE:
 	case FIFOTYPE:
 	case LF_META:
 		info->f_rsize = 0L;
+		info->f_llsize = 0L;
 		break;
 
 	default:
-		if ((info->f_xflags & XF_SIZE) == 0)
-			info->f_rsize = info->f_size;
+		/*
+		 * Nothing to do here, we did handle this already above the
+		 * switch statement.
+		 */
 		break;
 	}
 
@@ -1223,6 +1651,10 @@ static	BOOL	modewarn = FALSE;
 		stoli(ptb->dbuf.t_mtime, &ul);
 		info->f_mtime = (time_t)ul;
 		info->f_mnsec = 0L;
+		if (info->f_mtime != ul) {
+			print_hrange("time", (Ullong)ul);
+			info->f_mtime = 0;
+		}
 	}
 
 	info->f_typeflag = ptb->ustar_dbuf.t_typeflag;
@@ -1271,11 +1703,17 @@ static	BOOL	modewarn = FALSE;
 	 * Hack for list module (option -newest) ...
 	 * Save and restore t_name[NAMSIZ] & t_linkname[NAMSIZ]
 	 */
+	/* LINTED */
 	xname = ptb->dbuf.t_name[NAMSIZ];
+	/* LINTED */
 	ptb->dbuf.t_name[NAMSIZ] = '\0';	/* allow 100 chars in name */
+	/* LINTED */
 	xlink = ptb->dbuf.t_linkname[NAMSIZ];
-	ptb->dbuf.t_linkname[NAMSIZ] = '\0';/* allow 100 chars in linkname */
+	/* LINTED */
+	ptb->dbuf.t_linkname[NAMSIZ] = '\0'; /* allow 100 chars in linkname */
+	/* LINTED */
 	xpfx = ptb->dbuf.t_prefix[PFXSIZ];
+	/* LINTED */
 	ptb->dbuf.t_prefix[PFXSIZ] = '\0';	/* allow 155 chars in prefix*/
 
 	/*
@@ -1284,9 +1722,17 @@ static	BOOL	modewarn = FALSE;
 	 */
 	tcb_to_name(ptb, info);
 
+	/* LINTED */
 	ptb->dbuf.t_name[NAMSIZ] = xname;	/* restore remembered value */
+	/* LINTED */
 	ptb->dbuf.t_linkname[NAMSIZ] = xlink;	/* restore remembered value */
+	/* LINTED */
 	ptb->dbuf.t_prefix[PFXSIZ] = xpfx;	/* restore remembered value */
+
+	if (info->f_flags & F_BAD_UID)
+		info->f_mode &= ~TSUID;
+	if (info->f_flags & F_BAD_GID)
+		info->f_mode &= ~TSGID;
 
 	return (ret);
 }
@@ -1326,6 +1772,8 @@ star_to_info(ptb, info)
 	register FINFO	*info;
 {
 	Ulong	id;
+	uid_t	uid;
+	gid_t	gid;
 	Ullong	ull;
 	int	mbits;
 
@@ -1335,28 +1783,39 @@ star_to_info(ptb, info)
 		return;
 	}
 	stoli(ptb->dbuf.t_filetype, &info->f_filetype);
-	stoli(ptb->dbuf.t_type, &info->f_type);
+	stoli(ptb->dbuf.t_type, &id);
+	info->f_type = id;
 	/*
 	 * star Erweiterungen sind wieder ANSI kompatibel, d.h. linkflag
 	 * hält den echten Dateityp (LONKLINK, LONGNAME, SPARSE ...)
 	 */
-	if(ptb->dbuf.t_linkflag < '1')
+	if (ptb->dbuf.t_linkflag < '1')
 		info->f_xftype = IFTOXT(info->f_type);
 	else
 		info->f_xftype = USTOXT(ptb->ustar_dbuf.t_typeflag);
 
-	stoli(ptb->dbuf.t_rdev, &info->f_rdev);
+	stoli(ptb->dbuf.t_rdev, &id);
+	info->f_rdev = id;
+	if ((info->f_rdev != id) && is_dev(info)) {
+		print_hrange("rdev", (Ullong)id);
+		info->f_flags |= F_BAD_META;
+	}
 	if ((info->f_xflags & (XF_DEVMAJOR|XF_DEVMINOR)) !=
 						(XF_DEVMAJOR|XF_DEVMINOR)) {
 		mbits = ptb->dbuf.t_devminorbits - '@';
 		if (mbits == 0) {
 			static	BOOL	dwarned = FALSE;
 			if (!dwarned) {
-				errmsgno(EX_BAD,
 #ifdef	DEV_MINOR_NONCONTIG
-				"WARNING: Minor device numbers are non contiguous, devices may not be extracted correctly.\n");
+				errmsgno(EX_BAD,
+				"WARNING: Minor device numbers are non contiguous.\n");
+				errmsgno(EX_BAD,
+				"WARNING: Devices may not be extracted correctly.\n");
 #else
-				"WARNING: The archiving system used non contiguous minor numbers, cannot extract devices correctly.\n");
+				errmsgno(EX_BAD,
+				"WARNING: The archiving system used non contiguous minor numbers.\n");
+				errmsgno(EX_BAD,
+				"WARNING: Cannot extract devices correctly.\n");
 #endif
 				dwarned = TRUE;
 			}
@@ -1398,8 +1857,10 @@ star_to_info(ptb, info)
 		}
 	}
 	if (info->f_uname) {
-		if (!numeric && uidname(info->f_uname, info->f_umaxlen, &id))
-			info->f_uid = id;
+		if (!numeric && ic_uidname(info->f_uname, info->f_umaxlen, &uid)) {
+			info->f_flags &= ~F_BAD_UID;
+			info->f_uid = uid;
+		}
 	}
 	if ((info->f_xflags & XF_GNAME) == 0) {
 		if (*ptb->dbuf.t_gname) {
@@ -1408,19 +1869,23 @@ star_to_info(ptb, info)
 		}
 	}
 	if (info->f_gname) {
-		if (!numeric && gidname(info->f_gname, info->f_gmaxlen, &id))
-			info->f_gid = id;
+		if (!numeric && ic_gidname(info->f_gname, info->f_gmaxlen, &gid)) {
+			info->f_flags &= ~F_BAD_GID;
+			info->f_gid = gid;
+		}
 	}
 
-	if (is_sparse(info)) {
+	if (is_sparse(info) || is_multivol(info)) {
 		if ((info->f_xflags & XF_REALSIZE) == 0) {
 			stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
 			info->f_size = ull;
 		}
 	}
 	if (is_multivol(info)) {
-		stolli(ptb->xstar_in_dbuf.t_offset, &ull);
-		info->f_contoffset = ull;
+		if ((info->f_xflags & XF_OFFSET) == 0) {
+			stolli(ptb->xstar_in_dbuf.t_offset, &ull);
+			info->f_contoffset = ull;
+		}
 	}
 }
 
@@ -1432,7 +1897,10 @@ ustar_to_info(ptb, info)
 	register TCB	*ptb;
 	register FINFO	*info;
 {
-	Ulong	id;
+	uid_t	uid;
+	gid_t	gid;
+	dev_t	d;
+	Ulong	ul;
 	char	c;
 
 	info->f_xftype = USTOXT(ptb->ustar_dbuf.t_typeflag);
@@ -1446,8 +1914,10 @@ ustar_to_info(ptb, info)
 		}
 	}
 	if (info->f_uname) {
-		if (!numeric && uidname(info->f_uname, info->f_umaxlen, &id))
-			info->f_uid = id;
+		if (!numeric && ic_uidname(info->f_uname, info->f_umaxlen, &uid)) {
+			info->f_flags &= ~F_BAD_UID;
+			info->f_uid = uid;
+		}
 	}
 	if ((info->f_xflags & XF_GNAME) == 0) {
 		if (*ptb->ustar_dbuf.t_gname) {
@@ -1456,16 +1926,29 @@ ustar_to_info(ptb, info)
 		}
 	}
 	if (info->f_gname) {
-		if (!numeric && gidname(info->f_gname, info->f_gmaxlen, &id))
-			info->f_gid = id;
+		if (!numeric && ic_gidname(info->f_gname, info->f_gmaxlen, &gid)) {
+			info->f_flags &= ~F_BAD_GID;
+			info->f_gid = gid;
+		}
 	}
 
-	if ((info->f_xflags & XF_DEVMAJOR) == 0)
-		stoli(ptb->ustar_dbuf.t_devmajor, &info->f_rdevmaj);
+	if ((info->f_xflags & XF_DEVMAJOR) == 0) {
+		if (ptb->ustar_dbuf.t_devmajor[0] & 0x80)
+			stob(ptb->ustar_dbuf.t_devmajor, &ul, 7);
+		else
+			stoli(ptb->ustar_dbuf.t_devmajor, &ul);
+		info->f_rdevmaj = ul;
+		d = makedev(info->f_rdevmaj, 0);
+		d = major(d);
+		if ((d != ul) && is_dev(info)) {
+			print_hrange("rdevmajor", (Ullong)ul);
+			info->f_flags |= F_BAD_META;
+		}
+	}
 
 	if ((info->f_xflags & XF_DEVMINOR) == 0) {
 		if (ptb->ustar_dbuf.t_devminor[0] & 0x80) {
-			stob(ptb->ustar_dbuf.t_devminor, &info->f_rdevmin, 7);
+			stob(ptb->ustar_dbuf.t_devminor, &ul, 7);
 		} else {
 			/*
 			 * The 'tar' that comes with HP-UX writes illegal tar
@@ -1479,8 +1962,15 @@ ustar_to_info(ptb, info)
 			 */
 			c = ptb->ustar_dbuf.t_prefix[0];
 			ptb->ustar_dbuf.t_prefix[0] = '\0';
-			stoli(ptb->ustar_dbuf.t_devminor, &info->f_rdevmin);
+			stoli(ptb->ustar_dbuf.t_devminor, &ul);
 			ptb->ustar_dbuf.t_prefix[0] = c;
+		}
+		info->f_rdevmin = ul;
+		d = makedev(0, info->f_rdevmin);
+		d = minor(d);
+		if ((d != ul) && is_dev(info)) {
+			print_hrange("rdevminor", (Ullong)ul);
+			info->f_flags |= F_BAD_META;
 		}
 	}
 
@@ -1523,15 +2013,17 @@ xstar_to_info(ptb, info)
 		info->f_cnsec = 0L;
 	}
 
-	if (is_sparse(info)) {
+	if (is_sparse(info) || is_multivol(info)) {
 		if ((info->f_xflags & XF_REALSIZE) == 0) {
 			stolli(ptb->xstar_in_dbuf.t_realsize, &ull);
 			info->f_size = ull;
 		}
 	}
 	if (is_multivol(info)) {
-		stolli(ptb->xstar_in_dbuf.t_offset, &ull);
-		info->f_contoffset = ull;
+		if ((info->f_xflags & XF_OFFSET) == 0) {
+			stolli(ptb->xstar_in_dbuf.t_offset, &ull);
+			info->f_contoffset = ull;
+		}
 	}
 }
 
@@ -1574,43 +2066,6 @@ gnutar_to_info(ptb, info)
 	}
 }
 
-/*
- * XXX vorerst nur zum Test!
- */
-LOCAL void
-cpiotcb_to_info(ptb, info)
-	register TCB	*ptb;
-	register FINFO	*info;
-{
-	Ulong	ul;
-
-	astoo_cpio(&((char *)ptb)[6], &ul, 6);
-	info->f_dev = ul;
-	astoo_cpio(&((char *)ptb)[12], &ul, 6);
-	info->f_ino = ul;
-error("ino: %lld\n", (Llong)info->f_ino);
-	astoo_cpio(&((char *)ptb)[18], &info->f_mode, 6);
-error("mode: %lo\n", info->f_mode);
-	info->f_type = info->f_mode & S_IFMT;
-	info->f_mode = info->f_mode & 07777;
-	info->f_xftype = IFTOXT(info->f_type);
-	info->f_filetype = XTTOST(info->f_xftype);
-	astoo_cpio(&((char *)ptb)[24], &info->f_uid, 6);
-	astoo_cpio(&((char *)ptb)[30], &info->f_gid, 6);
-	astoo_cpio(&((char *)ptb)[36], &info->f_nlink, 6);
-	astoo_cpio(&((char *)ptb)[42], &info->f_rdev, 6);
-
-	astoo_cpio(&((char *)ptb)[48], &ul, 11);
-	info->f_atime = (time_t)ul;
-
-	astoo_cpio(&((char *)ptb)[59], &info->f_namelen, 6);
-
-	astoo_cpio(&((char *)ptb)[65], &ul, 11);
-	info->f_size = ul;
-info->f_rsize = info->f_size;
-	info->f_name = &((char *)ptb)[76];
-}
-
 LOCAL int
 ustoxt(ustype)
 	char	ustype;
@@ -1619,14 +2074,14 @@ ustoxt(ustype)
 	 * Map ANSI types
 	 */
 	if (ustype >= REGTYPE && ustype <= CONTTYPE)
-		return _USTOXT(ustype);
+		return (_USTOXT(ustype));
 
 	/*
 	 * Map Vendor Unique (Gnu tar & Star) types ANSI: "local enhancements"
 	 */
 	if ((props.pr_flags & (PR_LOCAL_STAR|PR_LOCAL_GNU)) &&
 					ustype >= 'A' && ustype <= 'Z')
-		return _VTTOXT(ustype);
+		return (_VTTOXT(ustype));
 
 	/*
 	 * treat unknown types as regular files conforming to standard
@@ -1634,66 +2089,37 @@ ustoxt(ustype)
 	return (XT_FILE);
 }
 
-/* ARGSUSED */
-EXPORT BOOL
-ia_change(ptb, info)
-	TCB	*ptb;
-	FINFO	*info;
-{
-	char	buf[NAMSIZ+1];	/* XXX nur 100 chars ?? */
-	char	ans;
-	int	len;
-
-	if (verbose)
-		list_file(info);
-	else
-		vprint(info);
-	if (nflag)
-		return (FALSE);
-	fprintf(vpr, "get/put ? Y(es)/N(o)/C(hange name) :");fflush(vpr);
-	fgetline(tty, buf, 2);
-	if ((ans = toupper(buf[0])) == 'Y')
-		return (TRUE);
-	else if (ans == 'C') {
-		for(;;) {
-			fprintf(vpr, "Enter new name:");
-			fflush(vpr);
-			if ((len = fgetline(tty, buf, sizeof buf)) == 0)
-				continue;
-			if (len > sizeof(buf) - 1)
-				errmsgno(EX_BAD, "Name too long.\n");
-			else
-				break;
-		}
-		strcpy(info->f_name, buf);	/* XXX nur 100 chars ?? */
-		if (xflag && newer(info))
-			return (FALSE);
-		return (TRUE);
-	}
-	return (FALSE);
-}
-
 LOCAL BOOL
 checkeof(ptb)
 	TCB	*ptb;
 {
+extern	m_stats	*stats;
+
 	if (!eofblock(ptb))
 		return (FALSE);
 	if (debug)
-		errmsgno(EX_BAD, "First  EOF Block OK\n");
+		errmsgno(EX_BAD, "First  EOF Block at %lld OK\n", tblocks());
+
+	stats->eofblock = tblocks();
 	markeof();
 
-	if (readblock((char *)ptb) == EOF) {
-		errmsgno(EX_BAD, "Incorrect EOF, second EOF block is missing.\n");
+	if (readblock((char *)ptb, TBLOCK) == EOF) {
+		errmsgno(EX_BAD,
+		"Incorrect EOF, second EOF block is missing at %lld.\n",
+		tblocks());
 		return (TRUE);
 	}
 	if (!eofblock(ptb)) {
 		if (!nowarn)
-			errmsgno(EX_BAD, "WARNING: Partial (single block) EOF detected.\n");
+			errmsgno(EX_BAD,
+			"WARNING: Partial (single block) EOF detected at %lld.\n",
+			tblocks());
 		return (FALSE);
 	}
 	if (debug)
-		errmsgno(EX_BAD, "Second EOF Block OK\n");
+		errmsgno(EX_BAD, "Second EOF Block OK at %lld\n", tblocks());
+
+	stats->eofblock = tblocks();
 	return (TRUE);
 }
 
@@ -1707,56 +2133,30 @@ eofblock(ptb)
 	if (props.pr_nflags & PR_DUMB_EOF)
 		return (ptb->dbuf.t_name[0] == '\0');
 
-	for (i=0; i < TBLOCK; i++)
+	for (i = 0; i < TBLOCK; i++)
 		if (*s++ != '\0')
 			return (FALSE);
 	return (TRUE);
 }
 
 /*
- * Convert octal string -> long int
- */
-LOCAL void /*char **/
-astoo_cpio(s,l, cnt)
-	register char	*s;
-		 Ulong	*l;
-	register int	cnt;
-{
-	register Ulong	ret = 0L;
-	register char	c;
-	register int	t;
-	
-	for(;cnt > 0; cnt--) {
-		c = *s++;
-		if(isoctal(c))
-			t = c - '0';
-		else
-			break;
-		ret *= 8;
-		ret += t;
-	}
-	*l = ret;
-	/*return(s);*/
-}
-
-/*
  * Convert string -> long int
  */
 LOCAL void /*char **/
-stoli(s,l)
+stoli(s, l)
 	register char	*s;
-		 Ulong	*l;
+		Ulong	*l;
 {
 	register Ulong	ret = 0L;
 	register char	c;
 	register int	t;
-	
-	while(*s == ' ')
+
+	while (*s == ' ')
 		s++;
 
-	for(;;) {
+	for (;;) {
 		c = *s++;
-		if(isoctal(c))
+		if (isoctal(c))
 			t = c - '0';
 		else
 			break;
@@ -1764,32 +2164,32 @@ stoli(s,l)
 		ret += t;
 	}
 	*l = ret;
-	/*return(s);*/
+	/*return (s);*/
 }
 
 /*
  * Convert string -> long long int
  */
 EXPORT void /*char **/
-stolli(s,ull)
+stolli(s, ull)
 	register char	*s;
-		 Ullong	*ull;
+		Ullong	*ull;
 {
 	register Ullong	ret = (Ullong)0;
 	register char	c;
 	register int	t;
-	
+
 	if (*((Uchar*)s) & 0x80) {
 		stollb(s, ull, 11);
 		return;
 	}
 
-	while(*s == ' ')
+	while (*s == ' ')
 		s++;
 
-	for(;;) {
+	for (;;) {
 		c = *s++;
-		if(isoctal(c))
+		if (isoctal(c))
 			t = c - '0';
 		else
 			break;
@@ -1797,7 +2197,7 @@ stolli(s,ull)
 		ret += t;
 	}
 	*ull = ret;
-	/*return(s);*/
+	/*return (s);*/
 }
 
 /*
@@ -1805,7 +2205,7 @@ stolli(s,ull)
  */
 LOCAL void
 litos(s, l, fieldw)
-		 char	*s;
+		char	*s;
 	register Ulong	l;
 	register int	fieldw;
 {
@@ -1847,7 +2247,7 @@ litos(s, l, fieldw)
 	case 3:		*--p = fill;	/* FALLTHROUGH */
 	case 2:		*--p = fill;	/* FALLTHROUGH */
 	case 1:		*--p = fill;	/* FALLTHROUGH */
-	case 0:		;
+	case 0:;
 	}
 }
 
@@ -1856,7 +2256,7 @@ litos(s, l, fieldw)
  */
 EXPORT void
 llitos(s, ull, fieldw)
-		 char	*s;
+		char	*s;
 	register Ullong	ull;
 	register int	fieldw;
 {
@@ -1907,7 +2307,7 @@ llitos(s, ull, fieldw)
 	case 3:		*--p = fill;	/* FALLTHROUGH */
 	case 2:		*--p = fill;	/* FALLTHROUGH */
 	case 1:		*--p = fill;	/* FALLTHROUGH */
-	case 0:		;
+	case 0:;
 	}
 }
 
@@ -1917,12 +2317,12 @@ llitos(s, ull, fieldw)
 LOCAL void /*char **/
 stob(s, l, fieldw)
 	register char	*s;
-		 Ulong	*l;
+		Ulong	*l;
 	register int	fieldw;
 {
 	register Ulong	ret = 0L;
 	register Uchar	c;
-	
+
 	c = *s++ & 0x7F;
 	ret = c * 256;
 
@@ -1932,7 +2332,7 @@ stob(s, l, fieldw)
 		ret += c;
 	}
 	*l = ret;
-	/*return(s);*/
+	/*return (s);*/
 }
 
 /*
@@ -1941,12 +2341,12 @@ stob(s, l, fieldw)
 LOCAL void /*char **/
 stollb(s, ull, fieldw)
 	register char	*s;
-		 Ullong	*ull;
+		Ullong	*ull;
 	register int	fieldw;
 {
 	register Ullong	ret = 0L;
 	register Uchar	c;
-	
+
 	c = *s++ & 0x7F;
 	ret = c * 256;
 
@@ -1956,15 +2356,16 @@ stollb(s, ull, fieldw)
 		ret += c;
 	}
 	*ull = ret;
-	/*return(s);*/
+	/*return (s);*/
 }
 
+#if	DEV_MINOR_BITS > 21
 /*
  * Convert long int -> binary (base 256) string.
  */
 LOCAL void
 btos(s, l, fieldw)
-		 char	*s;
+		char	*s;
 	register Ulong	l;
 	register int	fieldw;
 {
@@ -1977,13 +2378,14 @@ btos(s, l, fieldw)
 
 	s[0] |= 0x80;
 }
+#endif
 
 /*
  * Convert long long int -> binary (base 256) string.
  */
 LOCAL void
 llbtos(s, ull, fieldw)
-		 char	*s;
+		char	*s;
 	register Ullong	ull;
 	register int	fieldw;
 {
@@ -1995,6 +2397,18 @@ llbtos(s, ull, fieldw)
 	} while (--fieldw > 0 && (ull /= 256) > 0);
 
 	s[0] |= 0x80;
+}
+
+LOCAL void
+print_hrange(type, ull)
+	char	*type;
+	Ullong	ull;
+{
+	if (nowarn)
+		return;
+	errmsgno(EX_BAD,
+		"WARNING: %s '%llu' in header exceeds local range at %lld.\n",
+		type, ull, tblocks());
 }
 
 /*--------------------------------------------------------------------------*/
@@ -2012,13 +2426,15 @@ dump_info(info)
 	error("f_gmaxlen:   %lu\n", info->f_gmaxlen);
 
 	error("f_dir:       %p\n", info->f_dir);
+	error("f_dirinos:   %p\n", info->f_dirinos);
 	error("f_dirlen:    %d\n", info->f_dirlen);
+	error("f_dirents:    %d\n", info->f_dirents);
 	error("f_dev:       0x%llX\n", (Ullong)info->f_dev);
 	error("f_ino:       %llu\n", (Ullong)info->f_ino);
-	error("f_nlink:     %lu\n", info->f_nlink);
-	error("f_mode:      0%lo\n", info->f_mode);
-	error("f_uid:       %lu\n", info->f_uid);
-	error("f_gid:       %lu\n", info->f_gid);
+	error("f_nlink:     %llu\n", (Ullong)info->f_nlink);
+	error("f_mode:      0%llo\n", (Ullong)info->f_mode);
+	error("f_uid:       %lld\n", (Llong)info->f_uid);
+	error("f_gid:       %lld\n", (Llong)info->f_gid);
 
 	error("f_size:      %lld\n", (Llong)info->f_size);
 	error("f_rsize:     %lld\n", (Llong)info->f_rsize);
@@ -2029,12 +2445,12 @@ dump_info(info)
 	error("f_rxftype:   %lu (%s)\n", info->f_rxftype, XTTONAME(info->f_rxftype));
 	error("f_filetype:  %lu\n", info->f_filetype);
 	error("f_typeflag:  '%c'\n", info->f_typeflag);
-	error("f_type:      0%lo\n", info->f_type);
+	error("f_type:      0%llo\n", (Ullong)info->f_type);
 	error("f_rdev:      %lu\n", info->f_rdev);
 	error("f_rdevmaj:   %lu\n", info->f_rdevmaj);
 	error("f_rdevmin:   %lu\n", info->f_rdevmin);
-	error("f_atime:     %.24s +0.%9.9lu s\n", ctime(&info->f_atime), info->f_ansec);
-	error("f_mtime:     %.24s +0.%9.9lu s\n", ctime(&info->f_mtime), info->f_mnsec);
-	error("f_ctime:     %.24s +0.%9.9lu s\n", ctime(&info->f_ctime), info->f_cnsec);
+	error("f_atime:     %.24s +0.%9.9ld s\n", ctime(&info->f_atime), info->f_ansec);
+	error("f_mtime:     %.24s +0.%9.9ld s\n", ctime(&info->f_mtime), info->f_mnsec);
+	error("f_ctime:     %.24s +0.%9.9ld s\n", ctime(&info->f_ctime), info->f_cnsec);
 	error("f_fflags:    0x%lX\n", info->f_fflags);
 }

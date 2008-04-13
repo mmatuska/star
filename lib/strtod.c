@@ -1,3 +1,5 @@
+/* @(#)strtod.c	1.3 06/09/26 joerg */
+
 /*	$NetBSD: strtod.c,v 1.23 1996/10/13 00:07:55 christos Exp $	*/
 
 /****************************************************************
@@ -95,8 +97,8 @@
 static char *rcsid = "$NetBSD: strtod.c,v 1.23 1996/10/13 00:07:55 christos Exp $";
 #endif /* LIBC_SCCS and not lint */
 
-#include <mconfig.h>
-#include <btorder.h>
+#include <schily/mconfig.h>
+#include <schily/btorder.h>
 
 #ifdef	__OLD_NETBSD_DEFINES__
 
@@ -139,7 +141,7 @@ static char *rcsid = "$NetBSD: strtod.c,v 1.23 1996/10/13 00:07:55 christos Exp 
 #define VAX
 #endif
 
-#include <utypes.h>
+#include <schily/utypes.h>
 #define Long	Int32_t
 #define ULong	UInt32_t
 
@@ -173,10 +175,7 @@ extern void *MALLOC(size_t);
 #endif
 
 #include "ctype.h"
-#include "errno.h"
-#ifndef	HAVE_ERRNO_DEF
-extern	int	errno;
-#endif
+#include <schily/errno.h>
 
 #ifdef Bad_float_h
 #undef __STDC__

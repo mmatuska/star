@@ -1,26 +1,22 @@
-/* @(#)xutimes.h	1.1 96/06/13 Copyright 1995 J. Schilling */
+/* @(#)xutimes.h	1.2 03/06/12 Copyright 1996, 2003 J. Schilling */
 /*
  *	Prototypes for xutimes users
  *
- *	Copyright (c) 1996 J. Schilling
+ *	Copyright (c) 1996, 2003 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
 /*
  * star_unix.c
  */
-extern	int	xutimes		__PR((char* name, struct timeval* tp));
+extern	int	xutimes		__PR((char *name, struct timeval *tp));

@@ -5,7 +5,7 @@ RULESDIR=	RULES
 include		$(SRCROOT)/$(RULESDIR)/rules.top
 ###########################################################################
 
-MK_FILES= librmt.mk
+MK_FILES= librmt.mk librmt_p.mk $(NO_SHL)shlrmt.mk
 
 ###########################################################################
 include		$(SRCROOT)/$(RULESDIR)/rules.mks

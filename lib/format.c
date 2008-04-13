@@ -1,4 +1,4 @@
-/* @(#)format.c	1.36 02/07/28 Copyright 1985 J. Schilling */
+/* @(#)format.c	1.42 08/02/26 Copyright 1985-2006 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -6,41 +6,42 @@
  *	allows recursive printf with "%r", used in:
  *	error, comerr, comerrno, errmsg, errmsgno and the like
  *
- *	Copyright (c) 1985 J. Schilling
+ *	Copyright (c) 1985-2006 J. Schilling
  */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * See the file CDDL.Schily.txt in this distribution for details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; see the file COPYING.  If not, write to
- * the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <mconfig.h>
-#include <vadefs.h>
-#include <strdefs.h>
-#include <stdxlib.h>
+#include <schily/mconfig.h>
+#include <schily/varargs.h>
+#include <schily/string.h>
+#include <schily/stdlib.h>
+#ifdef	DEBUG
+#include <schily/unistd.h>
+#endif
 #if	!defined(HAVE_STDLIB_H) || !defined(HAVE_GCVT)
 extern	char	*gcvt __PR((double, int, char *));
 #endif
-#include <standard.h>
-#include <utypes.h>
-#include <schily.h>
+#include <schily/standard.h>
+#include <schily/utypes.h>
+#include <schily/schily.h>
 
 /*
  * As Llong is currently a 'best effort' long long, we usually need to
  * include long long print formats.
  * This may go away, if we implement maxint_t formats.
  */
+#ifndef	USE_LONGLONG
 #define	USE_LONGLONG
+#endif
 
 #ifdef	NO_LONGLONG
 #undef	USE_LONGLONG
@@ -52,7 +53,7 @@ extern	char	*gcvt __PR((double, int, char *));
  * makes rotate work too.
  */
 #define	allmask(t)	((unsigned t)~((unsigned t)0))
-#define	lowmask(t, x)	((unsigned t)~((unsigned t)((1 << (x))-1) ))
+#define	lowmask(t, x)	((unsigned t)~((unsigned t)((1 << (x))-1)))
 #define	rshiftmask(t, s)((allmask(t) & lowmask(t, s)) >> (s))
 
 #define	CHARMASK	makemask(char)
@@ -87,7 +88,7 @@ typedef union {
 #endif
 
 typedef struct f_args {
-	void  (*outf)__PR((char,long));	/* Func from format(fun, arg)	*/
+	void  (*outf)__PR((char, long)); /* Func from format(fun, arg)	*/
 	long	farg;			/* Arg from format (fun, arg)	*/
 	int	minusflag;		/* Fieldwidth is negative	*/
 	int	flags;			/* General flags (+-#)		*/
@@ -121,22 +122,31 @@ LOCAL	void	prlXnum __PR((Ullong, f_args *));
 LOCAL	int	prbuf  __PR((const char *, f_args *));
 LOCAL	int	prc    __PR((char, f_args *));
 LOCAL	int	prstring __PR((const char *, f_args *));
+#ifdef	DEBUG
+LOCAL	void	dbg_print __PR((char *fmt, int a, int b, int c, int d, int e, int f, int g, int h, int i));
+#endif
 
 
 #ifdef	PROTOTYPES
-EXPORT int format(	void (*fun)(char, long),
+EXPORT int
+format(void (*fun)(char, long),
 			long farg,
 			const char *fmt,
 			va_list args)
 #else
-EXPORT int format(fun, farg, fmt, args)
+EXPORT int
+format(fun, farg, fmt, args)
 	register void	(*fun)();
 	register long	farg;
 	register char	*fmt;
 	va_list		args;
 #endif
 {
+#ifdef	FORMAT_LOW_MEM
 	char buf[512];
+#else
+	char buf[8192];
+#endif
 	const char *sfmt;
 	register int unsflag;
 	register long val;
@@ -162,7 +172,7 @@ EXPORT int format(fun, farg, fmt, args)
 	 * Main loop over the format string.
 	 * Increment and check for end of string is made here.
 	 */
-	for(; *fmt != '\0'; fmt++) {
+	for (; *fmt != '\0'; fmt++) {
 		c = *fmt;
 		while (c != '%') {
 			if (c == '\0')
@@ -282,10 +292,10 @@ EXPORT int format(fun, farg, fmt, args)
 				type = *fmt++;
 				if (!strchr("ZODX", mode = *fmt)) {
 					fmt--;
-					mode = 'D';/* default mode */
+					mode = 'D'; /* default mode */
 				}
 			}
-		} else switch(*fmt) {
+		} else switch (*fmt) {
 
 		case 'h':
 			if (!type)
@@ -312,7 +322,7 @@ EXPORT int format(fun, farg, fmt, args)
 				if (type == 'H' && *fmt == 'h') {
 					type = 'C';
 					goto getmode;
-				}				
+				}
 #ifdef	USE_LONGLONG
 				if (type == 'L' && *fmt == 'l') {
 					type = 'Q';
@@ -344,6 +354,7 @@ EXPORT int format(fun, farg, fmt, args)
 		 * XXX Need to remove uppercase letters for 'long'
 		 * XXX in future for POSIX/C99 compliance.
 		 */
+			/* FALLTHRU */
 		case 'o': case 'O':
 		case 'd': case 'D':
 		case 'i': case 'I':
@@ -352,6 +363,9 @@ EXPORT int format(fun, farg, fmt, args)
 		havemode:
 			if (!type)
 				type = cap_ty(*fmt);
+#ifdef	DEBUG
+/*dbg_print("*fmt: '%c' mode: '%c' type: '%c'\n", *fmt, mode, type);*/
+#endif
 			if (mode == 'I')	/*XXX kann entfallen*/
 				mode = 'D';	/*wenn besseres uflg*/
 			break;
@@ -461,7 +475,7 @@ EXPORT int format(fun, farg, fmt, args)
 		 * first prepare type 'C'har, s'H'ort, 'I'nt, or 'L'ong
 		 * or 'Q'ad and 'J'==maxint_t
 		 */
-		switch(type) {
+		switch (type) {
 
 		case 'C':
 			c = va_arg(args, int);
@@ -501,6 +515,7 @@ EXPORT int format(fun, farg, fmt, args)
 			break;
 #ifdef	USE_LONGLONG
 		case 'J':			/* For now Intmax_t is Llong */
+			type = 'Q';		/* use 'Q' for processing    */
 		case 'Q':
 			llval = va_arg(args, Llong);
 			val = llval != 0;
@@ -513,7 +528,7 @@ EXPORT int format(fun, farg, fmt, args)
 		 * mode is one of: 'O'ctal, 'D'ecimal, or he'X'
 		 * oder 'Z'weierdarstellung.
 		 */
-		fa.bufp = &buf[sizeof(buf)-1];
+		fa.bufp = &buf[sizeof (buf)-1];
 		*--fa.bufp = '\0';
 
 		if (val == 0 && mode != 'D') {
@@ -526,7 +541,7 @@ EXPORT int format(fun, farg, fmt, args)
 				fa.fillc = ' ';
 			count += prstring("0", &fa);
 			continue;
-		} else switch(mode) {
+		} else switch (mode) {
 
 		case 'D':
 #ifdef	USE_LONGLONG
@@ -560,6 +575,7 @@ EXPORT int format(fun, farg, fmt, args)
 			}
 			if (val == 0)
 				goto printzero;
+			/* FALLTHRU */
 		case 'U':
 			/* output a long unsigned decimal number */
 #ifdef	USE_LONGLONG
@@ -654,7 +670,8 @@ EXPORT int format(fun, farg, fmt, args)
 LOCAL	unsigned char	dtab[]  = "0123456789abcdef";
 LOCAL	unsigned char	udtab[] = "0123456789ABCDEF";
 
-LOCAL void prnum(val, base, fa)
+LOCAL void
+prnum(val, base, fa)
 	register Ulong val;
 	register unsigned base;
 	f_args *fa;
@@ -669,7 +686,8 @@ LOCAL void prnum(val, base, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prdnum(val, fa)
+LOCAL void
+prdnum(val, fa)
 	register Ulong val;
 	f_args *fa;
 {
@@ -686,7 +704,8 @@ LOCAL void prdnum(val, fa)
 /*
  * We may need to use division here too (PDP-11, non two's complement ...)
  */
-LOCAL void pronum(val, fa)
+LOCAL void
+pronum(val, fa)
 	register Ulong val;
 	f_args *fa;
 {
@@ -700,7 +719,8 @@ LOCAL void pronum(val, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prxnum(val, fa)
+LOCAL void
+prxnum(val, fa)
 	register Ulong val;
 	f_args *fa;
 {
@@ -714,7 +734,8 @@ LOCAL void prxnum(val, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prXnum(val, fa)
+LOCAL void
+prXnum(val, fa)
 	register Ulong val;
 	f_args *fa;
 {
@@ -729,7 +750,8 @@ LOCAL void prXnum(val, fa)
 }
 
 #ifdef	USE_LONGLONG
-LOCAL void prlnum(val, base, fa)
+LOCAL void
+prlnum(val, base, fa)
 	register Ullong val;
 	register unsigned base;
 	f_args *fa;
@@ -744,7 +766,8 @@ LOCAL void prlnum(val, base, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prldnum(val, fa)
+LOCAL void
+prldnum(val, fa)
 	register Ullong val;
 	f_args *fa;
 {
@@ -758,7 +781,8 @@ LOCAL void prldnum(val, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prlonum(val, fa)
+LOCAL void
+prlonum(val, fa)
 	register Ullong val;
 	f_args *fa;
 {
@@ -772,7 +796,8 @@ LOCAL void prlonum(val, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prlxnum(val, fa)
+LOCAL void
+prlxnum(val, fa)
 	register Ullong val;
 	f_args *fa;
 {
@@ -786,7 +811,8 @@ LOCAL void prlxnum(val, fa)
 	fa->bufp = p;
 }
 
-LOCAL void prlXnum(val, fa)
+LOCAL void
+prlXnum(val, fa)
 	register Ullong val;
 	f_args *fa;
 {
@@ -805,7 +831,8 @@ LOCAL void prlXnum(val, fa)
 /*
  * Final buffer print out routine.
  */
-LOCAL int prbuf(s, fa)
+LOCAL int
+prbuf(s, fa)
 	register const char *s;
 	f_args *fa;
 {
@@ -862,10 +889,13 @@ LOCAL int prbuf(s, fa)
  */
 #ifdef	PROTOTYPES
 
-LOCAL int prc(char c, f_args *fa)
+LOCAL int
+prc(char c, f_args *fa)
 
 #else
-LOCAL int prc(c, fa)
+
+LOCAL int
+prc(c, fa)
 	char	c;
 	f_args *fa;
 #endif
@@ -900,7 +930,8 @@ LOCAL int prc(c, fa)
  * If fa->signific is >= 0, it uses only fa->signific chars.
  * If fa->signific is 0, print no characters.
  */
-LOCAL int prstring(s, fa)
+LOCAL int
+prstring(s, fa)
 	register const char	*s;
 	f_args *fa;
 {
@@ -923,3 +954,14 @@ LOCAL int prstring(s, fa)
 	return (prbuf(fa->buf, fa));
 }
 
+#ifdef	DEBUG
+LOCAL void
+dbg_print(fmt, a, b, c, d, e, f, g, h, i)
+char *fmt;
+{
+	char	ff[1024];
+
+	sprintf(ff, fmt, a, b, c, d, e, f, g, h, i);
+	write(STDERR_FILENO, ff, strlen(ff));
+}
+#endif
