@@ -1,8 +1,8 @@
-/* @(#)comerr.c	1.32 07/02/26 Copyright 1985-1989, 1995-2007 J. Schilling */
+/* @(#)comerr.c	1.35 09/07/10 Copyright 1985-1989, 1995-2009 J. Schilling */
 /*
  *	Routines for printing command errors
  *
- *	Copyright (c) 1985-1989, 1995-2007 J. Schilling
+ *	Copyright (c) 1985-1989, 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,7 +18,7 @@
 
 #include <schily/mconfig.h>
 #include <schily/unistd.h>	/* include <sys/types.h> try to get size_t */
-#include <stdio.h>		/* Try again for size_t	*/
+#include <schily/stdio.h>	/* Try again for size_t	*/
 #include <schily/stdlib.h>	/* Try again for size_t	*/
 #include <schily/standard.h>
 #include <schily/varargs.h>
@@ -157,7 +157,7 @@ errmsgno(err, msg, va_alist)
 	return (ret);
 }
 
-#ifdef	__BEOS__
+#if defined(__BEOS__) || defined(__HAIKU__)
 	/*
 	 * On BeOS errno is a big negative number (0x80000000 + small number).
 	 * We assume that small negative numbers are safe to be used as special

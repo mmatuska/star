@@ -1,13 +1,14 @@
 /*#define	PLUS_DEBUG*/
-/* @(#)find_main.c	1.62 08/04/12 Copyright 2004-2008 J. Schilling */
+/* @(#)find_main.c	1.65 09/07/11 Copyright 2004-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)find_main.c	1.62 08/04/12 Copyright 2004-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)find_main.c	1.65 09/07/11 Copyright 2004-2009 J. Schilling";
 #endif
 /*
  *	Another find implementation...
  *
- *	Copyright (c) 2004-2008 J. Schilling
+ *	Copyright (c) 2004-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,8 +22,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/unistd.h>
 #include <schily/stdlib.h>
 #include <schily/stat.h>
@@ -172,7 +172,7 @@ find_main(ac, av, ev, std, quit)
 	}
 	if (prversion) {
 		fprintf(std[1],
-		"sfind release %s (%s-%s-%s) Copyright (C) 2004-2008 Jörg Schilling\n",
+		"sfind release %s (%s-%s-%s) Copyright (C) 2004-2009 Jörg Schilling\n",
 				strvers,
 				HOST_CPU, HOST_VENDOR, HOST_OS);
 		goto out;

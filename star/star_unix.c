@@ -1,13 +1,14 @@
-/* @(#)star_unix.c	1.92 07/12/27 Copyright 1985, 1995, 2001-2007 J. Schilling */
+/* @(#)star_unix.c	1.95 09/07/11 Copyright 1985, 1995, 2001-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)star_unix.c	1.92 07/12/27 Copyright 1985, 1995, 2001-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)star_unix.c	1.95 09/07/11 Copyright 1985, 1995, 2001-2009 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
  *	operating systems
  *
- *	Copyright (c) 1985, 1995, 2001-2007 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -25,7 +26,7 @@ static	char sccsid[] =
 #ifndef	HAVE_UTIMES
 #define	utimes	__nothing__	/* BeOS has no utimes() but wrong prototype */
 #endif
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/errno.h>
 #include "star.h"
 #include "props.h"
@@ -548,6 +549,7 @@ samefile(fp1, fp2)
 		return (FALSE);
 
 	if (fstat(fdown(fp1), &stbuf1) < 0)
+		return (FALSE);
 
 	if (fstat(fdown(fp2), &stbuf2) < 0)
 		return (FALSE);

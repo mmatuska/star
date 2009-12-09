@@ -1,12 +1,13 @@
-/* @(#)fetchdir.c	1.23 08/04/06 Copyright 2002-2008 J. Schilling */
+/* @(#)fetchdir.c	1.27 09/07/11 Copyright 2002-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)fetchdir.c	1.23 08/04/06 Copyright 2002-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)fetchdir.c	1.27 09/07/11 Copyright 2002-2009 J. Schilling";
 #endif
 /*
  *	Blocked directory handling.
  *
- *	Copyright (c) 2002-2008 J. Schilling
+ *	Copyright (c) 2002-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,8 +21,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/standard.h>
@@ -88,7 +88,7 @@ dfetchdir(d, dirname, entp, lenp, inop)
 		char	sname[PATH_MAX+1];
 #endif
 
-	if ((erg = __malloc(esize, "fetchdir")) == NULL)
+	if ((erg = ___malloc(esize, "fetchdir")) == NULL)
 		return (NULL);
 	erg[0] = '\0';
 	erg[1] = '\0';
@@ -108,7 +108,7 @@ dfetchdir(d, dirname, entp, lenp, inop)
 					mino *= 2;
 				else
 					mino += msize / sizeof (ino_t);
-				if ((ino = __realloc(ino, mino * sizeof (ino_t), "fetchdir")) == NULL)
+				if ((ino = ___realloc(ino, mino * sizeof (ino_t), "fetchdir")) == NULL)
 					return (NULL);
 			}
 #ifdef	HAVE_DIRENT_D_INO
@@ -145,7 +145,7 @@ dfetchdir(d, dirname, entp, lenp, inop)
 			if (esize < (off + nlen))
 				continue;
 
-			if ((erg = __realloc(erg, esize, "fetchdir")) == NULL)
+			if ((erg = ___realloc(erg, esize, "fetchdir")) == NULL)
 				return (NULL);
 		}
 #ifdef	DEBUG

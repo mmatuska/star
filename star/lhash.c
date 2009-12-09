@@ -1,10 +1,11 @@
-/* @(#)lhash.c	1.16 07/05/25 Copyright 1988, 1993-2007 J. Schilling */
+/* @(#)lhash.c	1.20 09/07/11 Copyright 1988, 1993-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)lhash.c	1.16 07/05/25 Copyright 1988, 1993-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)lhash.c	1.20 09/07/11 Copyright 1988, 1993-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1988, 1993-2007 J. Schilling
+ *	Copyright (c) 1988, 1993-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -41,8 +42,7 @@ static	char sccsid[] =
  * Scheitert malloc(), gibt es eine Fehlermeldung und exit().
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/standard.h>
@@ -88,7 +88,7 @@ hash_build(fp)
 		register	int	i;
 		register	size_t	size = hash_size(HASH_DFLT_SIZE);
 
-		h_tab = __malloc(size * sizeof (struct h_elem *), "list option");
+		h_tab = ___malloc(size * sizeof (struct h_elem *), "list option");
 		for (i = 0; i < size; i++) h_tab[i] = 0;
 	}
 	_hash_build(fp, h_tab);
@@ -103,7 +103,7 @@ hash_xbuild(fp)
 		register	int	i;
 		register	size_t	size = hash_size(HASH_DFLT_SIZE);
 
-		h_xtab = __malloc(size * sizeof (struct h_elem *), "exclude option");
+		h_xtab = ___malloc(size * sizeof (struct h_elem *), "exclude option");
 		for (i = 0; i < size; i++) h_xtab[i] = 0;
 	}
 	_hash_build(fp, h_xtab);
@@ -130,7 +130,7 @@ _hash_build(fp, htab)
 							buf, len, PATH_MAX);
 			continue;
 		}
-		hp = __malloc((size_t)len + 1 + sizeof (struct h_elem *), "list option");
+		hp = ___malloc((size_t)len + 1 + sizeof (struct h_elem *), "list option");
 		strcpy(hp->h_data, buf);
 		hv = hashval((unsigned char *)buf, size);
 		hp->h_next = htab[hv];
@@ -175,7 +175,7 @@ hash_xlookup(str)
 	/*
 	 * If no exclude list exists, no files are excluded.
 	 */
-	if (h_tab == NULL)
+	if (h_xtab == NULL)
 		return (FALSE);
 
 	hv = hashval((unsigned char *)str, h_size);

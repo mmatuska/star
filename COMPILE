@@ -15,7 +15,7 @@ Short overview for those who don't read manuals:
 
 	You **need** either my "smake" program, the SunPRO make 
 	from /usr/bin/make (SunOS 4.x) or /usr/ccs/bin/make (SunOS 5.x)
-	or GNU make to compile this program. Read README.gmake for 
+	or GNU make to compile this program. Read READMEs/README.gmake for 
 	more information on gmake and a list of the most annoying bugs in gmake.
 
 	All other make programs are either not smart enough or have bugs.
@@ -169,6 +169,19 @@ Using a different installation directory:
 
 		env INS_BASE=/usr/local make -e install
 
+	Note that INS_BASE=/usr/local needs to be specified for every operation
+	that compiles or links programs as the path is stored inside the
+	binaries.
+
+
+Installing to a prototype directory to implement package creation staging:
+
+	If you like to create a prototype directory tree that is used as an
+	intermediate store for package creation, use the DESTDIR macro:
+
+		smake INS_BASE=/usr/local DESTDIR=/tmp install
+
+	This will create a usr/local tree below /tmp (i.e. /tmp/usr/local).
 
 Using a different C-compiler:
 
@@ -245,7 +258,7 @@ Hints for compilation:
 
 	SunPro make will work as is. GNU make need some special preparation.
 
-	Read README.gmake for more information on gmake.
+	Read READMEs/README.gmake for more information on gmake.
 
 	To use GNU make create a file called 'Gmake' in your search path
 	that contains:
@@ -353,6 +366,6 @@ D-13353 Berlin
 Germany
 
 Email: 	joerg@schily.isdn.cs.tu-berlin.de, js@cs.tu-berlin.de
-	schilling@fokus.fhg.de
+	joerg.schilling@fokus.fraunhufer.de
 
 Please mail bugs and suggestions to me.

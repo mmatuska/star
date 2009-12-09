@@ -1,12 +1,13 @@
-/* @(#)walk.c	1.32 08/04/06 Copyright 2004-2007 J. Schilling */
+/* @(#)walk.c	1.38 09/07/11 Copyright 2004-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)walk.c	1.32 08/04/06 Copyright 2004-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)walk.c	1.38 09/07/11 Copyright 2004-2009 J. Schilling";
 #endif
 /*
  *	Walk a directory tree
  *
- *	Copyright (c) 2004-2007 J. Schilling
+ *	Copyright (c) 2004-2009 J. Schilling
  *
  *	In order to make treewalk() thread safe, we need to make it to not use
  *	chdir(2)/fchdir(2) which is process global.
@@ -34,8 +35,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/unistd.h>
 #include <schily/stdlib.h>
 #ifdef	HAVE_FCHDIR
@@ -126,7 +126,7 @@ treewalk(nm, fn, state)
 	struct WALK	*state; /* Walk state				*/
 {
 	struct twvars	vars;
-	statfun		statf = &stat;
+	statfun		statf = stat;
 	int		nlen;
 
 	if ((state->walkflags & WALK_CHDIR) == 0) {
@@ -149,7 +149,7 @@ treewalk(nm, fn, state)
 	if (nm == NULL || nm[0] == '\0')
 		nm = ".";
 
-	vars.Curdir = __malloc(DIR_INCR, "path buffer");
+	vars.Curdir = ___malloc(DIR_INCR, "path buffer");
 	vars.Curdir[0] = 0;
 	vars.Curdlen = DIR_INCR;
 	/*
@@ -167,10 +167,10 @@ treewalk(nm, fn, state)
 	state->level = 0;
 
 	if (state->walkflags & WALK_PHYS)
-		statf = &lstat;
+		statf = lstat;
 
 	if (state->walkflags & (WALK_ARGFOLLOW|WALK_ALLFOLLOW))
-		statf = &stat;
+		statf = stat;
 
 	nlen = walk(nm, statf, fn, state, (struct pdirs *)0);
 	walkhome(state);
@@ -285,7 +285,7 @@ type_known:
 
 		ret = 0;
 		if ((state->walkflags & (WALK_PHYS|WALK_ALLFOLLOW)) == WALK_PHYS)
-			sf = &lstat;
+			sf = lstat;
 
 		/*
 		 * Search parent dir structure for possible loops.
@@ -426,7 +426,7 @@ incr_dspace(varp, amt)
 		amt = 0;
 	while (incr < amt)
 		incr += DIR_INCR;
-	varp->Curdir = __realloc(varp->Curdir, varp->Curdlen + incr,
+	varp->Curdir = ___realloc(varp->Curdir, varp->Curdlen + incr,
 								"path buffer");
 	varp->Curdlen += incr;
 	return (incr);
@@ -454,7 +454,7 @@ EXPORT void *
 walkopen(state)
 	struct WALK	*state;
 {
-	struct twvars	*varp = __malloc(sizeof (struct twvars), "walk vars");
+	struct twvars	*varp = ___malloc(sizeof (struct twvars), "walk vars");
 
 	if (varp == NULL)
 		return (NULL);

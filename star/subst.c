@@ -1,12 +1,13 @@
-/* @(#)subst.c	1.9 06/10/31 Copyright 1986,2003-2006 J. Schilling */
+/* @(#)subst.c	1.13 09/07/11 Copyright 1986,2003-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)subst.c	1.9 06/10/31 Copyright 1986,2003-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)subst.c	1.13 09/07/11 Copyright 1986,2003-2009 J. Schilling";
 #endif
 /*
  *	Substitution commands
  *
- *	Copyright (c) 1986,2003-2006 J. Schilling
+ *	Copyright (c) 1986,2003-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,8 +21,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/standard.h>
 #include <schily/patmatch.h>
 #include <schily/string.h>
@@ -100,6 +100,9 @@ parsesubst(cmd, arg)
 		else
 			break;
 	}
+	if (to >= endp || c != dc)
+		comerrno(EX_BAD, "Missing '%c' delimiter after 'from' substitute string.\n", dc);
+
 	fromlen = to-from;
 	*to++ = '\0';
 	cp = to;
@@ -110,6 +113,9 @@ parsesubst(cmd, arg)
 		else
 			break;
 	}
+	if (to >= endp || c != dc)
+		comerrno(EX_BAD, "Missing '%c' delimiter after 'to' substitute string.\n", dc);
+
 	tolen = cp-to;
 	*cp = '\0';
 	if (++cp < endp)
@@ -135,16 +141,16 @@ parsesubst(cmd, arg)
 	if (npat >= NPAT)
 		comerrno(EX_BAD, "Too many substitute patterns (max is %d).\n", NPAT);
 
-	pat[npat] = (Uchar *)__savestr(from);
+	pat[npat] = (Uchar *)___savestr(from);
 	patlen[npat] = fromlen;
-	substpat[npat] = __savestr(to);
+	substpat[npat] = ___savestr(to);
 	substlen[npat] = tolen;
 
 
 	if (fromlen > maxplen)
 		maxplen = fromlen;
 
-	aux[npat] = __malloc(fromlen*sizeof (int), "compiled subst pattern");
+	aux[npat] = ___malloc(fromlen*sizeof (int), "compiled subst pattern");
 	if ((alt[npat] = patcompile(pat[npat], patlen[npat], aux[npat])) == 0) {
 		comerrno(EX_BAD, "Bad pattern: '%s'.\n", pat[npat]);
 		return (-2);
@@ -167,7 +173,7 @@ subst(info)
 	register int	i;
 
 	if (!state) {
-		state = __malloc((maxplen+1)*sizeof (int), "pattern state");
+		state = ___malloc((maxplen+1)*sizeof (int), "pattern state");
 	}
 
 	info->f_namelen = strlen(info->f_name);

@@ -1,12 +1,13 @@
-/* @(#)getav0.c	1.19 08/01/11 Copyright 1985, 1995-2004 J. Schilling */
+/* @(#)getav0.c	1.23 09/07/08 Copyright 1985, 1995-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)getav0.c	1.19 08/01/11 Copyright 1985, 1995-2004 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)getav0.c	1.23 09/07/08 Copyright 1985, 1995-2009 J. Schilling";
 #endif
 /*
  *	Get arg vector by scanning the stack
  *
- *	Copyright (c) 1985, 1995-2004 J. Schilling
+ *	Copyright (c) 1985, 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,7 +21,6 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
 #include <schily/sigblk.h>
 #include <schily/avoffset.h>
 #include <schily/standard.h>
@@ -67,7 +67,7 @@ getmainfp()
 		return (NULL);
 
 	while (fp->fr_savfp) {
-		if (fp->fr_savpc == NULL)
+		if (fp->fr_savpc == 0)
 			break;
 
 		if (!is_even(fp->fr_savfp)) {
@@ -91,7 +91,7 @@ getmainfp()
 		return (NULL);
 
 	while (fp->fr_savfp) {
-		if (fp->fr_savpc == NULL)
+		if (fp->fr_savpc == 0)
 			break;
 
 		if (!is_even(fp->fr_savfp)) {

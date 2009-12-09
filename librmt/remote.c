@@ -1,15 +1,16 @@
 /*#define	USE_REMOTE*/
 /*#define	USE_RCMD_RSH*/
 /*#define	NO_LIBSCHILY*/
-/* @(#)remote.c	1.65 08/03/23 Copyright 1990-2008 J. Schilling */
+/* @(#)remote.c	1.73 09/10/18 Copyright 1990-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)remote.c	1.65 08/03/23 Copyright 1990-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)remote.c	1.73 09/10/18 Copyright 1990-2009 J. Schilling";
 #endif
 /*
  *	Remote tape client interface code
  *
- *	Copyright (c) 1990-2008 J. Schilling
+ *	Copyright (c) 1990-2009 J. Schilling
  *
  *	TOTO:
  *		Signal handler for SIGPIPE
@@ -26,8 +27,6 @@ static	char sccsid[] =
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
-
-#include <schily/mconfig.h>
 
 /*#undef	USE_REMOTE*/
 /*#undef	USE_RCMD_RSH*/
@@ -46,29 +45,24 @@ static	char sccsid[] =
 #undef	USE_REMOTE				/* There is no rcmd() */
 #endif
 
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/fcntl.h>
 #include <schily/ioctl.h>
-#ifdef	HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
+#include <schily/socket.h>
 #include <schily/errno.h>
-#include <signal.h>
-#ifdef	HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef	HAVE_PWD_H
-#include <pwd.h>
-#endif
+#include <schily/signal.h>
+#include <schily/netdb.h>
+#include <schily/pwd.h>
 #include <schily/standard.h>
 #include <schily/string.h>
 #include <schily/utypes.h>
 #include <schily/mtio.h>
 #include <schily/librmt.h>
 #include <schily/schily.h>
-#include <ctype.h>
+#include <schily/ctype.h>
+#include <schily/priv.h>
 
 #if	defined(SIGDEFER) || defined(SVR4)
 #define	signal	sigset
@@ -78,10 +72,10 @@ static	char sccsid[] =
  * On Cygwin, there are no privilleged ports.
  * On UNIX, rcmd() uses privilleged port that only work for root.
  */
-#ifdef	IS_CYGWIN
+#if	defined(IS_CYGWIN) || defined(__MINGW32__)
 #define	privport_ok()	(1)
 #else
-#ifdef	HAVE_GETPPRIV
+#ifdef	HAVE_SOLARIS_PPRIV
 #define	privport_ok()	ppriv_ok()
 #else
 #define	privport_ok()	(geteuid() == 0)
@@ -241,7 +235,7 @@ LOCAL	int	_rcmdrsh		__PR((char **ahost, int inport,
 						const char *remuser,
 						const char *cmd,
 						const char *rsh));
-#ifdef	HAVE_GETPPRIV
+#ifdef	HAVE_SOLARIS_PPRIV
 LOCAL	BOOL	ppriv_ok		__PR((void));
 #endif
 #endif
@@ -473,7 +467,7 @@ rmtoflags(fmode, cmode)
 
 	default:	p = "Cannot Happen";
 	}
-	amt = js_snprintf(cmode, maxcnt, p); if (amt < 0) return;
+	amt = js_snprintf(cmode, maxcnt, "%s", p); if (amt < 0) return;
 	p = cmode;
 	p += amt;
 	maxcnt -= amt;
@@ -616,6 +610,9 @@ rmtclose(fd)
 	return (rmtcmd(fd, "close", "C\n"));
 }
 
+/*
+ * Check all our callers once we make "count" size_t
+ */
 EXPORT int
 rmtread(fd, buf, count)
 	int	fd;
@@ -654,6 +651,9 @@ rmtread(fd, buf, count)
 	return (amt);
 }
 
+/*
+ * Check all our callers once we make "count" size_t
+ */
 EXPORT int
 rmtwrite(fd, buf, count)
 	int	fd;
@@ -1571,8 +1571,7 @@ _rcmdrsh(ahost, inport, locuser, remuser, cmd, rsh)
 	return (-1);	/* keep gcc happy */
 }
 
-#ifdef	HAVE_GETPPRIV
-#include <priv.h>
+#ifdef	HAVE_SOLARIS_PPRIV
 
 LOCAL BOOL
 ppriv_ok()
@@ -1595,7 +1594,7 @@ ppriv_ok()
 
 	return (net_privaddr);
 }
-#endif	/* HAVE_GETPPRIV */
+#endif	/* HAVE_SOLARIS_PPRIV */
 
 #endif	/* USE_RCMD_RSH */
 #endif	/* USE_REMOTE */

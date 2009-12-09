@@ -1,8 +1,8 @@
-/* @(#)walk.h	1.24 08/04/06 Copyright 2004-2008 J. Schilling */
+/* @(#)walk.h	1.26 09/06/06 Copyright 2004-2009 J. Schilling */
 /*
  *	Definitions for directory tree walking
  *
- *	Copyright (c) 2004-2008 J. Schilling
+ *	Copyright (c) 2004-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -19,13 +19,16 @@
 #ifndef	_SCHILY_WALK_H
 #define	_SCHILY_WALK_H
 
+#ifndef _SCHILY_MCONFIG_H
+#include <schily/mconfig.h>
+#endif
+
 #ifndef _SCHILY_STAT_H
 #include <schily/stat.h>
 #endif
 
-#ifndef _INCL_STDIO_H
-#include <stdio.h>
-#define	_INCL_STDIO_H
+#ifndef _SCHILY_STDIO_H
+#include <schily/stdio.h>
 #endif
 
 #ifdef	__cplusplus

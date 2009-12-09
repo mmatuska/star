@@ -1,10 +1,11 @@
-/* @(#)defaults.c	1.10 06/10/31 Copyright 1998-2006 J. Schilling */
+/* @(#)defaults.c	1.13 09/07/11 Copyright 1998-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)defaults.c	1.10 06/10/31 Copyright 1998-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)defaults.c	1.13 09/07/11 Copyright 1998-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1998-2006 J. Schilling
+ *	Copyright (c) 1998-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,11 +19,10 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/string.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/standard.h>
 #include <schily/deflts.h>
 #include <schily/utypes.h>
@@ -159,7 +159,7 @@ star_darchive(arname, dfltname)
 		    "'%s' entry in %s is empty!\n", arname, dfltname);
 		return (FALSE);
 	} else {
-		tarfiles[0] = __savestr(p);
+		tarfiles[0] = ___savestr(p);
 	}
 	if ((p = strtok(NULL, " \t")) == NULL) {
 		errmsgno(EX_BAD,

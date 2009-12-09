@@ -1,13 +1,14 @@
-/* @(#)longnames.c	1.48 06/10/31 Copyright 1993, 1995, 2001-2006 J. Schilling */
+/* @(#)longnames.c	1.52 09/10/16 Copyright 1993, 1995, 2001-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)longnames.c	1.48 06/10/31 Copyright 1993, 1995, 2001-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)longnames.c	1.52 09/10/16 Copyright 1993, 1995, 2001-2009 J. Schilling";
 #endif
 /*
  *	Handle filenames that cannot fit into a single
  *	string of 100 charecters
  *
- *	Copyright (c) 1993, 1995, 2001-2006 J. Schilling
+ *	Copyright (c) 1993, 1995, 2001-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,13 +22,13 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
+#include <schily/standard.h>
+#include <schily/types.h>
+#include <schily/string.h>
+#include <schily/schily.h>
 #include "star.h"
 #include "props.h"
 #include "table.h"
-#include <schily/standard.h>
-#include <schily/string.h>
-#include <schily/schily.h>
 #include "starsubs.h"
 #include "movearch.h"
 #include "checkerr.h"

@@ -1,9 +1,9 @@
-/* @(#)archdefs.h	1.6 07/07/01 Copyright 2006-2007 J. Schilling */
+/* @(#)archdefs.h	1.8 09/08/09 Copyright 2006-2009 J. Schilling */
 /*
  *	Processor, instruction set and OS architecture specific defines.
  *	The information is fetched from compiler predefinitions only.
  *
- *	Copyright (c) 2006-2007 J. Schilling
+ *	Copyright (c) 2006-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -19,6 +19,11 @@
 
 #ifndef _SCHILY_ARCHDEFS_H
 #define	_SCHILY_ARCHDEFS_H
+
+/*
+ * The code in this file only depends on compiler predefined macros.
+ * For this reason, it does not need to include schily/mconfig.h
+ */
 
 #if	defined(sun) || defined(__sun) || defined(__sun__)
 #ifndef	__sun
@@ -112,7 +117,7 @@
  */
 #if	defined(__sun) && !defined(__SVR4)
 
-#if	defined(__mc6800)
+#if	defined(__mc68000)
 #ifdef	__GNUC__
 #define	__SUNOS4_MC68000_GCC32
 #define	__JS_ARCH_DEFINED
@@ -121,7 +126,7 @@
 #define	__SUNOS4_MC68000_CC32
 #define	__JS_ARCH_DEFINED
 #endif
-#endif	/* __mc6800	*/
+#endif	/* __mc68000	*/
 
 #if	defined(__sparc)
 #ifdef	__GNUC__

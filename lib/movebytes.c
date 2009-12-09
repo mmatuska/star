@@ -1,8 +1,8 @@
-/* @(#)movebytes.c	1.16 07/06/24 Copyright 1985, 1989, 1995-2007 J. Schilling */
+/* @(#)movebytes.c	1.18 09/10/17 Copyright 1985, 1989, 1995-2009 J. Schilling */
 /*
  *	move data
  *
- *	Copyright (c) 1985, 1989, 1995-2007 J. Schilling
+ *	Copyright (c) 1985, 1989, 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,6 +18,7 @@
 
 #include <schily/standard.h>
 #include <schily/align.h>
+#include <schily/types.h>
 #include <schily/schily.h>
 
 #define	DO8(a)	a; a; a; a; a; a; a; a;
@@ -29,11 +30,11 @@ EXPORT char *
 movebytes(fromv, tov, cnt)
 	const void	*fromv;
 	void		*tov;
-	int		cnt;
+	ssize_t		cnt;
 {
 	register const char	*from	= fromv;
 	register char		*to	= tov;
-	register int		n;
+	register ssize_t	n;
 
 	/*
 	 * If we change cnt to be unsigned, check for == instead of <=
@@ -43,14 +44,14 @@ movebytes(fromv, tov, cnt)
 
 	if (from >= to) {
 		/*
-		 * source is on higher adresses than destination:
+		 * source is on higher addresses than destination:
 		 *	move bytes forwards
 		 */
-		if (n >= (int)(8 * sizeof (long))) {
+		if (n >= (ssize_t)(8 * sizeof (long))) {
 			if (l2aligned(from, to)) {
 				register const long *froml = (const long *)from;
 				register long *tol = (long *)to;
-				register int rem = n % (8 * sizeof (long));
+				register ssize_t rem = n % (8 * sizeof (long));
 
 				n /= (8 * sizeof (long));
 				do {
@@ -83,17 +84,17 @@ movebytes(fromv, tov, cnt)
 		char *ep;
 
 		/*
-		 * source is on lower adresses than destination:
+		 * source is on lower addresses than destination:
 		 *	move bytes backwards
 		 */
 		to += n;
 		from += n;
 		ep = to;
-		if (n >= (int)(8 * sizeof (long))) {
+		if (n >= (ssize_t)(8 * sizeof (long))) {
 			if (l2aligned(from, to)) {
 				register const long *froml = (const long *)from;
 				register long *tol = (long *)to;
-				register int rem = n % (8 * sizeof (long));
+				register ssize_t rem = n % (8 * sizeof (long));
 
 				n /= (8 * sizeof (long));
 				do {

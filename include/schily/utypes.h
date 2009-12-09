@@ -1,8 +1,8 @@
-/* @(#)utypes.h	1.26 07/01/16 Copyright 1997-2007 J. Schilling */
+/* @(#)utypes.h	1.29 09/11/05 Copyright 1997-2009 J. Schilling */
 /*
  *	Definitions for some user defined types
  *
- *	Copyright (c) 1997-2008 J. Schilling
+ *	Copyright (c) 1997-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -33,11 +33,8 @@
 /*
  * Include limits.h for CHAR_BIT
  */
-#ifdef	HAVE_LIMITS_H
-#ifndef	_INCL_LIMITS_H
-#include <limits.h>
-#define	_INCL_LIMITS_H
-#endif
+#ifndef	_SCHILY_LIMITS_H
+#include <schily/limits.h>
 #endif
 
 /*
@@ -119,7 +116,7 @@ typedef	unsigned char	Uchar;
 
 /*
  * This is a definition for a compiler dependant 64 bit type.
- * It currently is silently a long if the compiler does not
+ * There is currently a silently fallback to a long if the compiler does not
  * support it. Check if this is the right way.
  *
  * Be very careful here as MSVC does not implement long long but rather __int64
@@ -127,7 +124,10 @@ typedef	unsigned char	Uchar;
  * check for a MSVC __int128 type.
  */
 #ifndef	NO_LONGLONG
-#	if	defined(HAVE_LONGLONG)
+#	if	!defined(USE_LONGLONG) && defined(HAVE_LONGLONG)
+#		define	USE_LONGLONG
+#	endif
+#	if	!defined(USE_LONGLONG) && defined(HAVE___INT64)
 #		define	USE_LONGLONG
 #	endif
 #endif
@@ -154,7 +154,7 @@ typedef	unsigned long long	ULlong;
 
 #	endif	/* HAVE___INT64 / HAVE_LONG_LONG */
 
-#else
+#else	/* !USE_LONGLONG */
 
 typedef	long			Llong;
 typedef	unsigned long		Ullong;	/* We should avoid this */
@@ -163,7 +163,8 @@ typedef	unsigned long		ULlong;
 #define	SIZEOF_LLONG		SIZEOF_LONG
 #define	SIZEOF_ULLONG		SIZEOF_UNSIGNED_LONG
 
-#endif
+#endif	/* USE_LONGLONG */
+
 #ifndef	LLONG_MIN
 #define	LLONG_MIN	TYPE_MINVAL(Llong)
 #endif
@@ -199,27 +200,59 @@ typedef unsigned char	Ucbit;
  * Linux even defines incompatible types in <sys/types.h>.
  */
 
-#ifdef	HAVE_INTTYPES_H
+#if defined(HAVE_INTTYPES_H) || defined(HAVE_STDINT_H)
+#if defined(HAVE_INTTYPES_H)
 #	ifndef	_INCL_INTTYPES_H
 #	include <inttypes.h>
 #	define	_INCL_INTTYPES_H
 #	endif
+#else
+#if defined(HAVE_STDINT_H)
+#	ifndef	_INCL_STDINT_H
+#	include <stdint.h>
+#	define	_INCL_STDINT_H
+#	endif
+#endif
+#endif
+/*
+ * On VMS on VAX, these types are present but non-scalar.
+ * Thus we may not be able to use them
+ */
+#ifdef	HAVE_LONGLONG
 #	define	HAVE_INT64_T
 #	define	HAVE_UINT64_T
+#endif
 
 #define	Int8_t			int8_t
 #define	Int16_t			int16_t
 #define	Int32_t			int32_t
+#ifdef	HAVE_LONGLONG
 #define	Int64_t			int64_t
+#endif
 #define	Intmax_t		intmax_t
 #define	UInt8_t			uint8_t
 #define	UInt16_t		uint16_t
 #define	UInt32_t		uint32_t
+#ifdef	HAVE_LONGLONG
 #define	UInt64_t		uint64_t
+#endif
 #define	UIntmax_t		uintmax_t
 
 #define	Intptr_t		intptr_t
 #define	UIntptr_t		uintptr_t
+
+/*
+ * If we only have a UNIX-98 inttypes.h but no SUSv3
+ *
+ * Beware not to use int64_t / uint64_t as VMS on a VAX defines
+ * them as non-scalar (structure) based types.
+ */
+#ifndef	HAVE_TYPE_INTMAX_T
+#define	intmax_t	Llong
+#endif
+#ifndef	HAVE_TYPE_UINTMAX_T
+#define	uintmax_t	ULlong
+#endif
 
 #else	/* !HAVE_INTTYPES_H */
 
@@ -273,7 +306,11 @@ error  Sizeof char is not equal 1
 #if SIZEOF_CHAR_P == SIZEOF_LONG_INT
 	typedef		long		Intptr_t;
 #else
+#if SIZEOF_CHAR_P == SIZEOF_LLONG
+	typedef		Llong		Intptr_t;
+#else
 	error		No intptr_t found
+#endif
 #endif
 #endif
 
@@ -317,7 +354,11 @@ typedef	unsigned char		UInt8_t;
 #if SIZEOF_CHAR_P == SIZEOF_UNSIGNED_LONG_INT
 	typedef		unsigned long	UIntptr_t;
 #else
+#if SIZEOF_CHAR_P == SIZEOF_ULLONG
+	typedef		ULlong		UIntptr_t;
+#else
 	error		No uintptr_t found
+#endif
 #endif
 #endif
 

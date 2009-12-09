@@ -1,13 +1,14 @@
 /*#define	PLUS_DEBUG*/
-/* @(#)find.c	1.73 08/04/10 Copyright 2004-2008 J. Schilling */
+/* @(#)find.c	1.84 09/11/15 Copyright 2004-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)find.c	1.73 08/04/10 Copyright 2004-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)find.c	1.84 09/11/15 Copyright 2004-2009 J. Schilling";
 #endif
 /*
  *	Another find implementation...
  *
- *	Copyright (c) 2004-2008 J. Schilling
+ *	Copyright (c) 2004-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -25,42 +26,35 @@ static	char sccsid[] =
 #define	FIND_MAIN
 #endif
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/unistd.h>
 #include <schily/stdlib.h>
-#ifdef	HAVE_FCHDIR
 #include <schily/fcntl.h>
-#else
-#include <schily/maxpath.h>
-#endif
 #include <schily/stat.h>
 #include <schily/time.h>
 #include <schily/wait.h>
 #include <schily/string.h>
 #include <schily/utypes.h>	/* incl. limits.h (_POSIX_ARG_MAX/ARG_MAX) */
-#ifdef	HAVE_SYS_PARAM_H
-#include <sys/param.h>		/* #defines NCARGS on old systems */
-#endif
-#ifndef	DEV_BSIZE
-#define	DEV_BSIZE	512
-#endif
+#include <schily/param.h>	/* #defines NCARGS on old systems */
 #include <schily/btorder.h>
-#include <schily/getcwd.h>
 #include <schily/patmatch.h>
-#if	defined(HAVE_FNMATCH_H) & defined(HAVE_FNMATCH)
-#include <fnmatch.h>
-#endif
+#include <schily/fnmatch.h>
 #include <schily/standard.h>
 #include <schily/jmpdefs.h>
 #include <schily/schily.h>
-#include <pwd.h>
-#include <grp.h>
+#include <schily/pwd.h>
+#include <schily/grp.h>
+#define	VMS_VFORK_OK
+#include <schily/vfork.h>
 
 #include <schily/nlsdefs.h>
 
+#if	defined(_ARG_MAX32) && defined(_ARG_MAX64)
+#define	MULTI_ARG_MAX		/* SunOS only ?			*/
+#endif
+
 #ifdef	__FIND__
-char	strvers[] = "1.3";	/* The pure version string	*/
+char	strvers[] = "1.4";	/* The pure version string	*/
 #endif
 
 typedef struct {
@@ -243,12 +237,25 @@ LOCAL	char	*tokennames[] = {
  *	---------------------------------
  *	| Space for first arg string	|	Space for ARG_MAX ends here
  *	---------------------------------	"endp" points here
+ *
+ *	The Arg vector in struct plusargs uses the native pointer size
+ *	for libfind. ARG_MAX however is based on the pointer size in the
+ *	called program.
+ *
+ *	If a 32 bit libfind calls a 64 bit program, the arg vector and the
+ *	environment array in the called program needs more space than in the
+ *	calling libfind code.
+ *
+ *	If a 64 bit libfind calls a 32 bit program, the arg vector and the
+ *	environment array in the called program needs less space than in the
+ *	calling libfind code.
  */
 struct plusargs {
 	struct plusargs	*next;		/* Next in list for flushing	*/
 	char		*endp;		/* Points to end of data block	*/
 	char		**nextargp;	/* Points to next av[] entry	*/
 	char		*laststr;	/* points to last used string	*/
+	int		nenv;		/* Number of entries in env	*/
 	int		ac;		/* The argc for our command	*/
 	char		*av[1];		/* The argv for our command	*/
 };
@@ -266,10 +273,6 @@ extern	time_t	find_sixmonth;		/* 6 months before limit (ls)	*/
 extern	time_t	find_now;		/* now limit (ls)		*/
 
 LOCAL	findn_t	Printnode = { 0, 0, 0, PRINT };
-
-#ifndef	__GNUC__
-#define	inline
-#endif
 
 EXPORT	void	find_argsinit	__PR((finda_t *fap));
 EXPORT	void	find_timeinit	__PR((time_t now));
@@ -300,7 +303,12 @@ LOCAL	inline BOOL find_expr	__PR((char *f, char *ff, struct stat *fs, struct WAL
 EXPORT	BOOL	find_expr	__PR((char *f, char *ff, struct stat *fs, struct WALK *state, findn_t *t));
 #endif
 LOCAL	BOOL	doexec		__PR((char *f, int ac, char **av, struct WALK *state));
-LOCAL	int	argsize		__PR((void));
+LOCAL	int	countenv	__PR((void));
+LOCAL	int	argsize		__PR((int xtype));
+LOCAL	int	extype		__PR((char *name));
+#ifdef	MULTI_ARG_MAX
+LOCAL	int	xargsize	__PR((int xtype, int maxarg));
+#endif
 LOCAL	BOOL	pluscreate	__PR((FILE *f, int ac, char **av, finda_t *fap));
 LOCAL	BOOL	plusexec	__PR((char *f, findn_t *t, struct WALK *state));
 EXPORT	int	find_plusflush	__PR((void *p, struct WALK *state));
@@ -691,7 +699,10 @@ parseprim(fap)
 	case NAME:
 	case PATH:
 	case LNAME:
-#if	defined(HAVE_FNMATCH_H) & defined(HAVE_FNMATCH)
+#ifndef	HAVE_FNMATCH
+#define	HAVE_FNMATCH				/* We have fnmatch() in libschily */
+#endif
+#if	defined(HAVE_FNMATCH)
 		n->this = nextarg(fap, n);
 		nexttoken(fap);
 		fap->jmp = ojmp;		/* Restore old jump target */
@@ -733,6 +744,7 @@ parseprim(fap)
 		fap->walkflags &= ~WALK_NOSTAT;
 
 		p = n->left = nextarg(fap, n);
+		numarg = p;
 		if (p[0] == '-' || p[0] == '+')
 			numarg = ++p;
 		p = astoll(p, &ll);
@@ -1348,7 +1360,7 @@ find_expr(f, ff, fs, state, t)
 	case NAME:
 		p = ff;
 	nmatch:
-#if	defined(HAVE_FNMATCH_H) & defined(HAVE_FNMATCH)
+#if	defined(HAVE_FNMATCH)
 		return (!fnmatch(t->this, p, 0));
 #else
 		goto pattern;		/* Use patmatch() as "fallback" */
@@ -1688,8 +1700,12 @@ doexec(f, ac, av, state)
 	pid_t	pid;
 	int	retval;
 
-	if ((pid = fork()) < 0) {
+	if ((pid = vfork()) < 0) {
+#ifdef	HAVE_VFORK
+		ferrmsg(state->std[2], gettext("Cannot vfork child.\n"));
+#else
 		ferrmsg(state->std[2], gettext("Cannot fork child.\n"));
+#endif
 		return (FALSE);
 	}
 	if (pid) {
@@ -1700,6 +1716,7 @@ doexec(f, ac, av, state)
 	} else {
 		register int	i;
 		register char	**pp = av;
+			int	err;
 
 		/*
 		 * This is the forked process and for this reason, we may
@@ -1732,6 +1749,7 @@ doexec(f, ac, av, state)
 
 		fexecve(av[0], state->std[0], state->std[1], state->std[2],
 							av, state->env);
+		err = geterrno();
 #ifdef	PLUS_DEBUG
 		error("argsize %d\n",
 			(plusp->endp - (char *)&plusp->nextargp[0]) -
@@ -1739,10 +1757,11 @@ doexec(f, ac, av, state)
 #endif
 		/*
 		 * This is the forked process and for this reason, we may
-		 * call fcomerr() here without problems.
+		 * call _exit() here without problems.
 		 */
-		fcomerr(state->std[2],
+		ferrmsgno(state->std[2], err,
 			gettext("Cannot execute '%s'.\n"), av[0]);
+		_exit(err);
 		/* NOTREACHED */
 		return (-1);
 	}
@@ -1764,13 +1783,30 @@ extern	char **environ;
 #endif
 
 /*
+ * Return the number of environment entries including the final NULL pointer.
+ */
+LOCAL int
+countenv()
+{
+	register int	evs = 0;
+	register char	**ep;
+
+	for (ep = environ; *ep; ep++) {
+		evs++;
+	}
+	evs++;			/* The environ NULL ptr at the end */
+	return (evs);
+}
+
+/*
  * Return ARG_MAX - LINE_MAX - size of current environment.
  *
  * The return value is reduced by LINE_MAX to allow the called
  * program to do own exec(2) calls with slightly increased arg size.
  */
 LOCAL int
-argsize()
+argsize(xtype)
+	int	xtype;
 {
 	static int	ret = 0;
 
@@ -1786,15 +1822,28 @@ argsize()
 #ifdef	_SC_ARG_MAX
 		ret = sysconf(_SC_ARG_MAX);
 		if (ret < 0)
+#ifdef	_POSIX_ARG_MAX
 			ret = _POSIX_ARG_MAX;
 #else
+			ret = ARG_MAX;
+#endif
+#else	/* VV NO _SC_ARG_MAX VV */
 #ifdef	ARG_MAX
 		ret = ARG_MAX;
 #else
 #ifdef	NCARGS
-		ret = NCARGS;
+		/*
+		 * On Solaris: ARG_MAX = NCARGS - space for other stuff on
+		 * initial stack. This size is 256 for 32 bit and 512 for
+		 * 64 bit programs.
+		 */
+		ret = NCARGS - 256;	/* Let us do the same */
 #endif
 #endif
+#endif
+
+#ifdef	MULTI_ARG_MAX
+		ret = xargsize(xtype, ret);
 #endif
 
 #ifdef	PLUS_DEBUG
@@ -1805,7 +1854,7 @@ argsize()
 		if (ret <= 0)
 			ret = 10000;	/* Just a guess */
 
-		ret -= evs;
+		ret -= evs;		/* Subtract current env size */
 		if ((ret - LINE_MAX) > 0)
 			ret -= LINE_MAX;
 		else
@@ -1813,6 +1862,88 @@ argsize()
 	}
 	return (ret);
 }
+
+/*
+ * Return the executable type:
+ *
+ *	0	unknown type -> default
+ *	32	a 32 bit binary
+ *	64	a 64 bit binary
+ */
+LOCAL int
+extype(name)
+	char	*name;
+{
+	int	f;
+	char	*xname;
+	char	elfbuf[8];
+
+	xname = findinpath(name, X_OK, TRUE);
+	if (name == NULL)
+		xname = name;
+
+	if ((f = open(xname, O_RDONLY|O_BINARY)) < 0) {
+		if (xname != name)
+			free(xname);
+		return (0);
+	}
+	if (xname != name)
+		free(xname);
+	if (read(f, elfbuf, sizeof (elfbuf)) < sizeof (elfbuf)) {
+		close(f);
+		return (0);
+	}
+	close(f);
+
+	/*
+	 * We only support ELF binaries
+	 */
+	if (elfbuf[0] != 0x7F ||
+	    elfbuf[1] != 'E'  || elfbuf[2] != 'L'  || elfbuf[3] != 'F')
+		return (0);
+
+	switch (elfbuf[4] & 0xFF) {
+
+	case 1:	/* ELFCLASS32 */
+		return (32);
+
+	case 2:	/* ELFCLASS64 */
+		return (64);
+	}
+	return (0);
+}
+
+#ifdef	MULTI_ARG_MAX
+/*
+ * If we have both _ARG_MAX32 and _ARG_MAX64 (currently on SunOS)
+ * correct maxarg based on the target binary type.
+ */
+LOCAL int
+xargsize(xtype, maxarg)
+	int	xtype;
+	int	maxarg;
+{
+	/*
+	 * Set up a safe fallback in case we are not able to determine the
+	 * binary type.
+	 */
+	if (maxarg > _ARG_MAX32)
+		maxarg = _ARG_MAX32;
+
+	switch (xtype) {
+
+	case 32:
+		maxarg = _ARG_MAX32;
+		break;
+
+	case 64:
+		maxarg = _ARG_MAX64;
+		break;
+	}
+
+	return (maxarg);
+}
+#endif
 
 LOCAL BOOL
 pluscreate(f, ac, av, fap)
@@ -1824,6 +1955,25 @@ pluscreate(f, ac, av, fap)
 	struct plusargs	*pp;
 	register char	**ap = av;
 	register int	i;
+		int	mxtype;
+		int	xtype;
+		int	maxarg;
+		int	nenv;
+
+	xtype  = extype(av[0]);		/* Get -exec executable type	*/
+	maxarg = argsize(xtype);	/* Get ARG_MAX for executable	*/
+	nenv   = countenv();		/* # of ents in current env	*/
+
+	mxtype = sizeof (char *) * CHAR_BIT;
+	if (xtype == 0)
+		mxtype = 0;
+
+	if (xtype == mxtype)
+		nenv = 0;		/* Easy case			*/
+	else if (xtype > mxtype)
+		nenv = -nenv;		/* Need to reduce arg size	*/
+
+	maxarg += nenv * (32 / CHAR_BIT); /* Correct maxarg by ptr size	*/
 
 #ifdef	PLUS_DEBUG
 	printf("Argc %d\n", ac);
@@ -1832,16 +1982,17 @@ pluscreate(f, ac, av, fap)
 		printf("ARG %d '%s'\n", i, *ap);
 #endif
 
-	pp = __fjmalloc(fap->std[2], argsize() + sizeof (struct plusargs),
+	pp = __fjmalloc(fap->std[2], maxarg + sizeof (struct plusargs),
 						"-exec args", fap->jmp);
-	pp->laststr = pp->endp = (char *)(&pp->av[0]) + argsize();
+	pp->laststr = pp->endp = (char *)(&pp->av[0]) + maxarg;
+	pp->nenv = nenv;
 	pp->ac = 0;
 	pp->nextargp = &pp->av[0];
 
 #ifdef	PLUS_DEBUG
 	printf("pp          %d\n", pp);
 	printf("pp->laststr %d\n", pp->laststr);
-	printf("argsize()   %d\n", argsize());
+	printf("argsize()   %d\n", maxarg);
 #endif
 
 	/*
@@ -1899,13 +2050,17 @@ plusexec(f, t, state)
 #endif
 	size_t	size;
 	size_t	slen = strlen(f) + 1;
+	char	*nargp = (char *)&pp->nextargp[2];
 	char	*cp;
 	int	ret = TRUE;
 
-	size = pp->laststr - (char *)&pp->nextargp[2];
+	size = pp->laststr - (char *)&pp->nextargp[2];	/* Remaining strlen */
 
-	if (pp->laststr < (char *)&pp->nextargp[2] ||
-	    slen > size) {
+	if (pp->nenv < 0)				/* Called cmd has   */
+		nargp += pp->ac * (32 / CHAR_BIT);	/* larger ptr size  */
+
+	if (pp->laststr < nargp ||			/* Already full	    */
+	    slen > size) {				/* str does not fit */
 		pp->nextargp[0] = NULL;
 		ret = doexec(NULL, pp->ac, pp->av, state);
 		pp->laststr = pp->endp;
@@ -1913,7 +2068,7 @@ plusexec(f, t, state)
 		pp->nextargp = &pp->av[t->val.i];
 		size = pp->laststr - (char *)&pp->nextargp[2];
 	}
-	if (pp->laststr < (char *)&pp->nextargp[2] ||
+	if (pp->laststr < nargp ||
 	    slen > size) {
 		ferrmsgno(state->std[2], EX_BAD,
 			gettext("No space for arg '%s'.\n"), f);

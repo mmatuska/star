@@ -1,10 +1,11 @@
-/* @(#)star.c	1.316 08/04/13 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2008 J. Schilling */
+/* @(#)star.c	1.324 09/12/09 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)star.c	1.316 08/04/13 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)star.c	1.324 09/12/09 Copyright 1985, 88-90, 92-96, 98, 99, 2000-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 88-90, 92-96, 98, 99, 2000-2008 J. Schilling
+ *	Copyright (c) 1985, 88-90, 92-96, 98, 99, 2000-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,11 +21,10 @@ static	char sccsid[] =
 
 #define	STAR_MAIN
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
-#include <signal.h>
+#include <schily/signal.h>
 #include <schily/string.h>
 #include "star.h"
 #include "props.h"
@@ -103,7 +103,7 @@ LOCAL	void	docompat	__PR((int *pac, char *const **pav));
 #define	QIC_525_TSIZE	1025000		/* 512500 kBytes */
 #define	TSIZE(s)	((s)*TBLOCK)
 
-char	strvers[] = "1.5";		/* The pure version string	*/
+char	strvers[] = "1.5.1";		/* The pure version string	*/
 char	*vers;				/* the full version string	*/
 
 struct star_stats	xstats;		/* for printing statistics	*/
@@ -630,7 +630,7 @@ star_create(ac, av)
 #ifdef	USE_FIND
 	if (dofind) {
 		if (find_patlen > 0) {
-			walkstate.patstate = __malloc(sizeof (int) * find_patlen,
+			walkstate.patstate = ___malloc(sizeof (int) * find_patlen,
 						"space for pattern state");
 		}
 
@@ -1147,7 +1147,7 @@ xusage(ret)
 	error("\t-xattr\t\thandle extended file attributes\n");
 	error("\t-xattr-linux\t\thandle extended file attributes (Linux variant)\n");
 	error("\t-xfflags\thandle extended file flags\n");
-	error("\t-prinodes\tif archive containes inode number, print them in list mode\n");
+	error("\t-prinodes\tif archive contains inode number, print them in list mode\n");
 	error("\tbs=#\t\tset (output) block size to #\n");
 #ifdef	FIFO
 	error("\tfs=#\t\tset fifo size to #\n");
@@ -1255,7 +1255,7 @@ LOCAL void
 husage(ret)
 	int	ret;
 {
-	error("Header types:\n");
+	error("Header types (default marked with '*'):\n");
 	hdr_usage();
 	exit(ret);
 	/* NOTREACHED */
@@ -1346,7 +1346,7 @@ BOOL	Ointeractive	 = FALSE;
 	files = getfilecount(ac, av, opts);
 	if (getallargs(&ac, &av, opts,
 				&dir_flags,
-				&getfind, NULL,
+				getfind, NULL,
 				&help, &xhelp, &prvers, &debug, &xdebug, &xdebug,
 				&bsdchdir, &paxls,
 				&dumplevel, &dumpdates, &wtardumps,
@@ -1401,13 +1401,13 @@ BOOL	Ointeractive	 = FALSE;
 				&nolinkerr,
 				&follow, &follow,
 #ifdef	USE_FIND
-				&getpaxL, &walkflags,
-				&getpaxH, &walkflags,
-				&getpaxP, &walkflags,
+				getpaxL, &walkflags,
+				getpaxH, &walkflags,
+				getpaxP, &walkflags,
 #else
-				&getpaxL, NULL,
-				&getpaxH, NULL,
-				&getpaxP, NULL,
+				getpaxL, NULL,
+				getpaxH, NULL,
+				getpaxP, NULL,
 #endif
 				&nodesc,
 				&dodesc,
@@ -1585,7 +1585,7 @@ star_mkvers()
 	js_snprintf(buf, sizeof (buf),
 		"%s %s (%s-%s-%s)", "star", strvers, HOST_CPU, HOST_VENDOR, HOST_OS);
 
-	vers = __savestr(buf);
+	vers = ___savestr(buf);
 }
 
 LOCAL void
@@ -1619,7 +1619,7 @@ star_helpvers(name, help, xhelp, prvers)
 		opt_xattr();
 #endif
 		printf("\n\n");
-		printf("Copyright (C) 1985, 88-90, 92-96, 98, 99, 2000-2008 Jörg Schilling\n");
+		printf("Copyright (C) 1985, 88-90, 92-96, 98, 99, 2000-2009 Jörg Schilling\n");
 		printf("This is free software; see the source for copying conditions.  There is NO\n");
 		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
 		exit(0);
@@ -2637,7 +2637,7 @@ const	char	*p;
 		return;
 
 	nac = ac + strlen(av[1]);
-	nav = __malloc(nac-- * sizeof (char *),	/* keep space for NULL ptr */
+	nav = ___malloc(nac-- * sizeof (char *), /* keep space for NULL ptr */
 				"compat argv");
 	oa = av;				/* remember old arg pointer */
 	na = nav;				/* set up new arg pointer */
@@ -2661,7 +2661,7 @@ const	char	*p;
 			susage(EX_BAD);
 		}
 		nopt[1] = c;
-		*na++ = __savestr(nopt);
+		*na++ = ___savestr(nopt);
 
 		if (c == 'f' || c == 'b' || (ptype == P_SUNTAR && c == 'k') || c == 'X') {
 			if ((av + ac) <= oa) {

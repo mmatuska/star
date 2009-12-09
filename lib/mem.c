@@ -1,12 +1,13 @@
-/* @(#)mem.c	1.7 06/11/05 Copyright 1998-2006 J. Schilling */
+/* @(#)mem.c	1.10 09/07/08 Copyright 1998-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)mem.c	1.7 06/11/05 Copyright 1998-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)mem.c	1.10 09/07/08 Copyright 1998-2009 J. Schilling";
 #endif
 /*
  *	Memory handling with error checking
  *
- *	Copyright (c) 1998-2006 J. Schilling
+ *	Copyright (c) 1998-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,8 +21,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/string.h>
@@ -29,12 +29,12 @@ static	char sccsid[] =
 #include <schily/schily.h>
 #include <schily/nlsdefs.h>
 
-EXPORT	void	*__malloc	__PR((size_t size, char *msg));
-EXPORT	void	*__realloc	__PR((void *ptr, size_t size, char *msg));
-EXPORT	char	*__savestr	__PR((const char *s));
+EXPORT	void	*___malloc	__PR((size_t size, char *msg));
+EXPORT	void	*___realloc	__PR((void *ptr, size_t size, char *msg));
+EXPORT	char	*___savestr	__PR((const char *s));
 
 EXPORT void *
-__malloc(size, msg)
+___malloc(size, msg)
 	size_t	size;
 	char	*msg;
 {
@@ -49,7 +49,7 @@ __malloc(size, msg)
 }
 
 EXPORT void *
-__realloc(ptr, size, msg)
+___realloc(ptr, size, msg)
 	void	*ptr;
 	size_t	size;
 	char	*msg;
@@ -68,10 +68,10 @@ __realloc(ptr, size, msg)
 }
 
 EXPORT char *
-__savestr(s)
+___savestr(s)
 	const char	*s;
 {
-	char	*ret = __malloc(strlen(s)+1, "saved string");
+	char	*ret = ___malloc(strlen(s)+1, "saved string");
 
 	strcpy(ret, s);
 	return (ret);

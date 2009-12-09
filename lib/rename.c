@@ -1,12 +1,13 @@
-/* @(#)rename.c	1.8 06/09/26 Copyright 1998-2003 J. Schilling */
+/* @(#)rename.c	1.10 09/07/08 Copyright 1998-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)rename.c	1.8 06/09/26 Copyright 1998-2003 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)rename.c	1.10 09/07/08 Copyright 1998-2009 J. Schilling";
 #endif
 /*
  *	rename() for old systems that don't have it.
  *
- *	Copyright (c) 1998-2003 J. Schilling
+ *	Copyright (c) 1998-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -25,7 +26,7 @@ static	char sccsid[] =
 
 #ifndef	HAVE_RENAME
 
-#include <stdio.h>	/* XXX not OK but needed for js_xx() in schily/schily.h */
+#include <schily/stdio.h>	/* XXX not OK but needed for js_xx() in schily/schily.h */
 #include <schily/unistd.h>
 #include <schily/string.h>
 #include <schily/stat.h>

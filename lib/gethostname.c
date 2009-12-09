@@ -1,10 +1,11 @@
-/* @(#)gethostname.c	1.16 06/09/13 Copyright 1995 J. Schilling */
+/* @(#)gethostname.c	1.20 09/08/04 Copyright 1995-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)gethostname.c	1.16 06/09/13 Copyright 1995 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)gethostname.c	1.20 09/08/04 Copyright 1995-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1995 J. Schilling
+ *	Copyright (c) 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,13 +19,10 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
 #include <schily/standard.h>
 #include <schily/stdlib.h>
-#ifdef	HAVE_SYS_SYSTEMINFO_H
-#include <sys/systeminfo.h>
-#endif
-#include <schily/libport.h>
+#include <schily/systeminfo.h>
+#include <schily/hostname.h>
 
 #ifndef	HAVE_GETHOSTNAME
 EXPORT	int	gethostname	__PR((char *name, int namelen));
@@ -43,8 +41,8 @@ gethostname(name, namelen)
 }
 #else
 
-#if	defined(HAVE_UNAME) && defined(HAVE_SYS_UTSNAME_H)
-#include <sys/utsname.h>
+#ifdef	HAVE_UNAME
+#include <schily/utsname.h>
 #include <schily/string.h>
 
 EXPORT int
@@ -58,6 +56,22 @@ gethostname(name, namelen)
 		return (-1);
 
 	strncpy(name, uts.nodename, namelen);
+	return (0);
+}
+#else
+#include <schily/errno.h>
+
+EXPORT int
+gethostname(name, namelen)
+	char	*name;
+	int	namelen;
+{
+	if (namelen < 0) {
+		seterrno(EINVAL);
+		return (-1);
+	}
+	if (namelen > 0)
+		name[0] = '\0';
 	return (0);
 }
 #endif

@@ -1,8 +1,8 @@
-/* @(#)xconfig.h	1.6 07/07/01 Copyright 1995-2007 J. Schilling */
+/* @(#)xconfig.h	1.8 09/11/05 Copyright 1995-2009 J. Schilling */
 /*
  *	This file either includes the dynamic or manual autoconf stuff.
  *
- *	Copyright (c) 1995-2007 J. Schilling
+ *	Copyright (c) 1995-2009 J. Schilling
  *
  *	This file is included from <schily/mconfig.h> and usually
  *	includes $(SRCROOT)/incs/$(OARCH)/xconfig.h via
@@ -34,6 +34,10 @@
  */
 #ifdef	VMS
 #	define	USE_STATIC_CONF
+#endif
+
+#ifdef	NO_STATIC_CONF
+#undef	USE_STATIC_CONF
 #endif
 
 #ifdef	USE_STATIC_CONF
@@ -83,6 +87,19 @@
 #ifdef	__SUNOS5_X86_GCC64
 #include <schily/i386-sunos5-gcc64/xconfig.h>
 #define	__JS_ARCH_CONF_INCL
+#endif
+
+#ifdef	__SUNOS4_MC68000_CC32
+#ifdef	__mc68020
+#include <schily/mc68020-sunos4-cc/xconfig.h>
+#define	__JS_ARCH_CONF_INCL
+#endif
+#endif
+#ifdef	__SUNOS4_MC68000_GCC32
+#ifdef	__mc68020
+#include <schily/mc68020-sunos4-gcc/xconfig.h>
+#define	__JS_ARCH_CONF_INCL
+#endif
 #endif
 
 #ifdef	__HPUX_HPPA_CC32

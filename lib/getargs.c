@@ -1,11 +1,12 @@
-/* @(#)getargs.c	2.54 08/02/08 Copyright 1985, 1988, 1994-2007 J. Schilling */
+/* @(#)getargs.c	2.62 09/11/28 Copyright 1985, 1988, 1994-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)getargs.c	2.54 08/02/08 Copyright 1985, 1988, 1994-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)getargs.c	2.62 09/11/28 Copyright 1985, 1988, 1994-2009 J. Schilling";
 #endif
 #define	NEW
 /*
- *	Copyright (c) 1985, 1988, 1994-2007 J. Schilling
+ *	Copyright (c) 1985, 1988, 1994-2009 J. Schilling
  *
  *	1.3.88	 Start implementation of release 2
  */
@@ -63,14 +64,19 @@ static	char sccsid[] =
 #include <schily/varargs.h>
 #include <schily/string.h>
 #include <schily/schily.h>
-#include <ctype.h>
+#include <schily/ctype.h>
 
+/*
+ * Various return values
+ */
+#define	RETMAX		  2	/* Max. value for getargerror()	*/
 #define	FLAGDELIM	  2	/* "--" stopped flag processing	*/
 #define	NOTAFLAG	  1	/* Not a flag type argument	*/
 #define	NOARGS		  0	/* No more args			*/
 #define	BADFLAG		(-1)	/* Not a valid flag argument	*/
 #define	BADFMT		(-2)	/* Error in format string	*/
 #define	NOTAFILE	(-3)	/* Seems to be a flag type arg	*/
+#define	RETMIN		(-3)	/* Min. value for getargerror()	*/
 
 LOCAL char	*retnames[] =  {
 	"NOTAFILE",
@@ -80,7 +86,7 @@ LOCAL char	*retnames[] =  {
 	"NOTAFLAG",
 	"FLAGDELIM",
 };
-#define	RNAME(a)	(retnames[(a)+3])
+#define	RNAME(a)	(retnames[(a)-RETMIN])
 
 #define	SCANONLY	0	/* Do not try to set argument values	*/
 #define	SETARGS		1	/* Set argument values from cmdline	*/
@@ -487,7 +493,6 @@ doflag(pac, pav, argp, vfmt, flags, oargs)
 {
 	register const char	*fmt = (const char *)vfmt;
 	struct ga_flags		*flagp = vfmt;
-	char	argstr[2];
 	const char	*fmtp;
 	long	val;
 	Llong	llval;
@@ -559,7 +564,8 @@ doflag(pac, pav, argp, vfmt, flags, oargs)
 	 * check if the first flag in format string is a singlechar flag
 	 */
 again:
-	if (fmt[1] == ',' || fmt[1] == '+' || fmt[1] == '\0')
+	if (fmt[0] != '\0' &&
+	    (fmt[1] == ',' || fmt[1] == '+' || fmt[1] == '\0'))
 		singlecharflag++;
 	/*
 	 * check the whole format string for a match
@@ -716,6 +722,8 @@ again:
 
 		case ',':
 			fmt++;
+			if (fmt[0] == '\0')	/* Should we allow "a,b,c,"? */
+				return (BADFMT);
 			if (fmt[1] == ',' || fmt[1] == '+' || fmt[1] == '\0')
 				singlecharflag++;
 			if ((flags & (SETARGS|ARGVECTOR)) == SETARGS)
@@ -788,8 +796,6 @@ again:
 				goto nextchance;
 
 			fmtp = fmt;
-			argstr[0] = fmt[1];
-			argstr[1] = '\0';
 			if (fmt[1] == 'l' || fmt[1] == 'L') {
 				if (fmt[2] == 'l' || fmt[2] == 'L') {
 					if (flags & SETARGS)
@@ -835,8 +841,6 @@ again:
 				goto nextchance;
 
 			fmtp = fmt;
-			argstr[0] = fmt[1];
-			argstr[1] = '\0';
 			llval = (Llong)val;
 			if (fmt[1] == 'l' || fmt[1] == 'L') {
 				if (fmt[2] == 'l' || fmt[2] == 'L') {
@@ -902,8 +906,6 @@ again:
 				continue;
 			}
 			fmtp = fmt;
-			argstr[0] = fmt[1];
-			argstr[1] = '\0';
 			val = (long)llval;
 			if (fmt[1] == 'l' || fmt[1] == 'L') {
 				if (fmt[2] == 'l' || fmt[2] == 'L') {
@@ -1201,7 +1203,7 @@ checkeql(str)
 
 	for (c = (unsigned char)*str;
 			isalnum(c) || c == '_' || c == '-' || c == '+';
-								c = *str++)
+								c = *++str)
 		/* LINTED */
 		;
 	return (c == '=');
@@ -1211,7 +1213,7 @@ EXPORT char *
 getargerror(err)
 	int	err;
 {
-	if (err < -3 || err > 2)
+	if (err < RETMIN || err > RETMAX)
 		return ("Illegal arg error");
 	return (RNAME(err));
 }

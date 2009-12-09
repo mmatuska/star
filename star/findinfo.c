@@ -1,12 +1,13 @@
-/* @(#)findinfo.c	1.8 08/04/06 Copyright 2005-2007 J. Schilling */
+/* @(#)findinfo.c	1.11 09/07/11 Copyright 2005-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)findinfo.c	1.8 08/04/06 Copyright 2005-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)findinfo.c	1.11 09/07/11 Copyright 2005-2009 J. Schilling";
 #endif
 /*
  *	Convert FINFO -> struct stat for find_expr()
  *
- *	Copyright (c) 2005-2007 J. Schilling
+ *	Copyright (c) 2005-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,21 +21,13 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include "star.h"
 #include <schily/stat.h>
 #include <schily/schily.h>
 #include <schily/idcache.h>
 #include "starsubs.h"
-
-#ifdef	HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-#ifndef	DEV_BSIZE
-#define	DEV_BSIZE	512
-#endif
-
+#include <schily/param.h>
 #include <schily/walk.h>
 #include <schily/find.h>
 

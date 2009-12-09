@@ -1,10 +1,11 @@
-/* @(#)dumpdate.c	1.18 07/10/28 Copyright 2003-2007 J. Schilling */
+/* @(#)dumpdate.c	1.21 09/07/11 Copyright 2003-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)dumpdate.c	1.18 07/10/28 Copyright 2003-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)dumpdate.c	1.21 09/07/11 Copyright 2003-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 2003-2007 J. Schilling
+ *	Copyright (c) 2003-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,8 +19,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/string.h>
@@ -423,9 +423,9 @@ newdumpdates(name, level, dflags, date)
 {
 	dumpd_t	*dp;
 
-	dp	  = __malloc(sizeof (*dp), "tardumps entry");
+	dp	  = ___malloc(sizeof (*dp), "tardumps entry");
 	dp->next  = NULL;
-	dp->name  = __savestr(name);
+	dp->name  = ___savestr(name);
 	dp->level = level;
 	dp->flags = dflags;
 	dp->date  = *date;

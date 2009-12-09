@@ -1,4 +1,4 @@
-/* @(#)format.c	1.42 08/02/26 Copyright 1985-2006 J. Schilling */
+/* @(#)format.c	1.48 09/07/28 Copyright 1985-2009 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -6,7 +6,7 @@
  *	allows recursive printf with "%r", used in:
  *	error, comerr, comerrno, errmsg, errmsgno and the like
  *
- *	Copyright (c) 1985-2006 J. Schilling
+ *	Copyright (c) 1985-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -45,6 +45,17 @@ extern	char	*gcvt __PR((double, int, char *));
 
 #ifdef	NO_LONGLONG
 #undef	USE_LONGLONG
+#endif
+
+#ifdef	NO_USER_XCVT
+	/*
+	 * We cannot define our own gcvt() so we need to use a
+	 * local name instead.
+	 */
+#ifndef	HAVE_GCVT
+#	define	gcvt	js_gcvt
+EXPORT	char *gcvt	__PR((double value, int ndigit, char *buf));
+#endif
 #endif
 
 /*
@@ -310,10 +321,46 @@ format(fun, farg, fmt, args)
 		case 'j':
 			if (!type)
 				type = 'J';	/* convert to intmax_t type */
+			goto getmode;
+
+		case 'z':			/* size_t */
+#if	SIZEOF_SIZE_T == SIZEOF_INT
+			if (!type)
+				type = 'I';	/* convert to int type */
+#else
+#if	SIZEOF_SIZE_T == SIZEOF_LONG_INT
+			if (!type)
+				type = 'L';	/* convert to long type */
+#else
+#if	SIZEOF_SIZE_T == SIZEOF_LLONG
+			if (!type)
+				type = 'Q';	/* convert to long long type */
+#else
+error sizeof(size_t) is unknown
+#endif
+#endif
+#endif
+			goto getmode;
+			
+		case 't':			/* ptrdiff_t */
+#if	SIZEOF_PTRDIFF_T == SIZEOF_INT
+			if (!type)
+				type = 'I';	/* convert to int type */
+#else
+#if	SIZEOF_PTRDIFF_T == SIZEOF_LONG_INT
+			if (!type)
+				type = 'L';	/* convert to long type */
+#else
+#if	SIZEOF_PTRDIFF_T == SIZEOF_LLONG
+			if (!type)
+				type = 'Q';	/* convert to long long type */
+#else
+error sizeof(ptrdiff_t) is unknown
+#endif
+#endif
+#endif
 		/*
 		 * XXX Future length modifiers:
-		 * XXX	'z' size_t
-		 * XXX	't' ptrdiff_t
 		 * XXX	'L' with double: long double
 		 */
 
@@ -358,7 +405,7 @@ format(fun, farg, fmt, args)
 		case 'o': case 'O':
 		case 'd': case 'D':
 		case 'i': case 'I':
-		case 'z': case 'Z':
+		case 'Z':
 			mode = to_cap(*fmt);
 		havemode:
 			if (!type)
@@ -415,7 +462,7 @@ format(fun, farg, fmt, args)
 			if (fa.signific == 0)
 				fa.signific = 1;
 			dval = va_arg(args, double);
-			gcvt(dval, fa.signific, buf);
+			(void) gcvt(dval, fa.signific, buf);
 			count += prbuf(buf, &fa);
 			continue;
 #else

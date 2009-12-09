@@ -1,10 +1,11 @@
-/* @(#)usleep.c	1.19 06/09/13 Copyright 1995-2003 J. Schilling */
+/* @(#)usleep.c	1.22 09/08/04 Copyright 1995-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)usleep.c	1.19 06/09/13 Copyright 1995-2003 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)usleep.c	1.22 09/08/04 Copyright 1995-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1995-2003 J. Schilling
+ *	Copyright (c) 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,7 +19,6 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
 #define	usleep	__nothing_    /* prototype in unistd.h may be different */
 #include <schily/standard.h>
 #include <schily/stdlib.h>
@@ -30,9 +30,7 @@ static	char sccsid[] =
 #	include <sys/poll.h>
 #	endif
 #endif
-#ifdef	HAVE_SYS_SYSTEMINFO_H
-#include <sys/systeminfo.h>
-#endif
+#include <schily/systeminfo.h>
 #include <schily/libport.h>
 #undef	usleep
 

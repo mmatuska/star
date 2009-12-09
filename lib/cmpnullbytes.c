@@ -1,13 +1,14 @@
-/* @(#)cmpnullbytes.c	1.5 07/06/24 Copyright 1988,2002-2007 J. Schilling */
+/* @(#)cmpnullbytes.c	1.8 09/10/17 Copyright 1988,2002-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)cmpnullbytes.c	1.5 07/06/24 Copyright 1988,2002-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)cmpnullbytes.c	1.8 09/10/17 Copyright 1988,2002-2009 J. Schilling";
 #endif  /* lint */
 /*
  *	compare data against null
  *	Return the index of the first non-null character 
  *
- *	Copyright (c) 1988,2002-2007 J. Schilling
+ *	Copyright (c) 1988,2002-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -23,6 +24,7 @@ static	char sccsid[] =
 
 #include <schily/standard.h>
 #include <schily/align.h>
+#include <schily/types.h>
 #include <schily/schily.h>
 
 #define	DO8(a)	a; a; a; a; a; a; a; a;
@@ -30,13 +32,13 @@ static	char sccsid[] =
 /*
  * Return the index of the first non-null character
  */
-EXPORT int
+EXPORT ssize_t
 cmpnullbytes(fromp, cnt)
 	const void	*fromp;
-	int		cnt;
+	ssize_t		cnt;
 {
 	register const char	*from	= (char *)fromp;
-	register int		n;
+	register ssize_t	n;
 
 	/*
 	 * If we change cnt to be unsigned, check for == instead of <=
@@ -53,10 +55,10 @@ cmpnullbytes(fromp, cnt)
 	}
 	n++;
 
-	if (n >= (int)(8 * sizeof (long))) {
+	if (n >= (ssize_t)(8 * sizeof (long))) {
 		if (laligned(from)) {
 			register const long *froml = (const long *)from;
-			register int rem = n % (8 * sizeof (long));
+			register ssize_t rem = n % (8 * sizeof (long));
 
 			n /= (8 * sizeof (long));
 			do {
@@ -103,5 +105,5 @@ ldiff:
 			goto cdiff;
 	} while (--n > 0);
 cdiff:
-	return (--from - (char *)fromp);
+	return ((ssize_t)(--from - (char *)fromp));
 }

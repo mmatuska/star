@@ -1,13 +1,14 @@
-/* @(#)header.c	1.135 08/04/06 Copyright 1985, 1994-2007 J. Schilling */
+/* @(#)header.c	1.139 09/07/11 Copyright 1985, 1994-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)header.c	1.135 08/04/06 Copyright 1985, 1994-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)header.c	1.139 09/07/11 Copyright 1985, 1994-2009 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
  *	archive headers
  *
- *	Copyright (c) 1985, 1994-2007 J. Schilling
+ *	Copyright (c) 1985, 1994-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,8 +22,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include "star.h"
 #include "props.h"
@@ -84,16 +84,16 @@ LOCAL	htab_t	htab[] = {
  * Compression names
  */
 LOCAL	char	*cnames[] = {
-	"unknown",
-	"pack",
-	"gzip",
-	"lzw",
-	"freeze",
-	"lzh",
-	"pkzip",
-	"bzip2",
-	"lzo",
-	"7z",
+	"unknown",		/* 0 C_NONE	*/
+	"pack",			/* 1 C_PACL	*/
+	"gzip",			/* 2 C_GZIP	*/
+	"lzw",			/* 3 C_LZW	*/
+	"freeze",		/* 4 C_FREEZE	*/
+	"lzh",			/* 5 C_LZH	*/
+	"pkzip",		/* 6 C_PKZIP	*/
+	"bzip2",		/* 7 C_BZIP2	*/
+	"lzo",			/* 8 C_LZO	*/
+	"7z",			/* 9 C_7Z	*/
 };
 
 extern	FILE	*tty;
@@ -478,7 +478,9 @@ hdr_usage()
 	for (; htp->h_name; htp++) {
 		if (htp->h_flags & HF_RO)
 			continue;
-		error("\t%s\t%s\n", htp->h_name, htp->h_text);
+		error("%s\t%s\t%s\n", 
+			hdrtype == htp->h_type ? "*":"",
+			htp->h_name, htp->h_text);
 	}
 }
 

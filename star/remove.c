@@ -1,12 +1,13 @@
-/* @(#)remove.c	1.52 07/05/28 Copyright 1985, 1991-2006 J. Schilling */
+/* @(#)remove.c	1.54 09/07/11 Copyright 1985, 1991-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)remove.c	1.52 07/05/28 Copyright 1985, 1991-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)remove.c	1.54 09/07/11 Copyright 1985, 1991-2009 J. Schilling";
 #endif
 /*
  *	remove files an file trees
  *
- *	Copyright (c) 1985, 1992-2006 J. Schilling
+ *	Copyright (c) 1985, 1992-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,8 +22,7 @@ static	char sccsid[] =
  */
 
 /*#define	RM_DEBUG*/
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/standard.h>
 #include "star.h"
 #include "table.h"

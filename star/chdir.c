@@ -1,10 +1,11 @@
-/* @(#)chdir.c	1.3 06/10/31 Copyright 1997-2006 J. Schilling */
+/* @(#)chdir.c	1.7 09/07/11 Copyright 1997-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)chdir.c	1.3 06/10/31 Copyright 1997-2006 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)chdir.c	1.7 09/07/11 Copyright 1997-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1997-2006 J. Schilling
+ *	Copyright (c) 1997-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,8 +19,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/string.h>
@@ -27,6 +27,7 @@ static	char sccsid[] =
 #include <schily/schily.h>
 #include "star.h"
 #include "starsubs.h"
+#include "checkerr.h"
 
 #include <schily/dirent.h>
 #include <schily/maxpath.h>
@@ -47,7 +48,7 @@ dogetwdir()
 
 	if (getcwd(dir, PATH_MAX) == NULL)
 		comerr("Cannot get working directory\n");
-	ndir = __malloc(strlen(dir)+1, "working dir");
+	ndir = ___malloc(strlen(dir)+1, "working dir");
 	strcpy(ndir, dir);
 	return (ndir);
 }
@@ -66,7 +67,12 @@ dochdir(dir, doexit)
 		if (debug) /* temporary */
 			error("%d\n", ex);
 
-		errmsg("Cannot change directory to '%s'.\n", dir);
+		if (!errhidden(E_CHDIR, dir)) {
+			if (!errwarnonly(E_CHDIR, dir))
+				xstats.s_chdir++;
+			errmsg("Cannot change directory to '%s'.\n", dir);
+			(void) errabort(E_CHDIR, dir, TRUE);
+		}
 		if (doexit)
 			exit(ex);
 		return (FALSE);

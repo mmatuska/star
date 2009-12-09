@@ -1,8 +1,8 @@
-/* @(#)mconfig.h	1.62 07/12/01 Copyright 1995-2007 J. Schilling */
+/* @(#)mconfig.h	1.66 09/10/17 Copyright 1995-2009 J. Schilling */
 /*
  *	definitions for machine configuration
  *
- *	Copyright (c) 1995-2007 J. Schilling
+ *	Copyright (c) 1995-2009 J. Schilling
  *
  *	This file must be included before any other file.
  *	If this file is not included before stdio.h you will not be
@@ -38,9 +38,12 @@
 #ifdef	NO_LARGEFILES
 #undef	USE_LARGEFILES
 #endif
+#ifdef	NO_ACL
+#undef	USE_ACL
+#endif
 
 /*
- * Inside <schily/archdefs.h> Processor, we get architecture specific defines
+ * Inside <schily/archdefs.h> we get architecture specific Processor defines
  * fetched from compiler predefinitions only.
  */
 #include <schily/archdefs.h>
@@ -311,6 +314,17 @@ extern "C" {
 #endif
 
 /*
+ * We use HAVE_LONGLONG as generalized test on whether "long long", "__in64" or
+ * something similar exist.
+ *
+ * In case that HAVE_LONGLONG is defined here, this is an indication that
+ * "long long" works. We define HAVE_LONG_LONG to keep this knowledge.
+ */
+#ifdef	HAVE_LONGLONG
+#	define	HAVE_LONG_LONG
+#endif
+
+/*
  * Microsoft C defines _MSC_VER
  * use __int64 instead of long long and use 0i64 for a signed long long const
  * and 0ui64 for an unsigned long long const.
@@ -321,9 +335,9 @@ extern "C" {
  *	use long long
  * #endif
  *
- * Be very careful here as MSVC does not implement long long but rather __int64
- * and once someone makes 'long long' 128 bits on a 64 bit machine, we need to
- * check for a MSVC __int128 type.
+ * Be very careful here as older MSVC versions do not implement long long but
+ * rather __int64 and once someone makes 'long long' 128 bits on a 64 bit machine,
+ * we may need to check for a MSVC __int128 type.
  */
 #ifndef	HAVE_LONGLONG
 #	if	defined(HAVE___INT64)
@@ -332,12 +346,15 @@ extern "C" {
 #endif
 
 /*
- * gcc 2.x generally implements the long long type.
+ * gcc 2.x generally implements the "long long" type.
  */
 #ifdef	__GNUC__
 #	if	__GNUC__ > 1
 #		ifndef	HAVE_LONGLONG
 #			define	HAVE_LONGLONG
+#		endif
+#		ifndef	HAVE_LONG_LONG
+#			define	HAVE_LONG_LONG
 #		endif
 #	endif
 #endif
@@ -496,6 +513,15 @@ extern "C" {
 #	define	PATH_ENV_DELIM_STR	":"
 #	define	far
 #	define	near
+#endif
+
+#ifdef	DBG_MALLOC
+/*
+ * We need to include this here already in order to make sure that
+ * every program that is based on mconfig.h will include schily/dbgmalloc.h
+ * in case that we specify -DDBD_MALLOC
+ */
+#include <schily/dbgmalloc.h>
 #endif
 
 #ifdef __cplusplus

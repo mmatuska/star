@@ -1,8 +1,8 @@
-/* @(#)wchar.h	1.4 07/04/25 Copyright 2007 J. Schilling */
+/* @(#)wchar.h	1.12 09/06/14 Copyright 2007-2009 J. Schilling */
 /*
  *	Abstraction from wchar.h
  *
- *	Copyright (c) 2007 J. Schilling
+ *	Copyright (c) 2007-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -26,35 +26,59 @@
 #ifndef	_SCHILY_STDLIB_H
 #include <schily/stdlib.h>	/* for MB_CUR_MAX */
 #endif
-
-#ifdef	HAVE_WCHAR_H
-
-#include <wchar.h>
-
-#else	/* HAVE_WCHAR_H */
-
 #ifndef	_SCHILY_TYPES_H
 #include <schily/types.h>
 #endif
 #ifdef	HAVE_STDDEF_H
-#include <stddef.h>
+#ifndef	_INCL_STDDEF_H
+#include <stddef.h>		/* Needed for e.g. size_t (POSIX)  */
+#define	_INCL_STDDEF_H
 #endif
-
-#ifndef	_INCL_STDIO_H
-#include <stdio.h>
-#define	_INCL_STDIO_H
 #endif
-
+#ifndef _SCHILY_STDIO_H
+#include <schily/stdio.h>	/* Needed for e.g. FILE (POSIX)	   */
+#endif
 #ifndef	_SCHILY_VARARGS_H
-#include <schily/varargs.h>
+#include <schily/varargs.h>	/* Needed for e.g. va_list (POSIX) */
 #endif
 
+
+#ifdef	HAVE_WCHAR_H
+
+#ifndef	_INCL_WCHAR_H
+#include <wchar.h>
+#define	_INCL_WCHAR_H
+#endif
+
+#ifndef	USE_WCHAR
+#define	USE_WCHAR
+#endif
+
+#else	/* HAVE_WCHAR_H */
 
 #undef	USE_WCHAR
 #endif	/* !HAVE_WCHAR_H */
 
+#if	!defined(HAVE_WCTYPE_H) && !defined(HAVE_ISWPRINT)
+#undef	USE_WCHAR
+#undef	USE_WCTYPE
+#endif
+
+#ifdef	NO_WCTYPE
+#undef	USE_WCHAR
+#undef	USE_WCTYPE
+#endif
+
+#ifdef	NO_WCHAR
+#undef	USE_WCHAR
+#undef	USE_WCTYPE
+#endif
+
 #ifndef	USE_WCHAR
 
+/*
+ * We either don't have wide chars or we don't use them...
+ */
 #undef	wchar_t
 #define	wchar_t	char
 #undef	wint_t
@@ -64,7 +88,7 @@
 #define	WEOF	((wint_t)-1)
 
 #ifndef	_SCHILY_UTYPES_H
-#include <schily/utypes.h>
+#include <schily/utypes.h>	/* For TYPE_MAXVAL() */
 #endif
 
 #undef	WCHAR_MAX
@@ -72,45 +96,27 @@
 #undef	WCHAR_MIN
 #define	WCHAR_MIN	TYPE_MINVAL(wchar_t)
 
-#include <ctype.h>
-
-#undef	iswalnum
-#define	iswalnum(c)	isalnum(c)
-#undef	iswalpha
-#define	iswalpha(c)	isalpha(c)
-#undef	iswcntrl
-#define	iswcntrl(c)	iscntrl(c)
-#undef	iswcntrl
-#define	iswcntrl(c)	iscntrl(c)
-#undef	iswdigit
-#define	iswdigit(c)	isdigit(c)
-#undef	iswgraph
-#define	iswgraph(c)	isgraph(c)
-#undef	iswlower
-#define	iswlower(c)	islower(c)
-#undef	iswprint
-#define	iswprint(c)	isprint(c)
-#undef	iswpunct
-#define	iswpunct(c)	ispunct(c)
-#undef	iswspace
-#define	iswspace(c)	isspace(c)
-#undef	iswupper
-#define	iswupper(c)	isupper(c)
-#undef	iswxdigit
-#define	iswxdigit(c)	isxdigit(c)
-
-#undef	towlower
-#define	towlower(c)	tolower(c)
-#undef	towupper
-#define	towupper(c)	toupper(c)
+#undef	SIZEOF_WCHAR_T
+#define	SIZEOF_WCHAR_T	SIZEOF_CHAR
 
 #undef	MB_CUR_MAX
 #define	MB_CUR_MAX	1
 #undef	MB_LEN_MAX
 #define	MB_LEN_MAX	1
 
+/*
+ * The mbtowc() for the non-multibyte case could be as simple as
+ *
+ * #define	mbtowc(wp, cp, len)	(*(wp) = *(cp), 1)
+ *
+ * but Mac OS X forces us to do many mbtowc(NULL, NULL, 0) calls in order
+ * to reset the internal state. On other platforms that do not support
+ * wide chars, NULL may be defined as (void *)0, so we need to check
+ * for "wp" != NULL and to cast "wp" and "cp" to their expected types.
+ */
 #undef	mbtowc
-#define	mbtowc(wp, cp, len)	(*(wp) = *(cp), 1)
+#define	mbtowc(wp, cp, len)	((void)((wp) ? \
+				*(wchar_t *)(wp) = *(char *)(cp) : 1), 1)
 #undef	wctomb
 #define	wctomb(cp, wc)		(*(cp) = wc, 1)
 

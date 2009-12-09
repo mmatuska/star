@@ -1,13 +1,14 @@
-/* @(#)star_sym.c	1.6 08/04/06 Copyright 2005-2007 J. Schilling */
+/* @(#)star_sym.c	1.12 09/07/11 Copyright 2005-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)star_sym.c	1.6 08/04/06 Copyright 2005-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)star_sym.c	1.12 09/07/11 Copyright 2005-2009 J. Schilling";
 #endif
 /*
  *	Read in the star inode data base and write a human
  *	readable version.
  *
- *	Copyright (c) 2005-2007 J. Schilling
+ *	Copyright (c) 2005-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,8 +22,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/standard.h>
@@ -32,6 +32,7 @@ static	char sccsid[] =
 #include <schily/jmpdefs.h>	/* To include __jmalloc() */
 #include <schily/fcntl.h>
 #include <schily/schily.h>
+#include <schily/maxpath.h>
 #include "starsubs.h"
 
 struct star_stats	xstats;		/* for printing statistics	*/
@@ -48,6 +49,7 @@ GINFO	_grinfo;			/* Global read information	*/
 GINFO	*grip = &_grinfo;		/* Global read info pointer	*/
 
 LOCAL	void	star_mkvers	__PR((void));
+LOCAL	void	usage		__PR((int ret));
 EXPORT	int	main		__PR((int ac, char *av[]));
 LOCAL	void	make_symtab	__PR((int ac, char *av[]));
 
@@ -144,7 +146,7 @@ same_special(info)
 	return (FALSE);
 }
 
-LOCAL char	strvers[] = "1.5a85";
+LOCAL char	strvers[] = "1.5";
 LOCAL void
 star_mkvers()
 {
@@ -156,7 +158,20 @@ star_mkvers()
 	js_snprintf(buf, sizeof (buf),
 		"%s %s (%s-%s-%s)", "star", strvers, HOST_CPU, HOST_VENDOR, HOST_OS);
 
-	vers = __savestr(buf);
+	vers = ___savestr(buf);
+}
+
+LOCAL void
+usage(ret)
+	int	ret;
+{
+	error("Usage:\t%s [options] < file\n", get_progname());
+	error("Options:\n");
+	error("\t-help\t\tprint this help\n");
+	error("\t-version\tPrint version number.\n");
+	error("\n%s extracts star incremental restore database\n", get_progname());
+	exit(ret);
+	/* NOTREACHED */
 }
 
 EXPORT int
@@ -164,12 +179,37 @@ main(ac, av)
 	int	ac;
 	char	*av[];
 {
-extern	BOOL	is_star;
+extern	BOOL		is_star;
+	int		cac = ac;
+	char	*const *cav = av;
+	char		*opt = "help,h,version";
+	BOOL		help = FALSE;
+	BOOL		prvers = FALSE;
 
 	is_star = FALSE;
 	save_args(ac, av);
 	star_mkvers();
 
+	cac--;
+	cav++;
+	if (getallargs(&cac, &cav, opt, &help, &help, &prvers) < 0) {
+		errmsgno(EX_BAD, "Bad Option: '%s'.\n", cav[0]);
+		usage(EX_BAD);
+	}
+	if (help)
+		usage(0);
+	if (prvers) {
+		printf("%s: %s\n\n", get_progname(), vers);
+		printf("Copyright (C) 2005-2009 Jörg Schilling\n");
+		printf("This is free software; see the source for copying conditions.  There is NO\n");
+		printf("warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
+		exit(0);
+	}
+
+	/*
+	 * As long as all options cause star_sym to exit, we may continue
+	 * with this lazy arg handling.
+	 */
 	if (ac > 2) {
 		/*
 		 * Reconstruct star-symtable
@@ -255,18 +295,31 @@ walkfunc(nm, fs, type, state)
 		return (0);
 
 	{
+#ifndef	HAVE_FCHDIR
+		char		cwd[MAXPATHNAME+1];
+#else
 		int		f;
+#endif
 		struct stat	sb;
 		char		name[4096];
 
 		sprintf(name, "%s/%s", (char *)state->auxp, &nm[1]);
 		sb.st_ino = 0;
 
+#ifndef	HAVE_FCHDIR
+		cwd[0] = '\0';
+		getcwd(cwd, sizeof (cwd));
+#else
 		f = open(".", 0);
+#endif
 		walkhome(state);
 		lstat(name, &sb);
+#ifndef	HAVE_FCHDIR
+		chdir(cwd);
+#else
 		fchdir(f);
 		close(f);
+#endif
 		padd_node(nm, sb.st_ino, fs->st_ino, (type ==  WALK_D) ?  I_DIR:0);
 	}
 	return (0);

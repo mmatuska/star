@@ -1,8 +1,8 @@
-/* @(#)fexec.c	1.32 07/07/01 Copyright 1985, 1995-2007 J. Schilling */
+/* @(#)fexec.c	1.42 09/11/15 Copyright 1985, 1995-2009 J. Schilling */
 /*
  *	Execute a program with stdio redirection
  *
- *	Copyright (c) 1985, 1995-2007 J. Schilling
+ *	Copyright (c) 1985, 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -17,15 +17,8 @@
  */
 
 #include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/standard.h>
-#define	fexecl	__nothing_1_	/* prototype in schily/schily.h is wrong */
-#define	fexecle	__nothing_2_	/* prototype in schily/schily.h is wrong */
-#include <schily/schily.h>
-#undef	fexecl
-#undef	fexecle
-	int fexecl	__PR((const char *, FILE *, FILE *, FILE *, ...));
-	int fexecle	__PR((const char *, FILE *, FILE *, FILE *, ...));
 #include <schily/unistd.h>
 #include <schily/stdlib.h>
 #include <schily/string.h>
@@ -34,6 +27,9 @@
 #include <schily/fcntl.h>
 #include <schily/dirent.h>
 #include <schily/maxpath.h>
+#include <schily/schily.h>
+#define	VMS_VFORK_OK
+#include <schily/vfork.h>
 
 /*
  * Check whether fexec may be implemented...
@@ -42,6 +38,18 @@
 
 
 #define	MAX_F_ARGS	16
+
+#ifdef	JOS
+#define	enofile(t)			((t) == EMISSDIR || \
+					(t)  == ENOFILE || \
+					(t)  == EISADIR || \
+					(t)  == EIOERR)
+#else
+#define	enofile(t)			((t) == ENOENT || \
+					(t)  == ENOTDIR || \
+					(t)  == EISDIR || \
+					(t)  == EIO)
+#endif
 
 #if	defined(IS_MACOS_X) && defined(HAVE_CRT_EXTERNS_H)
 /*
@@ -54,55 +62,74 @@
 extern	char **environ;
 #endif
 
+#ifndef	set_child_standard_fds
 LOCAL void	 fdcopy __PR((int, int));
 LOCAL void	 fdmove __PR((int, int));
+#endif
 LOCAL const char *chkname __PR((const char *, const char *));
 LOCAL const char *getpath __PR((char * const *));
 
+#ifdef	F_GETFD
+#define	fd_getfd(fd)		fcntl((fd), F_GETFD, 0)
+#else
+#define	fd_getfd(fd)
+#endif
+#ifdef	F_SETFD
+#define	fd_setfd(fd, val)	fcntl((fd), F_SETFD, (val));
+#else
+#define	fd_setfd(fd, val)
+#endif
+
 #ifdef	PROTOTYPES
 EXPORT int
-fexecl(const char *name, FILE *in, FILE *out, FILE *err, ...)
+fexecl(const char *name, FILE *in, FILE *out, FILE *err, const char *arg0, ...)
 #else
 EXPORT int
-fexecl(name, in, out, err, va_alist)
-	char	*name;
-	FILE	*in;
-	FILE	*out;
-	FILE	*err;
+fexecl(name, in, out, err, arg0, va_alist)
+	char		*name;
+	FILE		*in;
+	FILE		*out;
+	FILE		*err;
+	const char	*arg0;
 	va_dcl
 #endif
 {
 	va_list	args;
 	int	ac = 0;
-	char	*xav[MAX_F_ARGS];
+	char	*xav[MAX_F_ARGS+1];
 	char	**av;
-	char	**pav;
+const	char	**pav;
 	char	*p;
 	int	ret;
 
 #ifdef	PROTOTYPES
-	va_start(args, err);
+	va_start(args, arg0);
 #else
 	va_start(args);
 #endif
-	while (va_arg(args, char *) != NULL)
+	if (arg0) {
 		ac++;
+		while (va_arg(args, char *) != NULL)
+			ac++;
+	}
 	va_end(args);
 
-	if (ac < MAX_F_ARGS) {
-		pav = av = xav;
+	if (ac <= MAX_F_ARGS) {
+		av = xav;
 	} else {
-		pav = av = (char **)malloc((ac+1)*sizeof (char *));
+		av = (char **)malloc((ac+1)*sizeof (char *));
 		if (av == 0)
 			return (-1);
 	}
+	pav = (const char **)av;
 
 #ifdef	PROTOTYPES
-	va_start(args, err);
+	va_start(args, arg0);
 #else
 	va_start(args);
 #endif
-	do {
+	*pav++ = arg0;
+	if (arg0) do {
 		p = va_arg(args, char *);
 		*pav++ = p;
 	} while (p != NULL);
@@ -116,50 +143,56 @@ fexecl(name, in, out, err, va_alist)
 
 #ifdef	PROTOTYPES
 EXPORT int
-fexecle(const char *name, FILE *in, FILE *out, FILE *err, ...)
+fexecle(const char *name, FILE *in, FILE *out, FILE *err, const char *arg0, ...)
 #else
 EXPORT int
-fexecle(name, in, out, err, va_alist)
-	char	*name;
-	FILE	*in;
-	FILE	*out;
-	FILE	*err;
+fexecle(name, in, out, err, arg0, va_alist)
+	char		*name;
+	FILE		*in;
+	FILE		*out;
+	FILE		*err;
+	const char	*arg0;
 	va_dcl
 #endif
 {
 	va_list	args;
 	int	ac = 0;
-	char	*xav[MAX_F_ARGS];
+	char	*xav[MAX_F_ARGS+1];
 	char	**av;
-	char	**pav;
+const	char	**pav;
 	char	*p;
 	char	**env;
 	int	ret;
 
 #ifdef	PROTOTYPES
-	va_start(args, err);
+	va_start(args, arg0);
 #else
 	va_start(args);
 #endif
-	while (va_arg(args, char *) != NULL)
+	if (arg0) {
 		ac++;
+		while (va_arg(args, char *) != NULL)
+			ac++;
+	}
 	env = va_arg(args, char **);
 	va_end(args);
 
-	if (ac < MAX_F_ARGS) {
-		pav = av = xav;
+	if (ac <= MAX_F_ARGS) {
+		av = xav;
 	} else {
-		pav = av = (char **)malloc((ac+1)*sizeof (char *));
+		av = (char **)malloc((ac+1)*sizeof (char *));
 		if (av == 0)
 			return (-1);
 	}
+	pav = (const char **)av;
 
 #ifdef	PROTOTYPES
-	va_start(args, err);
+	va_start(args, arg0);
 #else
 	va_start(args);
 #endif
-	do {
+	*pav++ = arg0;
+	if (arg0) do {
 		p = va_arg(args, char *);
 		*pav++ = p;
 	} while (p != NULL);
@@ -191,6 +224,9 @@ fexecve(name, in, out, err, av, env)
 	char	nbuf[MAXPATHNAME+1];
 	char	*np;
 	const char *path;
+#if defined(__BEOS__) || defined(__HAIKU__)
+	char	*av0 = av[0];
+#endif
 	int	ret;
 	int	fin;
 	int	fout;
@@ -198,7 +234,7 @@ fexecve(name, in, out, err, av, env)
 #ifndef	JOS
 	int	o[3];		/* Old fd's for stdin/stdout/stderr */
 	int	f[3];		/* Old close on exec flags for above  */
-	int	errsav;
+	int	errsav = 0;
 
 	o[0] = o[1] = o[2] = -1;
 	f[0] = f[1] = f[2] = 0;
@@ -257,36 +293,28 @@ fexecve(name, in, out, err, av, env)
 
 #else	/* JOS */
 
+#ifdef	set_child_standard_fds
+	set_child_standard_fds(fin, fout, ferr);
+#else
 	if (fin != STDIN_FILENO) {
-#ifdef	F_GETFD
-		f[0] = fcntl(STDIN_FILENO, F_GETFD, 0);
-#endif
+		f[0] = fd_getfd(STDIN_FILENO);
 		o[0] = dup(STDIN_FILENO);
-#ifdef	F_SETFD
-		fcntl(o[0], F_SETFD, 1);
-#endif
+		fd_setfd(o[0], 1);
 		fdmove(fin, STDIN_FILENO);
 	}
 	if (fout != STDOUT_FILENO) {
-#ifdef	F_GETFD
-		f[1] = fcntl(STDOUT_FILENO, F_GETFD, 0);
-#endif
+		f[1] = fd_getfd(STDOUT_FILENO);
 		o[1] = dup(STDOUT_FILENO);
-#ifdef	F_SETFD
-		fcntl(o[1], F_SETFD, 1);
-#endif
+		fd_setfd(o[1], 1);
 		fdmove(fout, STDOUT_FILENO);
 	}
 	if (ferr != STDERR_FILENO) {
-#ifdef	F_GETFD
-		f[2] = fcntl(STDERR_FILENO, F_GETFD, 0);
-#endif
+		f[2] = fd_getfd(STDERR_FILENO);
 		o[2] = dup(STDERR_FILENO);
-#ifdef	F_SETFD
-		fcntl(o[2], F_SETFD, 1);
-#endif
+		fd_setfd(o[2], 1);
 		fdmove(ferr, STDERR_FILENO);
 	}
+#endif
 
 	/*
 	 * If name contains a pathdelimiter ('/' on unix)
@@ -305,11 +333,16 @@ fexecve(name, in, out, err, av, env)
 		if ((geterrno() == ENOENT) && strlen(name) <= (sizeof (nbuf) - 6)) {
 			strcatl(nbuf, "/bin/", name, (char *)NULL);
 			ret = execve(nbuf, av, env);
+#if defined(__BEOS__) || defined(__HAIKU__)
+			((char **)av)[0] = av0;	/* BeOS destroys things ... */
+#endif
 		}
 	} else {
 		int	nlen = strlen(name);
 
 		for (;;) {
+			int	xerr;
+
 			np = nbuf;
 			while (*path != PATH_ENV_DELIM && *path != '\0' &&
 				np < &nbuf[MAXPATHNAME-nlen-2]) {
@@ -322,37 +355,41 @@ fexecve(name, in, out, err, av, env)
 			else
 				strcatl(nbuf, nbuf, "/", name, (char *)NULL);
 			ret = execve(nbuf, av, env);
-			if (geterrno() != ENOENT || *path == '\0')
+#if defined(__BEOS__) || defined(__HAIKU__)
+			((char **)av)[0] = av0;	/* BeOS destroys things ... */
+#endif
+			xerr = geterrno();
+			if (errsav == 0 && !enofile(xerr))
+				errsav = xerr;
+			if ((!enofile(xerr) && !(xerr == EACCES)) || *path == '\0')
 				break;
 			path++;
 		}
 	}
-	errsav = geterrno();
+	if (errsav == 0)
+		errsav = geterrno();
+
+#ifndef	set_child_standard_fds
 			/* reestablish old files */
 	if (ferr != STDERR_FILENO) {
 		fdmove(STDERR_FILENO, ferr);
 		fdmove(o[2], STDERR_FILENO);
-#ifdef	F_SETFD
 		if (f[2] == 0)
-			fcntl(STDERR_FILENO, F_SETFD, 0);
-#endif
+			fd_setfd(STDERR_FILENO, 0);
 	}
 	if (fout != STDOUT_FILENO) {
 		fdmove(STDOUT_FILENO, fout);
 		fdmove(o[1], STDOUT_FILENO);
-#ifdef	F_SETFD
 		if (f[1] == 0)
-			fcntl(STDOUT_FILENO, F_SETFD, 0);
-#endif
+			fd_setfd(STDOUT_FILENO, 0);
 	}
 	if (fin != STDIN_FILENO) {
 		fdmove(STDIN_FILENO, fin);
 		fdmove(o[0], STDIN_FILENO);
-#ifdef	F_SETFD
 		if (f[0] == 0)
-			fcntl(STDIN_FILENO, F_SETFD, 0);
-#endif
+			fd_setfd(STDIN_FILENO, 0);
 	}
+#endif
 	seterrno(errsav);
 	return (ret);
 
@@ -360,6 +397,7 @@ fexecve(name, in, out, err, av, env)
 }
 
 #ifndef	JOS
+#ifndef	set_child_standard_fds
 
 LOCAL void
 fdcopy(fd1, fd2)
@@ -385,6 +423,7 @@ fdmove(fd1, fd2)
 	close(fd1);
 }
 
+#endif
 #endif
 
 /*----------------------------------------------------------------------------

@@ -1,0 +1,330 @@
+Star is the fastest tar archiver for UNIX
+
+Star has many improvements compared to other tar 
+implementations (including gnu tar). See below for a short description
+of the highlight of star.
+
+Star is located on:
+
+ftp://ftp.berlios.de/pub/star
+
+Changes since star-1.5:
+
+/*--------------------------------------------------------------------------*/
+Between star-1.5 and star-1.5.1, there have been mostly changes that enhance
+the portability and stability.
+
+-	New support for ATARI-ST using FreeMiNT
+
+-	New support for Haiku
+
+-	New support for Syllable
+
+-	New support for Cygwin on Vista-64-Bit platforms
+
+-	New support for DragonFly BSD
+
+-	Added support for 64 bit compilation on HP-HX using "cc".
+	Use make CCOM=cc64 as usual to switch to 64 bit compilation.
+
+-	Added support for 64 bit compilation on IRIX using "cc" and "gcc".
+	Use make CCOM=cc64 or CCOM=gcc64 as usual to switch to 64 bit compilation.
+
+-	Enhanced config.guess to support DragonFly BSD and OpenVMS
+
+-	The build exnvironment is cleaned up if the compilation is controlled
+	by smake or gmake (LC_* are set to "C").
+
+-	Added GMAKE_NOWARN=true to allow to disable the gmake warning
+
+-	Now supporting dynamic libraries on Mac OS X
+
+-	Avoid problems with tr(1) when compiling with gmake os SunPro-Make.
+
+-	Avoid simple suffix rules for smake to speed up implicit rule search.
+
+-	Added rules for OpenVMS
+
+-	Enhanced include/schily/priv.h to distinct Solaris and AIX process privileges
+
+-	New file include/schily/math.h
+
+-	New file include/schily/dbgmalloc.h
+
+-	VMS specific devide definitions have been added to include/schily/device.h
+
+-	The file include/schily/wait.h now uses definitions that better deal with 
+	platforms that have both: "union wait" and a POSIX style "int *" wait(2)
+	parameter.
+
+-	Beware in include/schily/utypes.h: VMS on VAX has no long long
+
+-	The file include/schily/vfork.h adds definitions to allow to use vfork()
+	on VMS
+
+-	Schily autoconf now implements a better way to check whether a function
+	is defined in libc and avoids to define -lc for the related library name.
+
+-	Schily autoconf now implements a better check gor bash that includes
+	support for bash-1.x that is still used on OpenVMS.
+
+-	Schily autoconf now checks for struct utsname.arch to support VMS
+
+-	Schily autoconf now implements a better check for opendir() and a related 
+	library name.
+
+-	Schily autoconf now implements a vfork() check that does not hang
+	infinitely on OpenVMS
+
+-	conf/oarch.sh was enhanced to match the code in the make file rules.
+
+-	New align test for long double in incs/align_test.c
+
+-	New "max align" type in incs/align_test.c
+
+-	libschily/*bytes.c now support 64 bit compilation and use a "ssize_t"
+	typed count parameter instead of "int".
+
+-	libschily/fconv.c now contains better support for isinf()/isnan()
+	for several platforms that do not offer a C99 complient base.
+	This includes HP-UX 11.11 and newer AIX versions.
+	There now are local macros as a fallback that work for IEEE compliant 
+	floating point coding.
+
+-	The libshcily/fexec*() functions now use a I/O redirection method
+	that is compatible with the vfork() behavior on OpenVMS.
+
+-	libfind was rewritten to use vfork() instead of fork() to allow to 
+	support OpenVMS.
+
+-	fixed a typo in libfind/idcache.c
+
+-	Added $(LIB_ACL_TEST) to the libs for libfind to allow a shared libfind
+	with ACL support on Linux.
+
+-	fixed a bug in star that caused star to print the list output
+	on stderr if the archive was read from stdin.
+
+-	star -c -dump -acl -find . 
+	now works correctly as it now uses short names for retrieving ACLs.
+-	star H=help now marks the default archive type
+
+-	star does no longer allow to read/write the archive data from/to a
+	terminal
+
+-	tartest and star_sym now include a -version option
+
+-	star_sym no honors the autoconf result HAVE_FCHDIR
+
+-	Fixed a bug in star introduced with the new check for:
+	"Archive cannot be a tty." that could cause star to dump
+	core when in copy mode.
+
+-	star now better checks the parameter for the -s substitute option.
+	This is needed in order to catch typos in arg lists.
+
+-	star check for same filedescriptor on archive and stdout had a typo
+	that caused undfined behavior and sometimes star -tv output did go to
+	stderr.
+
+-	star/checkerr.c now correctly handles the "WARN" directive.
+
+-	star -C missing-dir now correctly sets the exitcode from star
+
+-	star -C missing-dir may now be handled by a new errctl= tag "CHRDIR"
+
+-	star -X is now working correctly, thanks to a Johannes Geiss <jgeiss@arcor.de>
+	who detected a copy/paste error made while -X was copied from list=
+
+-	Correctly abort the FIFO in cdrecord and star on BeOS and Haiku
+	in case that the clone ara cannot be made shared.
+
+-	The directory "testscripts" has been renamed to "star/testscripts"
+
+-	Fixed the debug print code in the sparse file handling code to
+	use %zd instead of just %d for size_t parameters.
+
+-	star/fifo.c rewritten to avoid a core dump from the optimizer program
+	of the SGI IRIX C-compiler.
+
+-	Added autoconf test to distinct Linux ACLs from IRIX ACLs
+
+-	let libfind deal with the differences between Linux ACLs and IRIX ACLs
+
+
+
+TODO: 
+
+	-	Complete the man page for spax
+
+	-	Implement multi volume continuation headers that work for
+		files > 8 GB where the last tar header
+		(a POSIX.1-2001 'x'-header) was split across volumes.
+		In this case, if only POSIX compliant TAR features are allowed,
+		the extracting TAR would not be able to correctly skip the
+		large file as it does not know the content of the POSIX.1-2001
+		'x'-header. For this reason, later star versions need to implement
+		a method to create multi volume continuation (skip) headers that
+		include the size of the split POSIX.1-2001 'x'-header and the
+		size of the following large file.
+
+		Note that even with this method we would need a new method
+		(different from the current bitmap) to deal with multi volume
+		continuation headers for split files in case the FIFO in star
+		may be larger than 8 GB.
+
+	-	Implement a autoconf extension to to deal with Linux with XFS
+		where not all ACL handling is inside -lacl ??? is this still true?
+
+Revision history (short)
+
+1982	First version on UNOS (extract only)
+1985	Port to UNIX (fully functional version)
+1985	Added pre Posix method of handling special files/devices
+1986	First experiments with fifo as external process.
+1993	Remote tape access
+1993	diff option
+1994	Fifo with shared memory integrated into star
+1994	Very long filenames and sparse files
+1994	Gnutar and Ustar(Posix.1-1988) handling added
+1994	Xstar format (extended Posix.1-1988) defined and introduced
+1995	Ported to many platforms
+1999	Support for Win32 (Cygwin)
+1999	base 256 support to overcome limitation with octal fields
+2001	Large file support
+2001	Support for POSIX.1-2001 extended headers
+2001	Support for ACLs in POSIX.1-2001 extended headers
+2002	Support for extended file flags in POSIX.1-2001 extended headers
+2002	Support for extended inode meta data and meta files
+2003	New program tartest allows to verify POSIX.1-1990 tar archive compliance
+2003	Error control added to allow to selectively ignore error contitions
+2003	ED like pattern based file name substitution with -s '/from/to/[gp]'
+2003	Efficient built in -copy mode
+2003	Basic support for incremental dumps (incremental restore not yet ready)
+2003	CPIO archive support
+2003	New command 'pax/spax' for POSIX.1 command line compatibility.
+2003	New command 'cpio/scpio' for SUSv2 command line compatibility.
+2003	New command 'suntar' for Solaris command line compatibility.
+2003	New command 'gnutar' for GNU tar command line compatibility.
+2003	Support for reliable multi-volume archives with media size detection
+2005	Support for full and incremental dumps and restores.
+2005	The find(1) code has been integrated via libfind and allows to use find on archives
+2005	Changed license from GPL to CDDL
+2005	Added support for a reliable sparse file interface in Solaris
+
+Supported platforms:
+
+Virtually any! Known to work:
+
+SunOS 4.x, Solaris (SunOS 5.x), Linux,
+HP-UX, DG/UX, IRIX, AIX, FreeBSD, NetBSD, OpenBSD,
+OSF-1, True-64, QNX, BeOS, Apollo Domain/OS, Next-STep, 
+OS/2, SCO-openserver, SCO-unixware, Caldera OpenUnix,
+Cygwin (Win32), Sony NewsOS,  BSDi (BSD/OS), QNX,
+Apple Rhapsody, MacOS X, AmigaOS, GNU Hurd
+
+Joerg
+
+-------------------------------------------------------------
+Star is the fastest known implementation of a tar archiver.
+
+Star development started 1982, the first complete implementation has 
+been done in 1985. I never did my backups with other tools than star.
+
+Its main advantages over other tar implementations are:
+
+	fifo			- keeps the tape streaming.
+				  This gives you faster backups than
+				  you can achieve with ufsdump, if the
+				  size of the filesystem is > 1 GByte.
+
+	remote tape support	- a fast RMT implementation that has no
+				  probems to saturate a 100 Mb/s network.
+
+	accurate sparse files	- star is able to reproduce holes in sparse
+				  files accurately if the OS includes 
+				  the needed support functions. This is
+				  currently true for Solaris-2.3 to
+				  Solaris-2.5.1
+
+	pattern matcher		- for a convenient user interface
+				  (see manual page for more details).
+				  To archive/extract a subset of files.
+
+	sophisticated diff	- user tailorable interface for comparing
+				  tar archives against file trees
+				  This is one of the most interesting parts
+				  of the star implementation.
+
+	no namelen limitation	- Pathnames up to 1024 Bytes may be archived.
+				  (The same limitation applies to linknames)
+				  This limit may be expanded in future
+				  without changing the method to record
+				  long names.
+
+	deals with all 3 times	- stores/restores all 3 times of a file
+				  (even creation time)
+				  With POSIX.1-2001 the times are in nanosecond
+				  granularity.
+				  Star may reset access time after doing
+				  backup. On Solaris this can be done without
+				  changing the ctime.
+
+	does not clobber files	- more recent copies on disk will not be 
+				  clobbered from tape
+				  This may be the main advantage over other
+				  tar implementations. This allows
+				  automatically repairing of corruptions
+				  after a crash & fsck (Check for differences
+				  after doing this with the diff option).
+
+	automatic byte swap	- star automatically detects swapped archives
+				  and transparently reads them the right way
+
+	automatic format detect	- star automatically detects several common
+				  archive formats and adopts to them.
+				  Supported archive types are:
+				  Old tar, gnu tar, ansi tar, star,
+				  POSIX.1-2001 PAX, Sun's Solaris tar.
+
+
+	automatic compression detect - star automatically detects whether the
+				  archive is compressed. If it has been
+				  compressed with a compression program that
+				  is compatible to decompression with "gzip"
+				  or "bzip2", star automatically activates
+				  decompression.
+
+	fully ansi compatible	- Star is fully ANSI/Posix 1003.1 compatible.
+				  See README.otherbugs for a complete
+				  description of bugs found in other tar
+				  implementations. Star is the first tar
+				  implementation that supports POSIX.1-2001.
+
+	support for ACLs and file flags - star supports Access Control Lists
+				  and extended file flags (as found on FreeBSD
+				  and Linux). Support to archive and restore
+				  other file properties may be easily added.
+
+	support for all inode metadata - star supports to put all inode
+				  metadata on the archive. This allows future
+				  versions of star to perform true
+				  incremental dumps.
+
+	sophisticated error control - allows to tell star which error types
+				  should be ignored for wich file name pattern.
+				  This allows to write backup scripts that give
+				  no error messages for all problems that are
+				  tolerable (e.g. growing log files).
+
+	ED like filename substitution - star supports automated pattern rule based
+				  file name substitution as documented for 'pax'.
+
+	A fast built in -copy mode - allows to make fast and accurate copies and
+				  directory tree comparisons.
+
+	Integrated find(1) code - allows many interesting new features that would
+				  be possible with a separate find call.
+
+Have a look at the manual page, it is included in the distribution.
+

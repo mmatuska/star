@@ -1,4 +1,4 @@
-/* @(#)checkerr.h	1.9 07/07/14 Copyright 2003-2007 J. Schilling */
+/* @(#)checkerr.h	1.11 09/06/06 Copyright 2003-2009 J. Schilling */
 /*
  *	Generic error control for programs that do file i/o.
  *	The error control is usually used by archiving programs.
@@ -9,7 +9,7 @@
  *	an official stable and "library-compliant" interface, be careful
  *	and watch for changes.
  *
- *	Copyright (c) 2003-2007 J. Schilling
+ *	Copyright (c) 2003-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -26,6 +26,9 @@
 #ifndef _SCHILY_CHECKERR_H
 #define	_SCHILY_CHECKERR_H
 
+#ifndef _SCHILY_MCONFIG_H
+#include <schily/mconfig.h>
+#endif
 #ifndef _SCHILY_STANDARD_H
 #include <schily/standard.h>
 #endif
@@ -49,6 +52,7 @@
 #define	E_SPECIALFILE	0x0400		/* Improper file type for archive  */
 #define	E_READLINK	0x0800		/* Could not read symbolic link	   */
 #define	E_GETXATTR	0x1000		/* Could not get xattr		   */
+#define	E_CHDIR		0x2000		/* Could not chdir()		   */
 
 #define	E_SETTIME	0x10000		/* Could not set file times	   */
 #define	E_SETMODE	0x20000		/* Could not set access modes	   */
@@ -67,8 +71,8 @@
 #define	E_ALL		(~(UInt32_t)(E_DIFF|E_ABORT))
 
 extern	int	errconfig	__PR((char *name));
-extern	BOOL	errhidden	__PR((int etype, char *fname));
-extern	BOOL	errwarnonly	__PR((int etype, char *fname));
-extern	BOOL	errabort	__PR((int etype, char *fname, BOOL doexit));
+extern	BOOL	errhidden	__PR((int etype, const char *fname));
+extern	BOOL	errwarnonly	__PR((int etype, const char *fname));
+extern	BOOL	errabort	__PR((int etype, const char *fname, BOOL doexit));
 
 #endif /* _SCHILY_CHECKERR_H */

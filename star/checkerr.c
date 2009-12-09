@@ -1,12 +1,13 @@
-/* @(#)checkerr.c	1.18 07/09/22 Copyright 2003-2007 J. Schilling */
+/* @(#)checkerr.c	1.24 09/07/11 Copyright 2003-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)checkerr.c	1.18 07/09/22 Copyright 2003-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)checkerr.c	1.24 09/07/11 Copyright 2003-2009 J. Schilling";
 #endif
 /*
  *	Error control for star.
  *
- *	Copyright (c) 2003-2007 J. Schilling
+ *	Copyright (c) 2003-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,8 +21,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/standard.h>
 #include <schily/patmatch.h>
 #include <schily/string.h>
@@ -49,10 +49,10 @@ EXPORT	int	errconfig	__PR((char *name));
 LOCAL	char	*_endword	__PR((char *p));
 LOCAL	void	parse_errctl	__PR((char *line));
 LOCAL	UInt32_t errflags	__PR((char *eflag, BOOL doexit));
-LOCAL	ec_t	*_errptr	__PR((int etype, char *fname));
-EXPORT	BOOL	errhidden	__PR((int etype, char *fname));
-EXPORT	BOOL	errwarnonly	__PR((int etype, char *fname));
-EXPORT	BOOL	errabort	__PR((int etype, char *fname, BOOL doexit));
+LOCAL	ec_t	*_errptr	__PR((int etype, const char *fname));
+EXPORT	BOOL	errhidden	__PR((int etype, const char *fname));
+EXPORT	BOOL	errwarnonly	__PR((int etype, const char *fname));
+EXPORT	BOOL	errabort	__PR((int etype, const char *fname, BOOL doexit));
 
 /*
  * Read and parse error configuration file
@@ -77,7 +77,7 @@ errconfig(name)
 		fclose(f);
 	}
 	if (maxplen > omaxplen) {
-		ec_state = __realloc(ec_state, (maxplen+1)*sizeof (int),
+		ec_state = ___realloc(ec_state, (maxplen+1)*sizeof (int),
 							"pattern state");
 	}
 	return (1);
@@ -126,13 +126,13 @@ parse_errctl(line)
 		;
 		/* LINTED */
 	}
-	ep = __malloc(sizeof (ec_t), "errcheck node");
+	ep = ___malloc(sizeof (ec_t), "errcheck node");
 	ep->ec_flags = errflags(line, TRUE);
 	ep->ec_plen = plen = strlen(pattern);
 	if (ep->ec_plen > maxplen)
 		maxplen = ep->ec_plen;
-	ep->ec_pat = (const Uchar *)__savestr(pattern);
-	ep->ec_aux = __malloc(plen*sizeof (int), "compiled pattern");
+	ep->ec_pat = (const Uchar *)___savestr(pattern);
+	ep->ec_aux = ___malloc(plen*sizeof (int), "compiled pattern");
 	if ((ep->ec_alt = patcompile((const Uchar *)pattern,
 						plen, ep->ec_aux)) == 0)
 		comerrno(EX_BAD, "Bad errctl pattern: '%s'.\n", pattern);
@@ -159,6 +159,7 @@ LOCAL struct eflags {
 	{ "SPECIALFILE",	E_SPECIALFILE },
 	{ "READLINK",		E_READLINK },
 	{ "GETXATTR",		E_GETXATTR },
+	{ "CHDIR",		E_CHDIR },
 
 	{ "SETTIME",		E_SETTIME },
 	{ "SETMODE",		E_SETMODE },
@@ -220,8 +221,8 @@ errflags(eflag, doexit)
 
 LOCAL ec_t *
 _errptr(etype, fname)
-	int	etype;
-	char	*fname;
+		int	etype;
+	const	char	*fname;
 {
 	ec_t		*ep = ec_root;
 	char		*ret;
@@ -255,13 +256,13 @@ _errptr(etype, fname)
  */
 EXPORT BOOL
 errhidden(etype, fname)
-	int	etype;
-	char	*fname;
+		int	etype;
+	const	char	*fname;
 {
 	ec_t		*ep;
 
 	if ((ep = _errptr(etype, fname)) != NULL) {
-		if ((ep->ec_flags & E_ABORT) != 0)
+		if ((ep->ec_flags & (E_ABORT|E_WARN)) != 0)
 			return (FALSE);
 		return (TRUE);
 	}
@@ -273,8 +274,8 @@ errhidden(etype, fname)
  */
 EXPORT BOOL
 errwarnonly(etype, fname)
-	int	etype;
-	char	*fname;
+		int	etype;
+	const	char	*fname;
 {
 	ec_t		*ep;
 
@@ -291,9 +292,9 @@ errwarnonly(etype, fname)
  */
 EXPORT BOOL
 errabort(etype, fname, doexit)
-	int	etype;
-	char	*fname;
-	BOOL	doexit;
+		int	etype;
+	const	char	*fname;
+		BOOL	doexit;
 {
 	ec_t	*ep;
 extern	BOOL	cflag;

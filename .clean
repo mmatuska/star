@@ -7,3 +7,7 @@ rm -f *.bak */*.bak */*/*.bak
 rm -f */tags */*/tags
 rm -f */TAGS */*/TAGS
 rm -rf proto/* packages/*
+
+if [ -f .links ]; then
+	rm -f `cat .links`
+fi

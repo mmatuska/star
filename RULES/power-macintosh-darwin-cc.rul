@@ -1,4 +1,4 @@
-#ident "@(#)power-macintosh-darwin-cc.rul	1.13 07/05/09 "
+#ident "@(#)power-macintosh-darwin-cc.rul	1.16 09/07/29 "
 ###########################################################################
 # Written 1996 by J. Schilling
 ###########################################################################
@@ -27,6 +27,7 @@ OSDEFS +=
 KDEFINES=	-DKERNEL -D_KERNEL
 
 COPTDYN=	-fPIC
+C++OPTDYN=	-fPIC
 
 LIB_PREFIX=	lib
 LIB_SUFFIX=	.a
@@ -38,11 +39,12 @@ LIB_KVM=
 
 #LDOPTS=		$(LIBS_PATH) $(LDPATH) $(RUNPATH:-R%=-Wl,-R%)
 LDOPTS=		$(LIBS_PATH) $(LDPATH) -framework IOKit -framework CoreFoundation
-LDOPTDYN=	-install_name $(INS_BASE)/lib/$(TARGET)
+LDOPTDYN=	-install_name $(INSBASE)/lib/$(TARGET)
 LDLIBDYN=	-lgcc
 LNDYNLIB=	@
 
 DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; libtool -dynamic
+DYNLDC++ =	@echo "	==> LINKING dynamic library \"$@\""; libtool -dynamic
 RANLIB=		@echo "	==> RANDOMIZING ARCHIVE \"$@\""; ranlib
 
 #

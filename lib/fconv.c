@@ -1,9 +1,9 @@
-/* @(#)fconv.c	1.36 06/10/29 Copyright 1985, 1995-2003 J. Schilling */
+/* @(#)fconv.c	1.41 09/10/10 Copyright 1985, 1995-2009 J. Schilling */
 /*
  *	Convert floating point numbers to strings for format.c
  *	Should rather use the MT-safe routines [efg]convert()
  *
- *	Copyright (c) 1985, 1995-2003 J. Schilling
+ *	Copyright (c) 1985, 1995-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -24,6 +24,7 @@
 #include <schily/standard.h>
 #include <schily/string.h>
 #include <schily/schily.h>
+#include <schily/math.h>	/* The default place for isinf()/isnan() */
 
 #if	!defined(HAVE_STDLIB_H) || defined(HAVE_DTOA)
 extern	char	*ecvt __PR((double, int, int *, int *));
@@ -34,13 +35,17 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 /*
  * *BSD alike libc
  */
+#define	FOUND_ISNAN
+#define	FOUND_ISINF
 #define	FOUND_ISXX
 #endif
 
-#include <math.h>
-
 #if	defined(HAVE_C99_ISNAN) && defined(HAVE_C99_ISINF)
+#ifndef	FOUND_ISXX
 #define	FOUND_ISXX
+#endif
+#define	FOUND_C99_ISNAN
+#define	FOUND_C99_ISINF
 #define	FOUND_C99_ISXX
 #endif
 
@@ -59,49 +64,123 @@ extern	char	*fcvt __PR((double, int, int *, int *));
  * Let's hope that we will not get problems with the new order.
  */
 #include <fp.h>
-#ifndef	isnan
+#if	!defined(isnan) && defined(IS_NAN)
 #define	isnan	IS_NAN
+#define	FOUND_ISNAN
 #endif
-#ifndef	isinf
+#if	!defined(isinf) && defined(FINITE)
 #define	isinf	!FINITE
 /*#define	isinf	IS_INF*/
+#define	FOUND_ISINF
 #endif
+#if	defined(FOUND_ISNAN) && defined(FOUND_ISINF)
 #define	FOUND_ISXX
 #endif
+#endif
 
-#if	defined(HAVE_IEEEFP_H) && !defined(FOUND_ISXX)
+#if	defined(HAVE_IEEEFP_H) && !defined(FOUND_ISXX) && !defined(FOUND_C99_ISXX)
 /*
  * SVR4
  */
 #include <ieeefp.h>
+#ifdef	HAVE_ISNAND
 #ifndef	isnan
 #define	isnan	isnand
+#define	FOUND_ISNAN
 #endif
+#endif
+#ifdef	HAVE_FINITE
 #ifndef	isinf
 #define	isinf	!finite
+#define	FOUND_ISINF
 #endif
+#endif
+#if	defined(FOUND_ISNAN) && defined(FOUND_ISINF)
 #define	FOUND_ISXX
+#endif
 #endif
 
 /*
  * WAS:
  * #if	defined(__hpux) || defined(VMS) || defined(_SCO_DS) || defined(__QNX__)
  */
+#ifdef	__nneded__
 #if	defined(__hpux) || defined(__QNX__) || defined(__DJGPP__)
 #ifndef	FOUND_C99_ISXX
 #undef	isnan
 #undef	isinf
 #endif
 #endif
+#endif	/* __needed__ */
 
-#if	!defined(isnan) && !defined(HAVE_ISNAN) && !defined(HAVE_C99_ISNAN)
+/*
+ * As we no longer check for defined(isnan)/defined(isinf), the next block
+ * should also handle the problems with DJGPP, HP-UX, QNX and VMS.
+ */
+#if	!defined(FOUND_ISNAN) && !defined(HAVE_C99_ISNAN)
+#undef	isnan
 #define	isnan(val)	(0)
+#define	NO_ISNAN
 #endif
-#if	!defined(isinf) && !defined(HAVE_ISINF) && !defined(HAVE_C99_ISINF)
+#if	!defined(FOUND_ISINF) && !defined(HAVE_C99_ISINF)
+#undef	isinf
 #define	isinf(val)	(0)
+#define	NO_ISINF
 #endif
+
+#if	defined(NO_ISNAN) || defined(NO_ISINF)
+#include <schily/float.h>	/* For values.h */
+#if	(_IEEE - 0) > 0		/* We know that there is IEEE FP */
+/*
+ * Note that older HP-UX versions have different #defines for MAXINT in
+ * values.h and sys/param.h
+ */
+#include <schily/utypes.h>
+#include <schily/btorder.h>
+
+#ifdef	WORDS_BIGENDIAN
+#define fpw_high(x)	((UInt32_t *)&x)[0]
+#define fpw_low(x)	((UInt32_t *)&x)[1]
+#else
+#define fpw_high(x)	((UInt32_t *)&x)[1]
+#define fpw_low(x)	((UInt32_t *)&x)[0]
+#endif
+#define	FP_EXP		0x7FF00000
+#define	fp_exp(x)	(fpw_high(x) & FP_EXP)
+#define	fp_exc(x)	(fp_exp(x) == FP_EXP)
+
+#ifdef	NO_ISNAN
+#undef	isnan
+#define	isnan(val)	(fp_exc(val) && \
+			(fpw_low(val) != 0 || (fpw_high(val) & 0xFFFFF) != 0))
+#endif
+#ifdef	NO_ISINF
+#undef	isinf
+#define	isinf(val)	(fp_exc(val) && \
+			fpw_low(val) == 0 && (fpw_high(val) & 0xFFFFF) == 0)
+#endif
+#endif	/* We know that there is IEEE FP */
+#endif	/* defined(NO_ISNAN) || defined(NO_ISINF) */
+
 
 #if !defined(HAVE_ECVT) || !defined(HAVE_FCVT) || !defined(HAVE_GCVT)
+
+#ifdef	NO_USER_XCVT
+	/*
+	 * We cannot define our own ecvt()/fcvt()/gcvt() so we need to use
+	 * local names instead.
+	 */
+#ifndef	HAVE_ECVT
+#	define	ecvt	js_ecvt
+#endif
+#ifndef	HAVE_FCVT
+#	define	fcvt	js_fcvt
+#endif
+#ifndef	HAVE_GCVT
+#	define	gcvt	js_gcvt
+#endif
+#endif
+
 #include "cvt.c"
 #endif
 

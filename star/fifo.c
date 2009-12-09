@@ -1,7 +1,8 @@
-/* @(#)fifo.c	1.67 07/10/20 Copyright 1989, 1994-2007 J. Schilling */
+/* @(#)fifo.c	1.72 09/11/28 Copyright 1989, 1994-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)fifo.c	1.67 07/10/20 Copyright 1989, 1994-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)fifo.c	1.72 09/11/28 Copyright 1989, 1994-2009 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -17,7 +18,7 @@ static	char sccsid[] =
  *		n	fifo_chitape() wake up put side to start wrt Tape chng
  *		N	fifo_chotape()	wake up get side if mp->oblocked == TRUE
  *
- *	Copyright (c) 1989, 1994-2007 J. Schilling
+ *	Copyright (c) 1989, 1994-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -33,8 +34,7 @@ static	char sccsid[] =
 
 /*#define	DEBUG*/
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>	/* includes <sys/types.h> */
 #include <schily/libport.h>	/* getpagesize() */
@@ -898,10 +898,10 @@ do_in()
 	int	amt;
 	int	cnt;
 
+nextread:
 	do {
 		cnt = fifo_iwait(mp->ibs);
 		amt = readtape(mp->putptr, cnt);
-wake:
 		fifo_owake(amt);
 	} while (amt > 0);
 
@@ -924,8 +924,10 @@ wake:
 			}
 			if (skip > 0)
 				fifo_iwake(skip*TBLOCK);
-			if (amt > 0)
-				goto wake;
+			if (amt > 0) {
+				fifo_owake(amt);
+				goto nextread;
+			}
 		}
 	}
 	closetape();
@@ -1026,8 +1028,8 @@ mkshare(size)
 #endif
 
 #ifdef	USE_USGSHM
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include <schily/ipc.h>
+#include <schily/shm.h>
 LOCAL char *
 mkshm(size)
 	int	size;
@@ -1137,8 +1139,8 @@ beosshm_child()
 			B_ANY_ADDRESS, B_READ_AREA|B_WRITE_AREA,
 			fifo_aid);
 	if (buf != fifo_addr) {
-		errmsgno(EX_BAD, "Panic FIFO addr.\n");
-		return (FALSE);
+		comerrno(EX_BAD, "Panic FIFO addr.\n");
+		/* NOTREACHED */
 	}
 }
 #endif

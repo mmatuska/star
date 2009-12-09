@@ -1,8 +1,8 @@
-/* @(#)ccomdefs.h	1.4 06/09/13 Copyright 2000 J. Schilling */
+/* @(#)ccomdefs.h	1.7 09/11/16 Copyright 2000-2009 J. Schilling */
 /*
  *	Various compiler dependant macros.
  *
- *	Copyright (c) 2000 J. Schilling
+ *	Copyright (c) 2000-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,6 +18,10 @@
 
 #ifndef _SCHILY_CCOMDEFS_H
 #define	_SCHILY_CCOMDEFS_H
+
+#ifndef _SCHILY_MCONFIG_H
+#include <schily/mconfig.h>
+#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -55,6 +59,17 @@ extern "C" {
 		__attribute__((__format__(__scanf__, fmtarg, firstvararg)))
 
 #endif /* GNUC */
+
+#if __GNUC__ > 3 || __GNUC__ == 3 && __GNUC_MINOR__ > 1
+
+/* CSTYLED */
+#define	UConst	__attribute__ ((__used__)) const
+
+#else	/* GNUC 3.2 */
+
+#define	UConst	const
+
+#endif /* GNUC 3.2 */
 
 #ifdef	__cplusplus
 }

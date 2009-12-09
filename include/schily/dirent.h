@@ -1,6 +1,6 @@
-/* @(#)dirent.h	1.25 07/05/16 Copyright 1987, 1998, 2000-2007 J. Schilling */
+/* @(#)dirent.h	1.28 09/05/24 Copyright 1987, 1998, 2000-2009 J. Schilling */
 /*
- *	Copyright (c) 1987, 1998, 2000-2007 J. Schilling
+ *	Copyright (c) 1987, 1998, 2000-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -56,11 +56,8 @@ extern "C" {
 #	ifndef	_SCHILY_STAT_H
 #		include <schily/stat.h>
 #	endif
-#	ifdef	HAVE_LIMITS_H
-#		ifndef	_INCL_LIMITS_H
-#		include	<limits.h>
-#		define	_INCL_LIMITS_H
-#		endif
+#	ifndef	_SCHILY_LIMITS_H
+#		include	<schily/limits.h>
 #	endif
 #	ifndef	_SCHILY_PARAM_H
 #		include <schily/param.h>
@@ -107,20 +104,31 @@ extern "C" {
 /*
  * Don't use defaults here to allow recognition of problems.
  */
-#	ifdef	MAXNAMELEN
+#	if !defined(FOUND_DIRSIZE) && defined(MAXNAMELEN)
 #		define	DIRSIZE		MAXNAMELEN	/* From sys/param.h */
 #		define	FOUND_DIRSIZE
-#	else
-#	ifdef	MAXNAMLEN
+#	endif
+
+#	if !defined(FOUND_DIRSIZE) && defined(MAXNAMLEN)
 #		define	DIRSIZE		MAXNAMLEN	/* From dirent.h    */
 #		define	FOUND_DIRSIZE
-#	else
-#	ifdef	DIRSIZ
+#	endif
+
+#	ifdef	__never__
+	/*
+	 * DIRSIZ(dp) is a parameterized macro, we cannot use it here.
+	 */
+#	if !defined(FOUND_DIRSIZE) && defined(DIRSIZ)
 #		define	DIRSIZE		DIRSIZ		/* From sys/dir.h   */
 #		define	FOUND_DIRSIZE
 #	endif
+#	endif	/* __never__ */
+
+#	if !defined(FOUND_DIRSIZE) && defined(NAME_MAX)
+#		define	DIRSIZE		NAME_MAX	/* From limits.h    */
+#		define	FOUND_DIRSIZE
 #	endif
-#	endif
+
 #	else	/* !_FOUND_DIR_ */
 
 #		define	NEED_DIRENT
@@ -151,9 +159,8 @@ typedef struct _dirent {
 
 #ifdef	NEED_READDIR
 
-#ifndef	_INCL_STDIO_H
-#include <stdio.h>
-#define	_INCL_STDIO_H
+#ifndef _SCHILY_STDIO_H
+#include <schily/stdio.h>
 #endif
 
 	typedef struct __dirdesc {

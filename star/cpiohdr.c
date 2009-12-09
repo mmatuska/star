@@ -1,13 +1,14 @@
-/* @(#)cpiohdr.c	1.23 07/10/26 Copyright 1994-2007 J. Schilling */
+/* @(#)cpiohdr.c	1.26 09/07/11 Copyright 1994-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)cpiohdr.c	1.23 07/10/26 Copyright 1994-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)cpiohdr.c	1.26 09/07/11 Copyright 1994-2009 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
  *	cpio archive headers
  *
- *	Copyright (c) 1994-2007 J. Schilling
+ *	Copyright (c) 1994-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -21,8 +22,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include "star.h"

@@ -1,7 +1,8 @@
-/* @(#)rmt.c	1.34 08/03/23 Copyright 1994,2000-2008 J. Schilling */
+/* @(#)rmt.c	1.37 09/08/04 Copyright 1994,2000-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)rmt.c	1.34 08/03/23 Copyright 1994,2000-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)rmt.c	1.37 09/08/04 Copyright 1994,2000-2009 J. Schilling";
 #endif
 /*
  *	Remote tape server
@@ -21,7 +22,7 @@ static	char sccsid[] =
  *	seems that the current interface supports all what we need over the
  *	wire.
  *
- *	Copyright (c) 1994,2000-2008 J. Schilling
+ *	Copyright (c) 1994,2000-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -37,39 +38,28 @@ static	char sccsid[] =
 
 /*#define	FORCE_DEBUG*/
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>	/* includes sys/types.h */
 #include <schily/fcntl.h>
 #include <schily/stat.h>
 #include <schily/string.h>
-#ifdef	 HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-#ifdef	 HAVE_SYS_PARAM_H
-#include <sys/param.h>	/* BSD-4.2 & Linux need this for MAXHOSTNAMELEN */
-#endif
+#include <schily/socket.h>
+#include <schily/param.h>	/* BSD-4.2 & Linux need this for MAXHOSTNAMELEN */
 #include <schily/ioctl.h>
-#ifdef	HAVE_SYS_MTIO_H
-#include <sys/mtio.h>
-#endif
+#include <schily/mtio.h>
 #include <schily/errno.h>
-#include <pwd.h>
+#include <schily/pwd.h>
 
 #include <schily/utypes.h>
 #include <schily/standard.h>
 #include <schily/deflts.h>
 #include <schily/patmatch.h>
 #include <schily/schily.h>
-
-#include <netinet/in.h>
-#ifdef	HAVE_ARPA_INET_H
-#include <arpa/inet.h>		/* BeOS does not have <arpa/inet.h> */
-#endif				/* but inet_ntaoa() is in <netdb.h> */
-#ifdef	 HAVE_NETDB_H
-#include <netdb.h>
-#endif
+#include <schily/in.h>
+#include <schily/inet.h>	/* BeOS does not have <arpa/inet.h> */
+				/* but inet_ntaoa() is in <netdb.h> */
+#include <schily/netdb.h>
 
 #if (!defined(HAVE_NETDB_H) || !defined(HAVE_SYS_SOCKET_H))
 #undef	USE_REMOTE

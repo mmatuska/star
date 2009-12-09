@@ -1,12 +1,13 @@
-/* @(#)buffer.c	1.146 08/03/16 Copyright 1985, 1995, 2001-2008 J. Schilling */
+/* @(#)buffer.c	1.155 09/07/13 Copyright 1985, 1995, 2001-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)buffer.c	1.146 08/03/16 Copyright 1985, 1995, 2001-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)buffer.c	1.155 09/07/13 Copyright 1985, 1995, 2001-2009 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
  *
- *	Copyright (c) 1985, 1995, 2001-2008 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -36,7 +37,7 @@ static	char sccsid[] =
 #undef	USE_REMOTE				/* There is no rcmd() */
 #endif
 
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
 #include <schily/libport.h>	/* getpagesize() */
@@ -55,9 +56,7 @@ static	char sccsid[] =
 #include <schily/librmt.h>
 #include "starsubs.h"
 
-#ifdef	NEED_O_BINARY
-#include <io.h>					/* for setmode() prototype */
-#endif
+#include <schily/io.h>		/* for setmode() prototype */
 
 long	bigcnt	= 0;
 int	bigsize	= 0;		/* Tape block size */
@@ -257,9 +256,7 @@ opentape()
 			multblk = TRUE;
 		}
 		setbuf(tarf, (char *)NULL);
-#ifdef	NEED_O_BINARY
 		setmode(fileno(tarf), O_BINARY);
-#endif
 	} else if (isremote) {
 #ifdef	USE_REMOTE
 		/*
@@ -328,14 +325,18 @@ opentape()
 			}
 		}
 	}
+	if (tarf != (FILE *)NULL && isatty(fdown(tarf)))
+		comerrno(EX_BAD, "Archive cannot be a tty.\n");
 	if (!isremote && (!nullout || (uflag || rflag)) &&
 	    tarf != (FILE *)NULL) {
 		file_raise(tarf, FALSE);
 		checkarch(tarf);
 	}
-	vpr = tarf == stdout ? stderr : stdout;
-	if (samefile(tarf, vpr))		/* Catch -f /dev/stdout case */
-		vpr = stderr;
+	vpr = tarf == stdout ? stderr : stdout;	/* f=stdout redirect listing */
+	if (samefile(tarf, vpr)) {		/* Catch -f /dev/stdout case */
+		if (tarf != stdin)		/* Don't redirect for -tv <  */
+			vpr = stderr;
+	}
 
 	/*
 	 * If the archive is a plain file and thus seekable
@@ -796,7 +797,7 @@ initbuf(nblocks)
 #undef	roundup
 #define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
 
-		bigptr = bigbuf = __malloc((size_t) bufsize+10+pagesize,
+		bigptr = bigbuf = ___malloc((size_t) bufsize+10+pagesize,
 								"buffer");
 		bigptr = bigbuf = (char *)roundup((Intptr_t)bigptr, pagesize);
 		fillbytes(bigbuf, bufsize, '\0');
@@ -1675,6 +1676,7 @@ checkerrs()
 	    xstats.s_toobig	||
 	    xstats.s_isspecial	||
 	    xstats.s_sizeerrs	||
+	    xstats.s_chdir	||
 
 	    xstats.s_settime	||
 	    xstats.s_security	||
@@ -1694,10 +1696,11 @@ checkerrs()
 			return (TRUE);
 
 		errmsgno(EX_BAD, "The following problems occurred during archive processing:\n");
-		errmsgno(EX_BAD, "Cannot: stat %d, open %d, read/write %d. Size changed %d.\n",
+		errmsgno(EX_BAD, "Cannot: stat %d, open %d, read/write %d, chdir %d. Size changed %d.\n",
 				xstats.s_staterrs,
 				xstats.s_openerrs,
 				xstats.s_rwerrs,
+				xstats.s_chdir,
 				xstats.s_sizeerrs);
 		errmsgno(EX_BAD, "Missing links %d, Name too long %d, File too big %d, Not dumped %d.\n",
 				xstats.s_misslinks,
@@ -1809,7 +1812,7 @@ die(err)
 /*
  * Quick hack to implement a -z flag. May be changed soon.
  */
-#include <signal.h>
+#include <schily/signal.h>
 #if	defined(SIGDEFER) || defined(SVR4)
 #define	signal	sigset
 #endif
@@ -1918,9 +1921,7 @@ compressopen()
 		tarf = pp[0];
 		fclose(pp[1]);
 	}
-#ifdef	NEED_O_BINARY
 	setmode(fileno(tarf), O_BINARY);
-#endif
 #endif /* !__DJGPP__ */
 #else  /* !HAVE_FORK */
 	comerrno(EX_BAD, "Inline compression not available.\n");

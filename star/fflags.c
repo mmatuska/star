@@ -1,12 +1,13 @@
-/* @(#)fflags.c	1.21 08/03/16 Copyright 2001-2008 J. Schilling */
+/* @(#)fflags.c	1.23 09/07/11 Copyright 2001-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)fflags.c	1.21 08/03/16 Copyright 2001-2008 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)fflags.c	1.23 09/07/11 Copyright 2001-2009 J. Schilling";
 #endif
 /*
  *	Routines to handle extended file flags
  *
- *	Copyright (c) 2001-2008 J. Schilling
+ *	Copyright (c) 2001-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,10 +21,8 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-
 #ifdef	USE_FFLAGS
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/errno.h>
 #include "star.h"
 #include "props.h"

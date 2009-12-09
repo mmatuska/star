@@ -1,10 +1,11 @@
-/* @(#)find_misc.c	1.11 07/04/04 Copyright 2004-2007 J. Schilling */
+/* @(#)find_misc.c	1.15 09/11/29 Copyright 2004-2009 J. Schilling */
+#include <schily/mconfig.h>
 #ifndef lint
-static	char sccsid[] =
-	"@(#)find_misc.c	1.11 07/04/04 Copyright 2004-2007 J. Schilling";
+static	UConst char sccsid[] =
+	"@(#)find_misc.c	1.15 09/11/29 Copyright 2004-2009 J. Schilling";
 #endif
 /*
- *	Copyright (c) 2004-2007 J. Schilling
+ *	Copyright (c) 2004-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -18,8 +19,7 @@ static	char sccsid[] =
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
-#include <schily/mconfig.h>
-#include <stdio.h>
+#include <schily/stdio.h>
 #include <schily/unistd.h>
 #include <schily/standard.h>
 #include <schily/stat.h>
@@ -104,6 +104,7 @@ has_acl(f, name, sname, sp)
 	acl_t	acl;
 
 	if ((acl = acl_get_file(sname, ACL_TYPE_ACCESS)) != NULL) {
+#ifdef	HAVEACL_GET_ENTRY
 		int	id = ACL_FIRST_ENTRY;
 		int	num;
 		acl_entry_t dummy;
@@ -113,6 +114,12 @@ has_acl(f, name, sname, sp)
 		acl_free(acl);
 		if (num > 3)
 			return (TRUE);
+#else
+#ifdef	NACLBASE
+		if (acl->acl_cnt > NACLBASE)
+			return (TRUE);
+#endif
+#endif
 	}
 	/*
 	 * Only directories have DEFAULT ACLs
@@ -120,6 +127,7 @@ has_acl(f, name, sname, sp)
 	if (!S_ISDIR(sp->st_mode))
 		return (FALSE);
 	if ((acl = acl_get_file(sname, ACL_TYPE_DEFAULT)) != NULL) {
+#ifdef	HAVEACL_GET_ENTRY
 		int	id = ACL_FIRST_ENTRY;
 		int	num;
 		acl_entry_t dummy;
@@ -129,6 +137,12 @@ has_acl(f, name, sname, sp)
 		acl_free(acl);
 		if (num > 0)
 			return (TRUE);
+#else
+#ifdef	NACLBASE
+		if (acl->acl_cnt > NACLBASE)
+			return (TRUE);
+#endif
+#endif
 	}
 #endif	/* HAVE_POSIX_ACL */
 

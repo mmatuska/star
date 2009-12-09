@@ -1,4 +1,4 @@
-/* @(#)schily.h	1.69 08/02/16 Copyright 1985-2007 J. Schilling */
+/* @(#)schily.h	1.86 09/10/22 Copyright 1985-2009 J. Schilling */
 /*
  *	Definitions for libschily
  *
@@ -18,7 +18,7 @@
  *	include ctype.h past schily/schily.h as OpenBSD does not follow POSIX
  *	and defines EOF in ctype.h
  *
- *	Copyright (c) 1985-2007 J. Schilling
+ *	Copyright (c) 1985-2009 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -35,6 +35,10 @@
 #ifndef _SCHILY_SCHILY_H
 #define	_SCHILY_SCHILY_H
 
+#ifndef _SCHILY_MCONFIG_H
+#include <schily/mconfig.h>
+#endif
+
 #ifndef _SCHILY_STANDARD_H
 #include <schily/standard.h>
 #endif
@@ -46,12 +50,12 @@
 extern "C" {
 #endif
 
-#if	defined(_INCL_SYS_TYPES_H) || defined(off_t)
+#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_) || defined(off_t)
 #	ifndef	FOUND_OFF_T
 #	define	FOUND_OFF_T
 #	endif
 #endif
-#if	defined(_INCL_SYS_TYPES_H) || defined(size_t)
+#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_) || defined(size_t)
 #	ifndef	FOUND_SIZE_T
 #	define	FOUND_SIZE_T
 #	endif
@@ -95,6 +99,63 @@ extern "C" {
 #	define	_openfd		_openfd64
 #endif
 
+/*
+ * The official POSIX rule is not to define "new" interfaces that
+ * are in conflict with older interfaces of the same name.
+ * Our interfaces fexec*() have been defined and published in 1982.
+ * The new POSIX interfaces define a different interface and the
+ * new POSIX interfaces even use names that are not compatible with
+ * POSIX rules. The new POSIX interfaces in question should be called
+ * fdexec*() to follow the rules of other similar POSIX functions.
+ * Simiar problems exist with getline()/fgetline().
+ */
+#if	defined(HAVE_RAW_FEXECL) || defined(HAVE_RAW_FEXECLE) || \
+	defined(HAVE_RAW_FEXECV) || defined(HAVE_RAW_FEXECVE)
+#define	RENAME_FEXEC
+#endif
+#if	defined(HAVE_RAW_FSPAWNV) || defined(HAVE_RAW_FSPAWNL) || \
+	defined(HAVE_RAW_FSPAWNV_NOWAIT)
+#define	RENAME_FSPAWN
+#endif
+#if	defined(HAVE_RAW_GETLINE) || defined(HAVE_RAW_FGETLINE)
+#define	RENAME_GETLINE
+#endif
+
+#ifdef	__needed__
+#define	RENAME_FEXEC
+#define	RENAME_FSPAWN
+#define	RENAME_GETLINE
+#endif
+
+#if	defined(RENAME_FEXEC) || defined(RENAME_FSPAWN)
+#ifndef	_SCHILY_UNISTD_H
+#include <schily/unistd.h>	/* Need to include before fexec*() protoypes */
+#endif
+#endif
+
+#if	defined(RENAME_GETLINE)
+#ifndef _SCHILY_STDIO_H
+#include <schily/stdio.h>	/* Need to include before *getline() protoypes */
+#endif
+
+#endif
+
+#ifdef	RENAME_FEXEC
+#define	fexecl		js_fexecl
+#define	fexecle		js_fexecle
+#define	fexecv		js_fexecv
+#define	fexecve		js_fexecve
+#endif
+#ifdef	RENAME_FSPAWN
+#define	fspawnv		js_fspawnv
+#define	fspawnv_nowait	js_fspawnv_nowait
+#define	fspawnl		js_fspawnl
+#endif
+#ifdef	RENAME_GETLINE
+#define	getline		js_getline
+#define	fgetline	js_fgetline
+#endif
+
 #ifdef	EOF	/* stdio.h has been included */
 
 extern	int	_cvmod __PR((const char *, int *, int *));
@@ -116,8 +177,7 @@ extern	int	fexecv __PR((const char *, FILE *, FILE *, FILE *, int,
 extern	int	fexecve __PR((const char *, FILE *, FILE *, FILE *,
 					char * const *, char * const *));
 extern	int	fspawnv __PR((FILE *, FILE *, FILE *, int, char * const *));
-extern	int	fspawnl __PR((FILE *, FILE *, FILE *,
-					const char *, const char *, ...));
+extern	int	fspawnl __PR((FILE *, FILE *, FILE *, const char *, ...));
 extern	int	fspawnv_nowait __PR((FILE *, FILE *, FILE *,
 					const char *, int, char *const*));
 extern	int	fgetline __PR((FILE *, char *, int));
@@ -127,14 +187,16 @@ extern	void	file_raise __PR((FILE *, int));
 extern	int	fileclose __PR((FILE *));
 extern	FILE	*fileluopen __PR((int, const char *));
 extern	FILE	*fileopen __PR((const char *, const char *));
-#ifdef	_INCL_SYS_TYPES_H
+#ifdef	_SCHILY_TYPES_H
 extern	FILE	*filemopen __PR((const char *, const char *, mode_t));
 #endif
 #ifdef	FOUND_OFF_T
 extern	off_t	filepos __PR((FILE *));
 #endif
-extern	int	fileread __PR((FILE *, void *, int));
-extern	int	ffileread __PR((FILE *, void *, int));
+#ifdef	FOUND_SIZE_T
+extern	ssize_t	fileread __PR((FILE *, void *, size_t));
+extern	ssize_t	ffileread __PR((FILE *, void *, size_t));
+#endif
 extern	FILE	*filereopen __PR((const char *, const char *, FILE *));
 #ifdef	FOUND_OFF_T
 extern	int	fileseek __PR((FILE *, off_t));
@@ -143,8 +205,10 @@ extern	off_t	filesize __PR((FILE *));
 #ifdef	S_IFMT
 extern	int	filestat __PR((FILE *, struct stat *));
 #endif
-extern	int	filewrite __PR((FILE *, void *, int));
-extern	int	ffilewrite __PR((FILE *, void *, int));
+#ifdef	FOUND_SIZE_T
+extern	ssize_t	filewrite __PR((FILE *, void *, size_t));
+extern	ssize_t	ffilewrite __PR((FILE *, void *, size_t));
+#endif
 extern	int	flush __PR((void));
 extern	int	fpipe __PR((FILE **));
 /*extern	int	fprintf __PR((FILE *, const char *, ...)) __printflike__(2, 3);*/
@@ -158,8 +222,7 @@ extern	int	peekc __PR((FILE *));
  * We cannot define this or we may get into problems with DOS based systems.
  */
 extern	int	spawnv __PR((FILE *, FILE *, FILE *, int, char * const *));
-extern	int	spawnl __PR((FILE *, FILE *, FILE *,
-					const char *, const char *, ...));
+extern	int	spawnl __PR((FILE *, FILE *, FILE *, const char *, ...));
 extern	int	spawnv_nowait __PR((FILE *, FILE *, FILE *,
 					const char *, int, char *const*));
 #endif	/* __never_def__ */
@@ -185,7 +248,7 @@ extern	int	gettnum	__PR((char *arg, time_t *valp));
 #endif
 
 #ifdef	EOF			/* stdio.h has been included */
-#ifdef	_INCL_SYS_TYPES_H
+#ifdef	_SCHILY_TYPES_H
 /*
  * getperm() flags:
  */
@@ -195,14 +258,16 @@ extern	int	gettnum	__PR((char *arg, time_t *valp));
 #define	GP_FPERM	4	/* TRUE if we implement find -perm	  */
 
 extern	int	getperm	__PR((FILE *f, char *perm, char *opname, \
-				mode_t *modep, int smode, int flag)); 
+				mode_t *modep, int smode, int flag));
 #endif
 #endif
 
-extern	int	_niread __PR((int, void *, int));
-extern	int	_niwrite __PR((int, void *, int));
-extern	int	_nixread __PR((int, void *, int));
-extern	int	_nixwrite __PR((int, void *, int));
+#ifdef	FOUND_SIZE_T
+extern	ssize_t	_niread __PR((int, void *, size_t));
+extern	ssize_t	_niwrite __PR((int, void *, size_t));
+extern	ssize_t	_nixread __PR((int, void *, size_t));
+extern	ssize_t	_nixwrite __PR((int, void *, size_t));
+#endif
 extern	int	_openfd __PR((const char *, int));
 extern	int	on_comerr __PR((void (*fun)(int, void *), void *arg));
 /*PRINTFLIKE1*/
@@ -239,8 +304,11 @@ extern	int	_comerr		__PR((FILE *, int, int, const char *, va_list));
 
 /*PRINTFLIKE1*/
 extern	int	error __PR((const char *, ...)) __printflike__(1, 2);
-extern	char	*fillbytes __PR((void *, int, char));
-extern	char	*findbytes __PR((const void *, int, char));
+#ifdef	FOUND_SIZE_T
+extern	char	*fillbytes __PR((void *, ssize_t, char));
+extern	char	*findbytes __PR((const void *, ssize_t, char));
+#endif
+extern	char	*findinpath __PR((char *__name, int __mode, BOOL __plain_file));
 extern	int	findline __PR((const char *, char, const char *,
 							int, char **, int));
 extern	int	getline __PR((char *, int));
@@ -269,7 +337,9 @@ extern	unsigned char	*patlmatch __PR((const unsigned char *, const int *,
 					const unsigned char *, int, int, int, int[]));
 
 /*extern	int	printf __PR((const char *, ...)) __printflike__(1, 2);*/
-extern	char	*movebytes __PR((const void *, void *, int));
+#ifdef	FOUND_SIZE_T
+extern	char	*movebytes __PR((const void *, void *, ssize_t));
+#endif
 
 extern	void	save_args __PR((int, char **));
 extern	int	saved_ac __PR((void));
@@ -298,6 +368,10 @@ extern	int	snprintf __PR((char *, size_t, const char *, ...)) __printflike__(3, 
 /*extern	int	sprintf __PR((char *, const char *, ...)); ist woanders falsch deklariert !!!*/
 extern	char	*strcatl __PR((char *, ...));
 extern	int	streql __PR((const char *, const char *));
+#ifdef	_SCHILY_WCHAR_H
+extern	wchar_t	*wcscatl __PR((wchar_t *, ...));
+extern	int	wcseql __PR((const wchar_t *, const wchar_t *));
+#endif
 #ifdef	va_arg
 extern	int	format __PR((void (*)(char, long), long, const char *, va_list));
 #else
@@ -320,14 +394,18 @@ extern	int	js_snprintf	__PR((char *, size_t, const char *, ...)) __printflike__(
 extern	int	js_sprintf	__PR((char *, const char *, ...)) __printflike__(2, 3);
 #endif	/* EOF */
 
-extern	void	swabbytes	__PR((void *, int));
+#ifdef	FOUND_SIZE_T
+extern	void	swabbytes	__PR((void *, ssize_t));
+#endif
 extern	char	**getmainfp	__PR((void));
 extern	char	**getavp	__PR((void));
 extern	char	*getav0		__PR((void));
 extern	void	**getfp		__PR((void));
 extern	int	flush_reg_windows __PR((int));
-extern	int	cmpbytes	__PR((const void *, const void *, int));
-extern	int	cmpnullbytes	__PR((const void *, int));
+#ifdef	FOUND_SIZE_T
+extern	ssize_t	cmpbytes	__PR((const void *, const void *, ssize_t));
+extern	ssize_t	cmpnullbytes	__PR((const void *, ssize_t));
+#endif
 
 #ifdef	nonono
 #if	defined(HAVE_LARGEFILES)
@@ -399,9 +477,9 @@ extern	char	*js_fjsavestr	__PR((FILE *f, const char *s, sigjmps_t *jmp));
 #endif	/* EOF */
 #endif	/* _SCHILY_JMPDEFS_H */
 
-#define	__malloc	js_malloc
-#define	__realloc	js_realloc
-#define	__savestr	js_savestr
+#define	___malloc	js_malloc
+#define	___realloc	js_realloc
+#define	___savestr	js_savestr
 #define	__jmalloc	js_jmalloc
 #define	__jrealloc	js_jrealloc
 #define	__jsavestr	js_jsavestr
@@ -417,6 +495,13 @@ extern	char	*js_fjsavestr	__PR((FILE *f, const char *s, sigjmps_t *jmp));
 #	ifndef	_SCHILY_JOS_IO_H
 #	include <schily/jos_io.h>
 #	endif
+#endif
+
+#if !defined(_SCHILY_LIBPORT_H) && !defined(NO_LIBPORT_H)
+#include <schily/libport.h>
+#endif
+#if !defined(_SCHILY_HOSTNAME_H) && defined(USE_HOSTNAME_H)
+#include <schily/hostname.h>
 #endif
 
 #endif	/* _SCHILY_SCHILY_H */
