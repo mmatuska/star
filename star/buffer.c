@@ -1,13 +1,13 @@
-/* @(#)buffer.c	1.155 09/07/13 Copyright 1985, 1995, 2001-2009 J. Schilling */
+/* @(#)buffer.c	1.164 12/01/01 Copyright 1985, 1995, 2001-2012 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)buffer.c	1.155 09/07/13 Copyright 1985, 1995, 2001-2009 J. Schilling";
+	"@(#)buffer.c	1.164 12/01/01 Copyright 1985, 1995, 2001-2012 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
  *
- *	Copyright (c) 1985, 1995, 2001-2009 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -59,7 +59,8 @@ static	UConst char sccsid[] =
 #include <schily/io.h>		/* for setmode() prototype */
 
 long	bigcnt	= 0;
-int	bigsize	= 0;		/* Tape block size */
+int	bigsize	= 0;		/* Tape block size (may shrink < bigbsize) */
+int	bigbsize = 0;		/* Big buffer size */
 int	bufsize	= 0;		/* Available buffer size */
 char	*bigbase = NULL;
 char	*bigbuf	= NULL;
@@ -114,6 +115,8 @@ extern	BOOL	zflag;
 extern	BOOL	bzflag;
 extern	BOOL	lzoflag;
 extern	BOOL	p7zflag;
+extern	BOOL	xzflag;
+extern	BOOL	lzipflag;
 extern	char	*compress_prg;
 extern	BOOL	multblk;
 extern	BOOL	partial;
@@ -248,10 +251,8 @@ opentape()
 		tarf = (FILE *)NULL;
 	} else if (streql(tarfiles[tarfindex], "-")) {
 		if (cflag) {
-/*			tarfiles[tarfindex] = "stdout";*/
 			tarf = stdout;
 		} else {
-/*			tarfiles[tarfindex] = "stdin";*/
 			tarf = stdin;
 			multblk = TRUE;
 		}
@@ -343,7 +344,8 @@ opentape()
 	 * do automatic compression detection.
 	 */
 	if (stats->volno == 1 &&
-	    tape_isreg && !cflag && (!Zflag && !zflag && !bzflag && !lzoflag && !p7zflag && !compress_prg)) {
+	    tape_isreg && !cflag && (!Zflag && !zflag && !bzflag && !lzoflag &&
+	    !p7zflag && !xzflag && !compress_prg)) {
 		long	htype;
 		TCB	*ptb;
 
@@ -382,6 +384,16 @@ opentape()
 					"WARNING: Archive is '7z' compressed, trying to use the -7z option.\n");
 				p7zflag = TRUE;
 				break;
+			case C_XZ:
+				if (!silent) errmsgno(EX_BAD,
+					"WARNING: Archive is 'xz' compressed, trying to use the -xz option.\n");
+				xzflag = TRUE;
+				break;
+			case C_LZIP:
+				if (!silent) errmsgno(EX_BAD,
+					"WARNING: Archive is 'lzip' compressed, trying to use the -lzip option.\n");
+				lzipflag = TRUE;
+				break;
 			default:
 				if (!silent) errmsgno(EX_BAD,
 					"WARNING: Unknown compression type %d.\n", cmptype);
@@ -390,7 +402,9 @@ opentape()
 		}
 		mtseek((off_t)0, SEEK_SET);
 	}
-	if (Zflag || zflag || bzflag || lzoflag || p7zflag || compress_prg) {
+	if (Zflag || zflag || bzflag || lzoflag ||
+	    p7zflag || xzflag || lzipflag ||
+	    compress_prg) {
 		if (isremote)
 			comerrno(EX_BAD, "Cannot compress remote archives (yet).\n");
 		/*
@@ -577,6 +591,7 @@ startvol(buf, amount)
 	long	xcnt = 0;
 	BOOL	ofifo = use_fifo;
 static	BOOL	active = FALSE;	/* If TRUE: We are already in a media change */
+extern	m_head	*mp;
 
 	if (amount <= 0)
 		return (amount);
@@ -587,6 +602,19 @@ static	BOOL	active = FALSE;	/* If TRUE: We are already in a media change */
 		"Panic: trying to write more than bs (%d > %d)!\n",
 		amount, bigsize);
 	}
+	mp->chreel = TRUE;
+#ifdef	FIFO
+	if (use_fifo) {
+		/*
+		 * Make sure the put side of the FIFO is waiting either on
+		 * mp->iblocked (because the FIFO is full) or on mp->reelwait
+		 * before temporary disabling the FIFO during media change.
+		 */
+		while (mp->iblocked == FALSE && mp->reelwait == FALSE) {
+			usleep(100000);
+		}
+	}
+#endif
 	active = TRUE;
 
 	/*
@@ -622,6 +650,12 @@ static	BOOL	active = FALSE;	/* If TRUE: We are already in a media change */
 	bigcnt = ocnt;
 	use_fifo = ofifo;
 	active = FALSE;
+	mp->chreel = FALSE;
+#ifdef	FIFO
+	if (use_fifo) {
+		fifo_reelwake();
+	}
+#endif
 	return (xcnt);		/* Return the amount taken from orig. buffer */
 }
 
@@ -781,6 +815,13 @@ initbuf(nblocks)
 		initfifo();
 	}
 #endif
+	/*
+	 * As bigbuf is allocated here only in case that we have no FIFO or we
+	 * are in create mode, there are no aliasing problems with bigbuf and
+	 * the shared memory in the FIFO while trying to detect the archive
+	 * format and byte swapping in read/extract modes.
+	 * Note that -r and -u currently disable the FIFO.
+	 */
 	if (!use_fifo || cvolhdr) {
 		int	pagesize = getpagesize();
 
@@ -790,27 +831,33 @@ initbuf(nblocks)
 		 * If we create multi volume archives that need volume
 		 * headers, we need additional space to prepare the
 		 * first write to a new medium after a medium change.
+		 * "bufsize" may be modified by initfifo() in the FIFO case,
+		 * so we use "bigsize" for the extra multivol buffer to
+		 * avoid allocating an unneeded huge amount of data here.
 		 */
 		if (cvolhdr)
-			bufsize *= 2;
+			bigsize *= 2;
 
+		/*
+		 * roundup(x, y), x needs to be unsigned or x+y non-genative.
+		 */
 #undef	roundup
 #define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
 
-		bigptr = bigbuf = ___malloc((size_t) bufsize+10+pagesize,
+		bigptr = bigbuf = ___malloc((size_t)bigsize+10+pagesize,
 								"buffer");
-		bigptr = bigbuf = (char *)roundup((Intptr_t)bigptr, pagesize);
-		fillbytes(bigbuf, bufsize, '\0');
-		fillbytes(&bigbuf[bufsize], 10, 'U');
+		bigptr = bigbuf = (char *)roundup((UIntptr_t)bigptr, pagesize);
+		fillbytes(bigbuf, bigsize, '\0');
+		fillbytes(&bigbuf[bigsize], 10, 'U');
 
 		if (cvolhdr) {
-			bufsize /= 2;
+			bigsize /= 2;
 			bigbase = bigbuf;
-			bigbuf = bigptr = &bigbase[bufsize];
+			bigbuf = bigptr = &bigbase[bigsize];
 		}
 	}
 	stats->nblocks = nblocks;
-	stats->blocksize = bigsize;
+	stats->blocksize = bigbsize = bigsize;
 	stats->volno = 1;
 	stats->swapflg = -1;
 }
@@ -1055,7 +1102,6 @@ static	BOOL	teof = FALSE;
 
 #define	DO8(a)	a; a; a; a; a; a; a; a;
 
-/*#define	MY_SWABBYTES*/
 #ifdef	MY_SWABBYTES
 
 void
@@ -1195,6 +1241,12 @@ writetape(buf, amount)
 		 * We do the tape change not at the point when we write less
 		 * than a tape block (this may happen on pipes too) but after
 		 * we got a true EOF condition.
+		 */
+		return (-2);
+	}
+	if (multivol && (err == ENXIO)) {
+		/*
+		 * EOF condition on disk devices
 		 */
 		return (-2);
 	}
@@ -1407,7 +1459,6 @@ again:
 	} else
 #endif
 	{
-/*		if (bigcnt < amount)*/ /* neu ?? */
 		if (bigcnt <= 0)
 			readbuf();
 		cnt = bigcnt;
@@ -1511,7 +1562,7 @@ mtioctl(cmd, count)
 		ret = rmtioctl(remfd, cmd, count);
 #endif
 	} else {
-#ifdef	MTIOCTOP
+#if	defined(MTIOCTOP) && defined(HAVE_IOCTL)
 		struct mtop mtop;
 
 		mtop.mt_op = cmd;
@@ -1519,6 +1570,11 @@ mtioctl(cmd, count)
 
 		ret = ioctl(fdown(tarf), MTIOCTOP, &mtop);
 #else
+#ifdef	ENOSYS
+		seterrno(ENOSYS);
+#else
+		seterrno(EINVAL);
+#endif
 		return (-1);
 #endif
 	}
@@ -1594,7 +1650,8 @@ prstats()
 		p = mp->end;
 	} else
 #endif
-		p = &bigbuf[bufsize];
+		p = &bigbuf[bigbsize];
+
 	if ((*p != 'U' && *p != ' ') || p[1] != 'U')
 		errmsgno(EX_BAD, "The buffer has been overwritten, please contact the author.\n");
 
@@ -1834,6 +1891,10 @@ compressopen()
 		zip_prog = "lzop";
 	else if (p7zflag)
 		zip_prog = "p7zip";
+	else if (xzflag)
+		zip_prog = "xz";
+	else if (lzipflag)
+		zip_prog = "lzip";
 
 	multblk = TRUE;
 
@@ -1944,6 +2005,10 @@ compressclose()
 		zip_prog = "lzop";
 	else if (p7zflag)
 		zip_prog = "p7zip";
+	else if (xzflag)
+		zip_prog = "xz";
+	else if (lzipflag)
+		zip_prog = "lzip";
 
 #ifdef __DJGPP__
 	if (cflag) {

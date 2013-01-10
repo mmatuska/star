@@ -1,11 +1,11 @@
-/* @(#)create.c	1.129 09/07/26 Copyright 1985, 1995, 2001-2009 J. Schilling */
+/* @(#)create.c	1.132 11/12/03 Copyright 1985, 1995, 2001-2011 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)create.c	1.129 09/07/26 Copyright 1985, 1995, 2001-2009 J. Schilling";
+	"@(#)create.c	1.132 11/12/03 Copyright 1985, 1995, 2001-2011 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 1995, 2001-2009 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -136,6 +136,7 @@ extern	int	Fflag;
 extern	BOOL	abs_path;
 extern	BOOL	nowarn;
 extern	BOOL	match_tree;
+extern	BOOL	force_hole;
 extern	BOOL	sparse;
 extern	BOOL	Ctime;
 extern	BOOL	nodump;
@@ -391,8 +392,12 @@ _fileopen(name, smode)
 	if (!_cvmod(smode, &omode, &flag))
 		return (-1);
 
-	if ((ret = _openfd(name, omode)) < 0)
+retry:
+	if ((ret = _openfd(name, omode)) < 0) {
+		if (geterrno() == EINTR)
+			goto retry;
 		return (-1);
+	}
 
 	return (ret);
 }
@@ -695,9 +700,18 @@ createi(sname, name, namlen, info, last)
 			}
 			return;
 		}
+
 		if (do_sparse && sparse_file(&fd, info)) {
 			if (!silent)
-				error("%s is sparse\n", info->f_name);
+				error("'%s' is sparse\n", info->f_name);
+			put_sparse(&fd, info);
+		} else if (do_sparse && force_hole) {
+			/*
+			 * Treat all files as sparse when -force-hole
+			 * option is given.
+			 */
+			if (!silent)
+				error("Treating '%s' as sparse\n", info->f_name);
 			put_sparse(&fd, info);
 		} else {
 			put_tcb(ptb, info);
@@ -1795,6 +1809,10 @@ walkfunc(nm, fs, type, state)
 	int		type;
 	struct WALK	*state;
 {
+	if (intr) {
+		state->flags |= WALK_WF_QUIT;
+		return (0);
+	}
 	if (type == WALK_NS) {
 		errmsg("Cannot stat '%s'.\n", nm);
 		state->err = 1;

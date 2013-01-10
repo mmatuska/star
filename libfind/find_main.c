@@ -1,14 +1,14 @@
 /*#define	PLUS_DEBUG*/
-/* @(#)find_main.c	1.65 09/07/11 Copyright 2004-2009 J. Schilling */
+/* @(#)find_main.c	1.68 10/08/23 Copyright 2004-2010 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)find_main.c	1.65 09/07/11 Copyright 2004-2009 J. Schilling";
+	"@(#)find_main.c	1.68 10/08/23 Copyright 2004-2010 J. Schilling";
 #endif
 /*
  *	Another find implementation...
  *
- *	Copyright (c) 2004-2009 J. Schilling
+ *	Copyright (c) 2004-2010 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -34,7 +34,7 @@ static	UConst char sccsid[] =
 
 #include <schily/nlsdefs.h>
 
-char	strvers[] = "1.4";	/* The pure version string	*/
+char	strvers[] = "1.5";	/* The pure version string	*/
 
 #include <schily/walk.h>
 #include <schily/find.h>
@@ -98,7 +98,9 @@ getflg(optstr, argp)
 	char	*optstr;
 	long	*argp;
 {
-/*	error("optstr: '%s'\n", optstr);*/
+#ifdef	GETFLG_DEBUG
+	error("optstr: '%s'\n", optstr);
+#endif
 
 	if (optstr[1] != '\0')
 		return (-1);
@@ -129,9 +131,9 @@ find_main(ac, av, ev, std, quit)
 	squit_t	*quit;
 {
 	int	cac  = ac;
-	char *	*cav = av;
-	char *	*firstpath;
-	char *	*firstprim;
+	char	**cav = av;
+	char	**firstpath;
+	char	**firstprim;
 	BOOL	help = FALSE;
 	BOOL	prversion = FALSE;
 	finda_t	fa;
@@ -172,7 +174,7 @@ find_main(ac, av, ev, std, quit)
 	}
 	if (prversion) {
 		fprintf(std[1],
-		"sfind release %s (%s-%s-%s) Copyright (C) 2004-2009 Jörg Schilling\n",
+		"sfind release %s (%s-%s-%s) Copyright (C) 2004-2010 Jörg Schilling\n",
 				strvers,
 				HOST_CPU, HOST_VENDOR, HOST_OS);
 		goto out;

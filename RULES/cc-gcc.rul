@@ -1,6 +1,6 @@
-#ident "@(#)cc-gcc.rul	1.9 07/05/09 "
+#ident "@(#)cc-gcc.rul	1.11 13/01/09 "
 ###########################################################################
-# Written 1996-2006 by J. Schilling
+# Written 1996-2013 by J. Schilling
 ###########################################################################
 #
 # Platform independent MACROS for GCC
@@ -54,15 +54,18 @@ LNDYNLIB=	@$(RM) $(RM_FORCE) $(PTARGET_BASE).so; $(SYMLINK) $(TARGET) $(PTARGET_
 
 FLOAT_OPTIONS=	
 
-CC=		@echo "	==> COMPILING \"$@\""; gcc
-CC++ =		@echo "	==> COMPILING \"$@\""; g++
-LDCC=		@echo "	==> LINKING \"$@\""; gcc
-LDCC++ =	@echo "	==> LINKING \"$@\""; g++
-DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; gcc
-DYNLDC++ =	@echo "	==> LINKING dynamic library \"$@\""; g++
+CC_COM=		gcc
+CC++_COM=	g++
+
+CC=		@echo "	==> COMPILING \"$@\""; $(CC_COM)
+CC++ =		@echo "	==> COMPILING \"$@\""; $(CC++_COM)
+LDCC=		@echo "	==> LINKING \"$@\""; $(CC_COM)
+LDCC++ =	@echo "	==> LINKING \"$@\""; $(CC++_COM)
+DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; $(CC_COM)
+DYNLDC++ =	@echo "	==> LINKING dynamic library \"$@\""; $(CC++_COM)
 
 RMDEP=		:
-MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); gcc -M
+MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(CC_COM) -M
 MKDEP_OUT=
-MKC++DEP=	@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); g++ -M
+MKC++DEP=	@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(CC++_COM) -M
 MKC++DEP_OUT=

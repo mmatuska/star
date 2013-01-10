@@ -1,8 +1,8 @@
-/* @(#)checkerr.h	1.9 09/05/05 Copyright 2003-2009 J. Schilling */
+/* @(#)checkerr.h	1.12 12/11/13 Copyright 2003-2012 J. Schilling */
 /*
  *	Error control for star.
  *
- *	Copyright (c) 2003-2009 J. Schilling
+ *	Copyright (c) 2003-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -15,6 +15,13 @@
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
+
+#ifndef	_CHECKERR_H
+#define	_CHECKERR_H
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 /*
  * Error conditions handled by error control.
@@ -34,6 +41,10 @@
 #define	E_GETXATTR	0x1000		/* Could not get xattr		   */
 #define	E_CHDIR		0x2000		/* Could not chdir()		   */
 
+/*
+ * Currently unused: 0x4000 .. 0x8000
+ */
+
 #define	E_SETTIME	0x10000		/* Could not set file times	   */
 #define	E_SETMODE	0x20000		/* Could not set access modes	   */
 #define	E_SECURITY	0x40000		/* Skipped for security reasons	   */
@@ -42,6 +53,10 @@
 #define	E_BADACL	0x200000	/* ACL string conversion error	   */
 #define	E_SETACL	0x400000	/* Could not set ACL for file	   */
 #define	E_SETXATTR	0x800000	/* Could not set xattr		   */
+
+/*
+ * Currently unused: 0x1000000 .. 0x8000000
+ */
 
 #define	E_DIFF		0x10000000	/* Diffs encountered		   */
 #define	E_WARN		0x20000000	/* Print this error but do exit(0) */
@@ -53,4 +68,11 @@
 extern	int	errconfig	__PR((char *name));
 extern	BOOL	errhidden	__PR((int etype, const char *fname));
 extern	BOOL	errwarnonly	__PR((int etype, const char *fname));
-extern	BOOL	errabort	__PR((int etype, const char *fname, BOOL doexit));
+extern	BOOL	errabort	__PR((int etype, const char *fname,
+					BOOL doexit));
+
+#ifdef	__cplusplus
+}
+#endif
+
+#endif	/* _CHECKERR_H */

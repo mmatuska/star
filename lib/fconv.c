@@ -1,9 +1,9 @@
-/* @(#)fconv.c	1.41 09/10/10 Copyright 1985, 1995-2009 J. Schilling */
+/* @(#)fconv.c	1.45 10/11/06 Copyright 1985, 1995-2010 J. Schilling */
 /*
  *	Convert floating point numbers to strings for format.c
  *	Should rather use the MT-safe routines [efg]convert()
  *
- *	Copyright (c) 1985, 1995-2009 J. Schilling
+ *	Copyright (c) 1985, 1995-2010 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,11 +20,13 @@
 #include <schily/mconfig.h>	/* <- may define NO_FLOATINGPOINT */
 #ifndef	NO_FLOATINGPOINT
 
+#ifndef	__DO_LONG_DOUBLE__
 #include <schily/stdlib.h>
 #include <schily/standard.h>
 #include <schily/string.h>
 #include <schily/schily.h>
 #include <schily/math.h>	/* The default place for isinf()/isnan() */
+#include <schily/nlsdefs.h>
 
 #if	!defined(HAVE_STDLIB_H) || defined(HAVE_DTOA)
 extern	char	*ecvt __PR((double, int, int *, int *));
@@ -70,7 +72,6 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 #endif
 #if	!defined(isinf) && defined(FINITE)
 #define	isinf	!FINITE
-/*#define	isinf	IS_INF*/
 #define	FOUND_ISINF
 #endif
 #if	defined(FOUND_ISNAN) && defined(FOUND_ISINF)
@@ -78,7 +79,8 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 #endif
 #endif
 
-#if	defined(HAVE_IEEEFP_H) && !defined(FOUND_ISXX) && !defined(FOUND_C99_ISXX)
+#if	defined(HAVE_IEEEFP_H) && !defined(FOUND_ISXX) && \
+	!defined(FOUND_C99_ISXX)
 /*
  * SVR4
  */
@@ -139,11 +141,11 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 #include <schily/btorder.h>
 
 #ifdef	WORDS_BIGENDIAN
-#define fpw_high(x)	((UInt32_t *)&x)[0]
-#define fpw_low(x)	((UInt32_t *)&x)[1]
+#define	fpw_high(x)	((UInt32_t *)&x)[0]
+#define	fpw_low(x)	((UInt32_t *)&x)[1]
 #else
-#define fpw_high(x)	((UInt32_t *)&x)[1]
-#define fpw_low(x)	((UInt32_t *)&x)[0]
+#define	fpw_high(x)	((UInt32_t *)&x)[1]
+#define	fpw_low(x)	((UInt32_t *)&x)[0]
 #endif
 #define	FP_EXP		0x7FF00000
 #define	fp_exp(x)	(fpw_high(x) & FP_EXP)
@@ -171,13 +173,13 @@ extern	char	*fcvt __PR((double, int, int *, int *));
 	 * local names instead.
 	 */
 #ifndef	HAVE_ECVT
-#	define	ecvt	js_ecvt
+#define	ecvt	js_ecvt
 #endif
 #ifndef	HAVE_FCVT
-#	define	fcvt	js_fcvt
+#define	fcvt	js_fcvt
 #endif
 #ifndef	HAVE_GCVT
-#	define	gcvt	js_gcvt
+#define	gcvt	js_gcvt
 #endif
 #endif
 
@@ -188,16 +190,25 @@ static	char	_js_nan[] = "(NaN)";
 static	char	_js_inf[] = "(Infinity)";
 
 static	int	_ferr __PR((char *, double));
+#endif	/* __DO_LONG_DOUBLE__ */
+
+#ifdef	__DO_LONG_DOUBLE__
+#undef	MDOUBLE
+#define	MDOUBLE	long double
+#else
+#undef	MDOUBLE
+#define	MDOUBLE	double
+#endif
 
 #ifdef	abs
-#	undef	abs
+#undef	abs
 #endif
 #define	abs(i)	((i) < 0 ? -(i) : (i))
 
 EXPORT int
 ftoes(s, val, fieldwidth, ndigits)
 	register	char 	*s;
-			double	val;
+			MDOUBLE	val;
 	register	int	fieldwidth;
 	register	int	ndigits;
 {
@@ -208,8 +219,10 @@ ftoes(s, val, fieldwidth, ndigits)
 			int 	decpt;
 			int	sign;
 
+#ifndef	__DO_LONG_DOUBLE__
 	if ((len = _ferr(s, val)) > 0)
 		return (len);
+#endif
 	rs = s;
 #ifdef	V7_FLOATSTYLE
 	b = ecvt(val, ndigits, &decpt, &sign);
@@ -217,6 +230,13 @@ ftoes(s, val, fieldwidth, ndigits)
 #else
 	b = ecvt(val, ndigits+1, &decpt, &sign);
 	rdecpt = decpt-1;
+#endif
+#ifdef	__DO_LONG_DOUBLE__
+	len = *b;
+	if (len < '0' || len > '9') {		/* Inf/NaN */
+		strcpy(s, b);
+		return (strlen(b));
+	}
 #endif
 	len = ndigits + 6;			/* Punkt e +/- nnn */
 	if (sign)
@@ -230,12 +250,22 @@ ftoes(s, val, fieldwidth, ndigits)
 	if (*b)
 		*rs++ = *b++;
 #endif
+#if defined(HAVE_LOCALECONV) && defined(USE_LOCALE)
+	*rs++ = *(localeconv()->decimal_point);
+#else
 	*rs++ = '.';
+#endif
 	while (*b && ndigits-- > 0)
 		*rs++ = *b++;
 	*rs++ = 'e';
 	*rs++ = rdecpt >= 0 ? '+' : '-';
 	rdecpt = abs(rdecpt);
+#ifdef	__DO_LONG_DOUBLE__
+	if (rdecpt >= 1000) {			/* Max-Exp is > 4000 */
+		*rs++ = rdecpt / 1000 + '0';
+		rdecpt %= 1000;
+	}
+#endif
 #ifndef	V7_FLOATSTYLE
 	if (rdecpt >= 100)
 #endif
@@ -259,7 +289,7 @@ ftoes(s, val, fieldwidth, ndigits)
 EXPORT int
 ftofs(s, val, fieldwidth, ndigits)
 	register	char 	*s;
-			double	val;
+			MDOUBLE	val;
 	register	int	fieldwidth;
 	register	int	ndigits;
 {
@@ -270,8 +300,10 @@ ftofs(s, val, fieldwidth, ndigits)
 			int 	decpt;
 			int	sign;
 
+#ifndef	__DO_LONG_DOUBLE__
 	if ((len = _ferr(s, val)) > 0)
 		return (len);
+#endif
 	rs = s;
 #ifdef	USE_ECVT
 	/*
@@ -286,6 +318,13 @@ ftofs(s, val, fieldwidth, ndigits)
 		b = ecvt(val, ndigits+decpt, &decpt, &sign);
 #else
 	b = fcvt(val, ndigits, &decpt, &sign);
+#endif
+#ifdef	__DO_LONG_DOUBLE__
+	len = *b;
+	if (len < '0' || len > '9') {		/* Inf/NaN */
+		strcpy(s, b);
+		return (strlen(b));
+	}
 #endif
 	rdecpt = decpt;
 	len = rdecpt + ndigits + 1;
@@ -312,7 +351,11 @@ ftofs(s, val, fieldwidth, ndigits)
 		*rs++ = '0';
 	}
 #endif
+#if defined(HAVE_LOCALECONV) && defined(USE_LOCALE)
+	*rs++ = *(localeconv()->decimal_point);
+#else
 	*rs++ = '.';
+#endif
 	if (rdecpt < 0) {
 		len = rdecpt;
 		while (len++ < 0 && ndigits-- > 0)
@@ -327,6 +370,28 @@ ftofs(s, val, fieldwidth, ndigits)
 	*rs = '\0';
 	return (rs - s);
 }
+
+#ifndef	__DO_LONG_DOUBLE__
+
+#ifdef	HAVE_LONGDOUBLE
+#ifdef	HAVE__LDECVT
+#define	qecvt(ld, n, dp, sp)	_ldecvt(*(long_double *)&ld, n, dp, sp)
+#endif
+#ifdef	HAVE__LDFCVT
+#define	qfcvt(ld, n, dp, sp)	_ldfcvt(*(long_double *)&ld, n, dp, sp)
+#endif
+
+#if	(defined(HAVE_QECVT) || defined(HAVE__LDECVT)) && \
+	(defined(HAVE_QFCVT) || defined(HAVE__LDFCVT))
+#define	__DO_LONG_DOUBLE__
+#define	ftoes	qftoes
+#define	ftofs	qftofs
+#define	ecvt	qecvt
+#define	fcvt	qfcvt
+#include "fconv.c"
+#undef	__DO_LONG_DOUBLE__
+#endif
+#endif	/* HAVE_LONGDOUBLE */
 
 LOCAL int
 _ferr(s, val)
@@ -347,4 +412,5 @@ _ferr(s, val)
 	}
 	return (0);
 }
+#endif	/* __DO_LONG_DOUBLE__ */
 #endif	/* NO_FLOATINGPOINT */

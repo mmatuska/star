@@ -1,4 +1,4 @@
-/* @(#)format.c	1.48 09/07/28 Copyright 1985-2009 J. Schilling */
+/* @(#)format.c	1.51 10/10/23 Copyright 1985-2010 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -6,7 +6,7 @@
  *	allows recursive printf with "%r", used in:
  *	error, comerr, comerrno, errmsg, errmsgno and the like
  *
- *	Copyright (c) 1985-2009 J. Schilling
+ *	Copyright (c) 1985-2010 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -248,7 +248,6 @@ format(fun, farg, fmt, args)
 			 */
 			if (fa.fldwidth < 0) {
 				fa.fldwidth = -fa.fldwidth;
-/*				fa.minusflag ^= 1;*/
 				fa.minusflag = 1;
 			}
 		} else while (c = *fmt, is_dig(c)) {
@@ -302,11 +301,21 @@ format(fun, farg, fmt, args)
 				 */
 				type = *fmt++;
 				if (!strchr("ZODX", mode = *fmt)) {
+					/*
+					 * Check long double "Le", "Lf" or "Lg"
+					 */
+					if (type == 'L' &&
+					    (mode == 'e' ||
+					    mode == 'f' ||
+					    mode == 'g'))
+						goto checkfmt;
 					fmt--;
 					mode = 'D'; /* default mode */
 				}
 			}
-		} else switch (*fmt) {
+		} else {
+	checkfmt:
+		switch (*fmt) {
 
 		case 'h':
 			if (!type)
@@ -336,12 +345,12 @@ format(fun, farg, fmt, args)
 			if (!type)
 				type = 'Q';	/* convert to long long type */
 #else
-error sizeof(size_t) is unknown
+error sizeof (size_t) is unknown
 #endif
 #endif
 #endif
 			goto getmode;
-			
+
 		case 't':			/* ptrdiff_t */
 #if	SIZEOF_PTRDIFF_T == SIZEOF_INT
 			if (!type)
@@ -355,7 +364,7 @@ error sizeof(size_t) is unknown
 			if (!type)
 				type = 'Q';	/* convert to long long type */
 #else
-error sizeof(ptrdiff_t) is unknown
+error sizeof (ptrdiff_t) is unknown
 #endif
 #endif
 #endif
@@ -366,6 +375,9 @@ error sizeof(ptrdiff_t) is unknown
 
 		getmode:
 			if (!strchr("udioxX", *(++fmt))) {
+				/*
+				 * %hhd -> char in decimal
+				 */
 				if (type == 'H' && *fmt == 'h') {
 					type = 'C';
 					goto getmode;
@@ -384,7 +396,7 @@ error sizeof(ptrdiff_t) is unknown
 					mode = to_cap(mode);
 				if (mode == 'U')
 					unsflag = TRUE;
-				else if (mode == 'I')	/*XXX */
+				else if (mode == 'I')	/* XXX */
 					mode = 'D';
 			}
 			break;
@@ -411,10 +423,11 @@ error sizeof(ptrdiff_t) is unknown
 			if (!type)
 				type = cap_ty(*fmt);
 #ifdef	DEBUG
-/*dbg_print("*fmt: '%c' mode: '%c' type: '%c'\n", *fmt, mode, type);*/
+			dbg_print("*fmt: '%c' mode: '%c' type: '%c'\n",
+							*fmt, mode, type);
 #endif
-			if (mode == 'I')	/*XXX kann entfallen*/
-				mode = 'D';	/*wenn besseres uflg*/
+			if (mode == 'I')	/* XXX kann entfallen */
+				mode = 'D';	/* wenn besseres uflg */
 			break;
 		case 'p':
 			mode = 'P';
@@ -445,6 +458,19 @@ error sizeof(ptrdiff_t) is unknown
 		case 'e':
 			if (fa.signific == -1)
 				fa.signific = 6;
+			if (type == 'L') {
+#ifdef	HAVE_LONGDOUBLE
+				long double ldval = va_arg(args, long double);
+
+#if	(defined(HAVE_QECVT) || defined(HAVE__LDECVT))
+				qftoes(buf, ldval, 0, fa.signific);
+				count += prbuf(buf, &fa);
+				continue;
+#else
+				dval = ldval;
+#endif
+#endif
+			}
 			dval = va_arg(args, double);
 			ftoes(buf, dval, 0, fa.signific);
 			count += prbuf(buf, &fa);
@@ -452,6 +478,19 @@ error sizeof(ptrdiff_t) is unknown
 		case 'f':
 			if (fa.signific == -1)
 				fa.signific = 6;
+			if (type == 'L') {
+#ifdef	HAVE_LONGDOUBLE
+				long double ldval = va_arg(args, long double);
+
+#if	(defined(HAVE_QFCVT) || defined(HAVE__LDFCVT))
+				qftofs(buf, ldval, 0, fa.signific);
+				count += prbuf(buf, &fa);
+				continue;
+#else
+				dval = ldval;
+#endif
+#endif
+			}
 			dval = va_arg(args, double);
 			ftofs(buf, dval, 0, fa.signific);
 			count += prbuf(buf, &fa);
@@ -461,6 +500,23 @@ error sizeof(ptrdiff_t) is unknown
 				fa.signific = 6;
 			if (fa.signific == 0)
 				fa.signific = 1;
+			if (type == 'L') {
+#ifdef	HAVE_LONGDOUBLE
+				long double ldval = va_arg(args, long double);
+
+#if	(defined(HAVE_QGCVT) || defined(HAVE__LDGCVT))
+
+#ifdef	HAVE__LDGCVT
+#define	qgcvt(ld, n, b)	_ldgcvt(*(long_double *)&ld, n, b)
+#endif
+				(void) qgcvt(ldval, fa.signific, buf);
+				count += prbuf(buf, &fa);
+				continue;
+#else
+				dval = ldval;
+#endif
+#endif
+			}
 			dval = va_arg(args, double);
 			(void) gcvt(dval, fa.signific, buf);
 			count += prbuf(buf, &fa);
@@ -516,6 +572,7 @@ error sizeof(ptrdiff_t) is unknown
 				count++;
 				continue;
 			}
+		}
 		}
 		/*
 		 * print numbers:

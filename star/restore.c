@@ -1,15 +1,15 @@
-/* @(#)restore.c	1.62 09/07/11 Copyright 2003-2009 J. Schilling */
+/* @(#)restore.c	1.65 12/02/05 Copyright 2003-2012 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)restore.c	1.62 09/07/11 Copyright 2003-2009 J. Schilling";
+	"@(#)restore.c	1.65 12/02/05 Copyright 2003-2012 J. Schilling";
 #endif
 /*
  *	Data base management for incremental restores
  *	needed to detect and execute rename() and unlink()
  *	operations between two incremental dumps.
  *
- *	Copyright (c) 2003-2009 J. Schilling
+ *	Copyright (c) 2003-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -490,7 +490,7 @@ sym_addrec(info)
 	if (imp == NULL) {
 		sym_dump();
 		comerrno(EX_BAD,
-			"Panic: cannot add node '%s'.\n",
+			"Panic: cannot add node '%s' in sym_addrec().\n",
 			info->f_name);
 	}
 
@@ -571,7 +571,7 @@ sym_addstat(info, imp)
 	if (imp == NULL) {
 		sym_dump();
 		comerrno(EX_BAD,
-			"Panic: cannot add node '%s'.\n",
+			"Panic: cannot add node '%s' in sym_addstat().\n",
 			info->f_name);
 	}
 	if (imp->i_oino == 0) {
@@ -804,7 +804,8 @@ sym_dirprepare(info, idir)
 		if (xdebug)
 			error("Checking ino %lld (%s)...", (Llong)oino2[i], dname2[i]);
 		for (j = 0; j < dlen; j++) {
-/*error("in %lld oino %lld\n", (Llong)in, (Llong)oino[j]);*/
+			if (xdebug > 1)
+				error("in %lld oino %lld\n", (Llong)in, (Llong)oino[j]);
 			if (in == oino[j] && streql(dname2[i], dname[j]))
 				break;
 		}
@@ -1042,7 +1043,16 @@ move2dir(dir, name, oino)
 	}
 	if (xdebug)
 		error("link(%s, %s)\n", tpath, path);
+#ifdef	HAVE_LINK
 	if (link(tpath, path) < 0) {
+#else
+	if (1) {
+#ifdef	ENOSYS
+		seterrno(ENOSYS);
+#else
+		seterrno(EINVAL);
+#endif
+#endif
 		/* XXX error code */
 		errmsg("Cannot link(%s, %s)\n", tpath, path);
 	} else {
@@ -1370,9 +1380,11 @@ static	char	td[] = "star-tmpdir/.";
 #endif
 	}
 	fclose(f);
-/*	printsyms(stderr, iroot);*/
-/*	printLsyms(stderr, iroot);*/
 
+#ifdef	OLDSYM_DEBUG
+	printsyms(stderr, iroot);
+	printLsyms(stderr, iroot);
+#endif
 }
 
 LOCAL int
@@ -1529,9 +1541,12 @@ sym_init(gp)
 {
 	FILE	*f;
 	FINFO	finfo;
-/*extern	char	*vers;*/
-/*error("Star version '%s'\n", vers);*/
-/*	error("imaps: %p level %d\n", imaps, gp->dumplevel);*/
+#ifdef	VERS_DEBUG
+	extern	char	*vers;
+
+	error("Star version '%s'\n", vers);
+	error("imaps: %p level %d\n", imaps, gp->dumplevel);
+#endif
 
 	f = fileopen(sym_lock, "wce");
 	if (f == NULL) {
@@ -2103,7 +2118,7 @@ printLsym(f)
 #endif	/* PRINT_L_SYM */
 
 #ifdef	__needed__
-/*EXPORT BOOL*/
+/* EXPORT BOOL */
 LOCAL BOOL
 dirdiskonly(info, odep, odp)
 	FINFO	*info;

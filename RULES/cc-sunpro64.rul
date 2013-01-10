@@ -1,6 +1,6 @@
-#ident "@(#)cc-sunpro64.rul	1.11 09/01/06 "
+#ident "@(#)cc-sunpro64.rul	1.14 13/01/09 "
 ###########################################################################
-# Written 1996-2009 by J. Schilling
+# Written 1996-2013 by J. Schilling
 ###########################################################################
 #
 # Platform dependent MACROS for SunPro (Studio) cc
@@ -29,6 +29,8 @@ _SUNPROCOPT64=	$(_UNIQ)$(SUN_CC64_OPT)
 __SUNPROCOPT64=	$(_SUNPROCOPT64:$(_UNIQ)=-xarch=generic64)
 SUNPROCOPT64=	$(__SUNPROCOPT64:$(_UNIQ)%=%)
 
+XARCH_GEN=	$(SUNPROCOPT64)
+
 CPPOPTS=	-I$(ARCHDIR) -I$(OINCSDIR) $(INCDIRS:%=-I%) $(INCDIRSX:%=-I%) $(OSDEFS)
 COPTS=		-Xa $(SUNPROCOPT64)
 CWOPTS=		-v
@@ -51,22 +53,30 @@ LIBS_PATH_STATIC= -L$(OLIBSDIR_STATIC)
 LDFLAGS=	$(LDOPTS) $(LDOPTX)
 LDLIBS=		$(LIBS) $(LIBX)
 
+#
+# Sunpro C/C++ run on Solaris and Linux and both have linkers
+# that support mapfiles
+#
+MAPVERS=	$(_MAPVERS) # This enables to use mapfiles
+
 LDOPTS=		$(LIBS_PATH) $(LDPATH) $(RUNPATH)
-LDOPTDYN=	-dy -G -ztext -h $(TARGET) -Mlib$(TARGETLIB)-mapvers -ldl
+LDOPTDYN=	-dy -G -ztext -h $(TARGET) $(PMAPVERS:%=-M%) -ldl
 LNDYNLIB=	@$(RM) $(RM_FORCE) $(PTARGET_BASE).so; $(SYMLINK) $(TARGET) $(PTARGET_BASE).so
 
 FLOAT_OPTIONS=	
 
 CC_COM=		cc
+CC++_COM=	CC
+
 CC=		@echo "	==> COMPILING \"$@\""; $(CC_COM) $(SUNPROCOPT64)
-CC++ =		@echo "	==> COMPILING \"$@\""; CC $(SUNPROCOPT64)
+CC++ =		@echo "	==> COMPILING \"$@\""; $(CC++_COM) $(SUNPROCOPT64)
 LDCC=		@echo "	==> LINKING \"$@\""; $(CC_COM) $(SUNPROCOPT64)
-LDCC++ =	@echo "	==> LINKING \"$@\""; CC $(SUNPROCOPT64)
+LDCC++ =	@echo "	==> LINKING \"$@\""; $(CC++_COM) $(SUNPROCOPT64)
 DYNLD=		@echo "	==> LINKING dynamic library \"$@\""; $(CC_COM) $(SUNPROCOPT64)
-DYNLDC++ =	@echo "	==> LINKING dynamic library \"$@\""; CC $(SUNPROCOPT64)
+DYNLDC++ =	@echo "	==> LINKING dynamic library \"$@\""; $(CC++_COM) $(SUNPROCOPT64)
 
 RMDEP=		:
 MKDEP=		@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(CC_COM) -xM $(SUNPROCOPT64)
 MKDEP_OUT=
-MKC++DEP=	@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); CC -xM $(SUNPROCOPT64)
+MKC++DEP=	@echo "	==> MAKING DEPENDENCIES \"$@\""; $(RMDEP); $(CC++_COM) -xM $(SUNPROCOPT64)
 MKC++DEP_OUT=

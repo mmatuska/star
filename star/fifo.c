@@ -1,8 +1,8 @@
-/* @(#)fifo.c	1.72 09/11/28 Copyright 1989, 1994-2009 J. Schilling */
+/* @(#)fifo.c	1.77 12/01/01 Copyright 1989, 1994-2012 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)fifo.c	1.72 09/11/28 Copyright 1989, 1994-2009 J. Schilling";
+	"@(#)fifo.c	1.77 12/01/01 Copyright 1989, 1994-2012 J. Schilling";
 #endif
 /*
  *	A "fifo" that uses shared memory between two processes
@@ -17,8 +17,9 @@ static	UConst char sccsid[] =
  *		S	fifo_resume() wake up put side after reading first blk
  *		n	fifo_chitape() wake up put side to start wrt Tape chng
  *		N	fifo_chotape()	wake up get side if mp->oblocked == TRUE
+ *		R	fifo_reelwake() wake up put side if mp->reelwait == TRUE
  *
- *	Copyright (c) 1989, 1994-2009 J. Schilling
+ *	Copyright (c) 1989, 1994-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -31,8 +32,6 @@ static	UConst char sccsid[] =
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
-
-/*#define	DEBUG*/
 
 #include <schily/stdio.h>
 #include <schily/stdlib.h>
@@ -79,6 +78,9 @@ static	UConst char sccsid[] =
 #define	EDEBUG(a)
 #endif
 
+	/*
+	 * roundup(x, y), x needs to be unsigned or x+y non-genative.
+	 */
 #undef	roundup
 #define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
 
@@ -124,6 +126,7 @@ EXPORT	void	fifo_owake	__PR((int amount));
 EXPORT	void	fifo_oflush	__PR((void));
 EXPORT	int	fifo_owait	__PR((int amount));
 EXPORT	void	fifo_iwake	__PR((int amt));
+EXPORT	void	fifo_reelwake	__PR((void));
 EXPORT	void	fifo_resume	__PR((void));
 EXPORT	void	fifo_sync	__PR((int size));
 EXPORT	void	fifo_chitape	__PR((void));
@@ -270,10 +273,10 @@ extern	BOOL	cflag;
 	 * Set close on exec() flag so the compress program
 	 * or other programs will not inherit out pipes.
 	 */
-	fcntl(mp->gp[0], F_SETFD, 1);
-	fcntl(mp->gp[1], F_SETFD, 1);
-	fcntl(mp->pp[0], F_SETFD, 1);
-	fcntl(mp->pp[1], F_SETFD, 1);
+	fcntl(mp->gp[0], F_SETFD, FD_CLOEXEC);
+	fcntl(mp->gp[1], F_SETFD, FD_CLOEXEC);
+	fcntl(mp->pp[0], F_SETFD, FD_CLOEXEC);
+	fcntl(mp->pp[1], F_SETFD, FD_CLOEXEC);
 #endif
 
 	mp->putptr = mp->getptr = mp->base;
@@ -331,20 +334,17 @@ fifo_ibs_shrink(newsize)
 	fifo_setparams();
 }
 
-/*---------------------------------------------------------------------------
-|
-| Der eigentliche star Prozess ist immer im Vordergrund.
-| Der Band Prozess ist immer im Hintergrund.
-|
-| Band -> fifo -> star
-| star -> fifo -> star	-copy	flag
-| star -> fifo -> Band	-c	flag
-|
-| Beim Lesen ist der star Prozess der get Prozess.
-| Beim Schreiben ist der star Prozess der put Prozess.
-|
-+---------------------------------------------------------------------------*/
-
+/*
+ * Der eigentliche star Prozess ist immer im Vordergrund.
+ * Der Band Prozess ist immer im Hintergrund.
+ *
+ * Band -> fifo -> star
+ * star -> fifo -> star	-copy	flag
+ * star -> fifo -> Band	-c	flag
+ *
+ * Beim Lesen ist der star Prozess der get Prozess.
+ * Beim Schreiben ist der star Prozess der put Prozess.
+ */
 EXPORT void
 runfifo(ac, av)
 	int		ac;
@@ -385,15 +385,15 @@ runfifo(ac, av)
 			mp->obs = mp->size;
 
 			copy_create(ac, av);
-		} else if (cflag) {
+		} else if (cflag) {	/* In create mode .... */
 			mp->ibs = mp->size;
 			mp->obs = bs;
-			do_out();
+			do_out();	/* Write archive in background */
 		} else {
 			mp->flags |= FIFO_IWAIT;
 			mp->ibs = bs;
 			mp->obs = mp->size;
-			do_in();
+			do_in();	/* Extract mode: read archive in bg. */
 		}
 #ifdef	USE_OS2SHM
 		DosFreeMem(buf);
@@ -468,11 +468,9 @@ fifo_stats()
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| Semaphore wait
-|
-+---------------------------------------------------------------------------*/
+/*
+ * Semaphore wait
+ */
 LOCAL int
 swait(f)
 	int	f;
@@ -506,11 +504,9 @@ swait(f)
 	return ((int)c);
 }
 
-/*---------------------------------------------------------------------------
-|
-| Semaphore wakeup
-|
-+---------------------------------------------------------------------------*/
+/*
+ * Semaphore wakeup
+ */
 LOCAL int
 swakeup(f, c)
 	int	f;
@@ -532,11 +528,9 @@ fifo_amount()
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| wait until at least amount bytes may be put into the fifo
-|
-+---------------------------------------------------------------------------*/
+/*
+ * wait until at least amount bytes may be put into the fifo
+ */
 EXPORT int
 fifo_iwait(amount)
 	int	amount;
@@ -544,6 +538,11 @@ fifo_iwait(amount)
 	register int	cnt;
 	register m_head *rmp = mp;
 
+	if (rmp->chreel) {	/* Block FIFO to allow to change reel */
+		EDEBUG(("C"));
+		rmp->reelwait = TRUE;
+		sputwait(rmp);
+	}
 	if (rmp->flags & FIFO_MEOF) {
 		EDEBUG(("E"));
 		cnt = sputwait(rmp);
@@ -591,11 +590,9 @@ fifo_iwait(amount)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| add amount bytes to putcount and wake up get side if necessary
-|
-+---------------------------------------------------------------------------*/
+/*
+ * add amount bytes to putcount and wake up get side if necessary
+ */
 EXPORT void
 fifo_owake(amount)
 	int	amount;
@@ -628,11 +625,9 @@ fifo_owake(amount)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| send EOF condition to get side
-|
-+---------------------------------------------------------------------------*/
+/*
+ * send EOF condition to get side
+ */
 EXPORT void
 fifo_oflush()
 {
@@ -644,11 +639,9 @@ fifo_oflush()
 	}
 }
 
-/*---------------------------------------------------------------------------
-|
-| wait until at least obs bytes may be taken out of fifo
-|
-+---------------------------------------------------------------------------*/
+/*
+ * wait until at least obs bytes may be taken out of fifo
+ */
 EXPORT int
 fifo_owait(amount)
 	int	amount;
@@ -724,11 +717,9 @@ again:
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| add amount bytes to getcount and wake up put side if necessary
-|
-+---------------------------------------------------------------------------*/
+/*
+ * add amount bytes to getcount and wake up put side if necessary
+ */
 EXPORT void
 fifo_iwake(amt)
 	int	amt;
@@ -751,6 +742,21 @@ fifo_iwake(amt)
 		rmp->iblocked = FALSE;
 		EDEBUG(("s"));
 		sputwakeup(rmp, 's');
+	}
+}
+
+/*
+ * Wake up the put side in case it is wating on rmp->reelwait
+ */
+EXPORT void
+fifo_reelwake()
+{
+	register m_head *rmp = mp;
+
+	if (rmp->reelwait) {
+		rmp->reelwait = FALSE;
+		EDEBUG(("R"));
+		sputwakeup(rmp, 'R');
 	}
 }
 
@@ -1048,7 +1054,9 @@ mkshm(size)
 	 * or
 	 * warning: illegal combination of pointer and integer, op =
 	 */
-/*	extern	char *shmat();*/
+#ifdef	__never__
+	extern	char *shmat();
+#endif
 
 	if ((id = shmget(IPC_PRIVATE, size, IPC_CREAT|0600)) == -1)
 		comerr("shmget failed\n");

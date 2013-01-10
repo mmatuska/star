@@ -1,14 +1,14 @@
-/* @(#)star_unix.c	1.95 09/07/11 Copyright 1985, 1995, 2001-2009 J. Schilling */
+/* @(#)star_unix.c	1.100 11/04/09 Copyright 1985, 1995, 2001-2011 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)star_unix.c	1.95 09/07/11 Copyright 1985, 1995, 2001-2009 J. Schilling";
+	"@(#)star_unix.c	1.100 11/04/09 Copyright 1985, 1995, 2001-2011 J. Schilling";
 #endif
 /*
  *	Stat / mode / owner routines for unix like
  *	operating systems
  *
- *	Copyright (c) 1985, 1995, 2001-2009 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -59,12 +59,12 @@ static	UConst char sccsid[] =
 
 #define	HAVE_POSIX_MODE_BITS	/* st_mode bits are equal to TAR mode bits */
 #endif
-/*#undef	HAVE_POSIX_MODE_BITS*/
 
 #define	ROOT_UID	0
 
 extern	uid_t	my_uid;
 extern	dev_t	curfs;
+extern	BOOL	noatime;
 extern	BOOL	nomtime;
 extern	BOOL	nochown;
 extern	BOOL	pflag;
@@ -309,7 +309,7 @@ again:
 			info->f_rdev = 0;
 			info->f_rdevmaj	= 0;
 			info->f_rdevmin	= 0;
-			info->f_dir = NULL;	/* No directory content known*/
+			info->f_dir = NULL;	/* No directory content known */
 			info->f_dirinos = NULL;	/* No inode list known */
 			info->f_dirlen = 0;
 			info->f_dirents = 0;
@@ -432,11 +432,22 @@ again:
 
 #ifdef	HAVE_ST_BLOCKS
 #if	defined(hpux) || defined(__hpux)
-	if (info->f_size > (sp->st_blocks * 1024 + 1024))
+	if (info->f_size > (sp->st_blocks * 1024 + 1024)) {
 #else
-	if (info->f_size > (sp->st_blocks * 512 + 512))
+	if (info->f_size > (sp->st_blocks * 512 + 512)) {
 #endif
 		info->f_flags |= F_SPARSE;
+
+		/*
+		 * Some filesystems do not allocate disk space for files that
+		 * file consist of one hole and no written data.
+		 * If we are on a platform that does not support to read hole
+		 * lists for sparse files, this allows to avoid wasting time
+		 * reading through the whole file.
+		 */
+		if ((info->f_size > 0) && (sp->st_blocks == 0))
+			info->f_flags |= F_ALL_HOLE;
+	}
 #endif
 
 	/*
@@ -683,10 +694,17 @@ sutimes(name, info)
 	char	*name;
 	FINFO	*info;
 {
+	struct  timeval curtime;
 	struct	timeval tp[3];
 
-	tp[0].tv_sec = info->f_atime;
-	tp[0].tv_usec = info->f_ansec/1000;
+	if (noatime) {
+		gettimeofday(&curtime, 0);
+		tp[0].tv_sec = curtime.tv_sec;
+		tp[0].tv_usec = curtime.tv_usec;
+	} else {
+		tp[0].tv_sec = info->f_atime;
+		tp[0].tv_usec = info->f_ansec/1000;
+	}
 
 	tp[1].tv_sec = info->f_mtime;
 	tp[1].tv_usec = info->f_mnsec/1000;
@@ -741,7 +759,9 @@ xutimes(name, tp)
 		timersub(&pasttime, &tp[2]);
 		timeradd(&curtime, &pasttime);
 		settimeofday(&curtime, 0);
-/*		error("pasttime: %d.%6.6d\n", pasttime.tv_sec, pasttime.tv_usec);*/
+#ifdef	SET_CTIME_DEBUG
+		error("pasttime: %d.%6.6d\n", pasttime.tv_sec, pasttime.tv_usec);
+#endif
 	}
 #endif
 	seterrno(errsav);
@@ -811,7 +831,9 @@ sxsymlink(name, info)
 			curtime.tv_usec -= 1000000;
 		}
 		settimeofday(&curtime, 0);
-/*		error("pasttime.usec: %d\n", pasttime.tv_usec);*/
+#ifdef	SET_CTIME_DEBUG
+		error("pasttime.usec: %d\n", pasttime.tv_usec);
+#endif
 	}
 #endif
 	seterrno(errsav);

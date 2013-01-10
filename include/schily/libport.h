@@ -1,6 +1,6 @@
-/* @(#)libport.h	1.20 09/10/22 Copyright 1995-2009 J. Schilling */
+/* @(#)libport.h	1.33 11/11/24 Copyright 1995-2011 J. Schilling */
 /*
- *	Copyright (c) 1995-2009 J. Schilling
+ *	Copyright (c) 1995-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -51,7 +51,7 @@ extern "C" {
  * Don't #undef HAVE_USLEEP in this file, SCO has a
  * usleep() prototype in unistd.h
  */
-/*#undef	HAVE_USLEEP*/
+/* #undef	HAVE_USLEEP */
 #endif
 
 #ifndef	HAVE_GETHOSTID
@@ -62,6 +62,15 @@ extern	int		getpagesize	__PR((void));
 #endif
 #ifndef	HAVE_USLEEP
 extern	int		usleep		__PR((int usec));
+#endif
+
+#ifndef	HAVE_STRCASECMP
+extern	int		strcasecmp	__PR((const char *, const char *));
+#endif
+#ifdef	FOUND_SIZE_T
+#ifndef	HAVE_STRCASECMP
+extern 	int		strncasecmp	__PR((const char *, const char *, size_t));
+#endif
 #endif
 
 #ifndef	HAVE_STRCAT
@@ -80,24 +89,42 @@ extern	char		*strcpy		__PR((char *s1, const char *s2));
 extern	char		*strdup		__PR((const char *s));
 #endif
 #ifdef	FOUND_SIZE_T
+#ifndef	HAVE_STRNDUP
+extern	char		*strndup	__PR((const char *s, size_t len));
+#endif
 #ifndef	HAVE_STRLEN
 extern	size_t		strlen		__PR((const char *s));
 #endif
+#ifndef	HAVE_STRNLEN
+extern	size_t		strnlen		__PR((const char *s, size_t len));
+#endif
+#ifndef	HAVE_STRLCAT
+extern	size_t		strlcat		__PR((char *s1, const char *s2,
+							size_t len));
+#endif
 #ifndef	HAVE_STRLCPY
-extern	size_t		strlcpy		__PR((char *s1, const char *s2, size_t len));
+extern	size_t		strlcpy		__PR((char *s1, const char *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_STRNCAT
-extern	char		*strncat	__PR((char *s1, const char *s2, size_t len));
+extern	char		*strncat	__PR((char *s1, const char *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_STRNCMP
-extern	int		strncmp		__PR((const char *s1, const char *s2, size_t len));
+extern	int		strncmp		__PR((const char *s1, const char *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_STRNCPY
-extern	char		*strncpy	__PR((char *s1, const char *s2, size_t len));
+extern	char		*strncpy	__PR((char *s1, const char *s2,
+							size_t len));
 #endif
 #endif	/* FOUND_SIZE_T */
 #ifndef	HAVE_STRRCHR
 extern	char		*strrchr	__PR((const char *s1, int c));
+#endif
+
+#ifndef	HAVE_STRSTR
+extern	char		*strstr		__PR((const char *s1, const char *s2));
 #endif
 
 #ifdef	_SCHILY_WCHAR_H
@@ -108,7 +135,8 @@ extern	wchar_t		*wcscat		__PR((wchar_t *s1, const wchar_t *s2));
 extern	wchar_t		*wcschr		__PR((const wchar_t *s1, wchar_t c));
 #endif
 #ifndef	HAVE_WCSCMP
-extern	int		wcscmp		__PR((const wchar_t *s1, const wchar_t *s2));
+extern	int		wcscmp		__PR((const wchar_t *s1,
+							const wchar_t *s2));
 #endif
 #ifndef	HAVE_WCSCPY
 extern	wchar_t		*wcscpy		__PR((wchar_t *s1, const wchar_t *s2));
@@ -117,33 +145,138 @@ extern	wchar_t		*wcscpy		__PR((wchar_t *s1, const wchar_t *s2));
 extern	wchar_t		*wcsdup		__PR((const wchar_t *s));
 #endif
 #ifdef	FOUND_SIZE_T
+#ifndef	HAVE_WCSNDUP
+extern	wchar_t		*wcsndup	__PR((const wchar_t *s, size_t len));
+#endif
 #ifndef	HAVE_WCSLEN
 extern	size_t		wcslen		__PR((const wchar_t *s));
 #endif
+#ifndef	HAVE_WCSNLEN
+extern	size_t		wcsnlen		__PR((const wchar_t *s, size_t len));
+#endif
+#ifndef	HAVE_WCSLCAT
+extern	size_t		wcslcat		__PR((wchar_t *s1, const wchar_t *s2,
+							size_t len));
+#endif
 #ifndef	HAVE_WCSLCPY
-extern	size_t		wcslcpy		__PR((wchar_t *s1, const wchar_t *s2, size_t len));
+extern	size_t		wcslcpy		__PR((wchar_t *s1, const wchar_t *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_WCSNCAT
-extern	wchar_t		*wcsncat	__PR((wchar_t *s1, const wchar_t *s2, size_t len));
+extern	wchar_t		*wcsncat	__PR((wchar_t *s1, const wchar_t *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_WCSNCMP
-extern	int		wcsncmp		__PR((const wchar_t *s1, const wchar_t *s2, size_t len));
+extern	int		wcsncmp		__PR((const wchar_t *s1,
+							const wchar_t *s2,
+							size_t len));
 #endif
 #ifndef	HAVE_WCSNCPY
-extern	wchar_t		*wcsncpy	__PR((wchar_t *s1, const wchar_t *s2, size_t len));
+extern	wchar_t		*wcsncpy	__PR((wchar_t *s1, const wchar_t *s2,
+							size_t len));
 #endif
 #endif	/* FOUND_SIZE_T */
 #ifndef	HAVE_WCSRCHR
 extern	wchar_t		*wcsrchr	__PR((const wchar_t *s1, wchar_t c));
 #endif
+
+#ifndef	HAVE_WCSSTR
+extern	wchar_t		*wcsstr		__PR((const wchar_t *s1, const wchar_t *s2));
+#endif
 #endif	/* _SCHILY_WCHAR_H */
 
 #ifndef	HAVE_RENAME
-extern	int		rename		__PR((const char *old, const char *new));
+extern	int		rename		__PR((const char *old,
+							const char *new));
 #endif
 
+/*
+ * XXX Note: libgen.h / -lgen on Solaris contain eaccess()
+ */
 #ifndef	HAVE_EACCESS
-extern	int		eaccess		__PR((char *name, int mode));
+extern	int		eaccess		__PR((const char *name, int mode));
+#endif
+
+/*
+ * See also libgen.h
+ */
+#ifndef	HAVE_BASENAME
+extern	char		*basename	__PR((char *name));
+#endif
+#ifndef	HAVE_DIRNAME
+extern	char		*dirname	__PR((char *name));
+#endif
+
+#ifndef	HAVE_TIMEGM
+#if	defined(_SCHILY_TIME_H)
+extern	time_t		timegm		__PR((struct tm *));
+#endif
+#endif
+
+#ifndef	HAVE_GETUID
+extern	uid_t	getuid	__PR((void));
+#endif
+#ifndef	HAVE_GETEUID
+extern	uid_t	geteuid	__PR((void));
+#endif
+#ifndef	HAVE_SETUID
+extern	int	setuid	__PR((uid_t uid));
+#endif
+#ifndef	HAVE_SETEUID
+extern	int	seteuid	__PR((uid_t uid));
+#endif
+
+#ifndef	HAVE_GETGID
+extern	gid_t	getgid	__PR((void));
+#endif
+#ifndef	HAVE_GETEGID
+extern	gid_t	getegid	__PR((void));
+#endif
+#ifndef	HAVE_SETGID
+extern	int	setgid	__PR((gid_t gid));
+#endif
+#ifndef	HAVE_SETEGID
+extern	int	setegid	__PR((gid_t gid));
+#endif
+
+#ifndef	HAVE_GETPWNAM
+extern	struct passwd *getpwnam __PR((const char *name));
+#endif
+#ifndef	HAVE_GETPWENT
+extern	struct passwd *getpwent __PR((void));
+#endif
+#ifndef	HAVE_GETPWUID
+extern	struct passwd *getpwuid __PR((uid_t uid));
+#endif
+#ifndef	HAVE_SETPWENT
+extern	void		setpwent __PR((void));
+#endif
+#ifndef	HAVE_ENDPWENT
+extern	void		endpwent __PR((void));
+#endif
+
+
+#ifndef	HAVE_GETGRNAM
+extern	struct group	*getgrnam __PR((const char *name));
+#endif
+#ifndef	HAVE_GETGRENT
+extern	struct group	*getgrent __PR((void));
+#endif
+#ifndef	HAVE_GETGRGID
+extern	struct group	*getgrgid __PR((gid_t gid));
+#endif
+#ifndef	HAVE_SETGRENT
+extern	void		setgrent __PR((void));
+#endif
+#ifndef	HAVE_ENDGRENT
+extern	void		endgrent __PR((void));
+#endif
+
+#ifndef	HAVE_FCHDIR
+extern	int		fchdir __PR((int fd));
+#endif
+#ifndef	HAVE_OPENAT
+extern	int		openat __PR((int fd, const char *name, int oflag, ...));
 #endif
 
 #ifdef	__cplusplus

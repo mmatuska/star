@@ -1,13 +1,13 @@
-/* @(#)extract.c	1.134 09/07/11 Copyright 1985-2009 J. Schilling */
+/* @(#)extract.c	1.141 11/12/03 Copyright 1985-2011 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)extract.c	1.134 09/07/11 Copyright 1985-2009 J. Schilling";
+	"@(#)extract.c	1.141 11/12/03 Copyright 1985-2011 J. Schilling";
 #endif
 /*
  *	extract files from archive
  *
- *	Copyright (c) 1985-2009 J. Schilling
+ *	Copyright (c) 1985-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -352,7 +352,9 @@ extracti(info, imp)
 		return (FALSE);
 	}
 	/*
-	 * If uncond is set, then newer() doesn't call getinfo(&cinfo)
+	 * If uncond is set and neither keep_old nor refresh_old is set,
+	 * then newer() doesn't call getinfo(&cinfo).
+	 * As newer() calls getinfo(&cinfo), it also checks for refresh_old.
 	 */
 	if (newer(info, &cinfo) && !(xdir && is_dir(info))) {
 		void_file(info);
@@ -526,7 +528,7 @@ newer(info, cinfo)
 	FINFO	*cinfo;
 {
 
-	if (uncond)
+	if (uncond && !keep_old && !refresh_old)
 		return (FALSE);
 	if (!_getinfo(info->f_name, cinfo)) {
 		if (refresh_old) {
@@ -540,6 +542,9 @@ newer(info, cinfo)
 			errmsgno(EX_BAD, "file '%s' exists.\n", info->f_name);
 		return (TRUE);
 	}
+	if (uncond)
+		return (FALSE);
+
 	if (xdot) {
 		if (info->f_name[0] == '.' &&
 		    (info->f_name[1] == '\0' ||
@@ -726,7 +731,7 @@ create_dirs(name)
 		return (TRUE);
 	}
 	*dp = '\0';
-	if (access(name, 0) < 0) {
+	if (access(name, F_OK) < 0) {
 		if (_create_dirs(name)) {
 			*dp = '/';
 			return (TRUE);
@@ -1377,11 +1382,19 @@ copy_file(from, to, do_symlink, eflags)
 		return (-2);
 	}
 
+rretry:
 	if ((fin = fileopen(from, "rub")) == 0) {
+		if (geterrno() == EINTR)
+			goto rretry;
 		errmsg("Cannot open '%s'.\n", from);
 	} else {
+wretry:
 		if ((fout = fileopen(to, "wtcub")) == 0) {
-/*			errmsg("Cannot create '%s'.\n", to);*/
+			if (geterrno() == EINTR)
+				goto wretry;
+#ifdef	__really__
+			errmsg("Cannot create '%s'.\n", to);
+#endif
 			return (-1);
 		} else {
 			while ((cnt = ffileread(fin, buf, sizeof (buf))) > 0)
@@ -1561,7 +1574,13 @@ file_open(info, name)
 	FINFO	*info;
 	char	*name;
 {
-	return (filemopen(name, "wctub", osmode(info->f_mode) & mode_mask));
+	FILE	*f;
+
+	while ((f = filemopen(name, "wctub",
+				osmode(info->f_mode) & mode_mask)) == NULL &&
+				geterrno() == EINTR)
+		;
+	return (f);
 }
 
 /*
@@ -1740,7 +1759,10 @@ get_ofile(f, info)
 	if (is_sparse(info)) {
 		ret = get_sparse(f, info);
 	} else if (force_hole) {
-		ret = get_forced_hole(f, info);
+		if (xmeta)
+			ret = get_as_hole(f, info);
+		else
+			ret = get_forced_hole(f, info);
 	} else {
 		ret = xt_file(info, (int(*)__PR((void *, char *, int)))ffilewrite,
 						f, 0, "writing");

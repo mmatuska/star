@@ -1,4 +1,4 @@
-#ident @(#)star_sym.mk	1.9 08/09/10 
+#ident @(#)star_sym.mk	1.10 10/05/13 
 ###########################################################################
 # Sample makefile for general application programs
 ###########################################################################
@@ -17,8 +17,7 @@ CPPOPTS +=	-DSCHILY_PRINT
 
 CFILES=		star_sym.c restore.c dumpdate.c
 LIBS=		-lfind -lschily $(LIB_ACL_TEST) $(LIB_INTL)
-#XMK_FILE=	Makefile.man
-#XMK_FILE=	tartestman.mk
+XMK_FILE=	star_sym.mk1
 
 restore.c dumpdate.c:
 	@echo "	==> MAKING SYMLINKS in ." && sh ./MKLINKS

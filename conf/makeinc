@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# @(#)makeinc	1.5 08/10/12 Copyright 1998 J. Schilling
+# @(#)makeinc	1.6 11/12/16 Copyright 1998 J. Schilling
 ###########################################################################
 # Copyright 1998 by J. Schilling
 ###########################################################################
@@ -92,7 +92,8 @@ gcc -v 2> /dev/null && CC=gcc
 echo "CC:		$CC"
 
 MANSTYLE=sysv
-if [ -r /usr/man/*man7*/man* -o -r /usr/share/man/*man7*/man* \
+if [ -r /usr/man/*man7*/man.* -o -r /usr/share/man/*man7*/man.* \
+	-o -r /usr/man/*man7*/mandoc.* -o -r /usr/share/man/*man7*/mandoc.* \
 	-o -r /usr/man/*man7*/ascii* -o -r /usr/share/man/*man7*/ascii* ]; then 
 	MANSTYLE=bsd
 fi

@@ -1,6 +1,11 @@
-/* @(#)fgetline.c	1.8 04/09/25 Copyright 1986, 1996-2003 J. Schilling */
+/* @(#)fgetline.c	1.12 11/08/09 Copyright 1986, 1996-2011 J. Schilling */
 /*
- *	Copyright (c) 1986, 1996-2003 J. Schilling
+ *	Copyright (c) 1986, 1996-2011 J. Schilling
+ *
+ *	This is an interface that exists in the public since 1982.
+ *	The POSIX.1-2008 standard did ignore POSIX rules not to
+ *	redefine existing public interfaces and redefined the interfaces
+ *	forcing us to add a js_*() prefix to the original functions.
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -14,15 +19,72 @@
  * file and include the License file CDDL.Schily.txt from this distribution.
  */
 
+#define	fgetline	__no__fgetline__
+#define	getline		__no__getline__
+
 #include "schilyio.h"
+
+#ifndef	NO_GETLINE_COMPAT	/* Define to disable backward compatibility */
+#undef	fgetline
+#undef	getline
+#ifdef	HAVE_PRAGMA_WEAK
+#pragma	weak fgetline =	js_fgetline
+#pragma	weak getline =	js_getline
+#else
+
+EXPORT	int	fgetline	__PR((FILE *, char *, int));
+EXPORT 	int	getline		__PR((char *, int));
+
+EXPORT int
+fgetline(f, buf, len)
+	FILE	*f;
+	char	*buf;
+	int	len;
+{
+	return (js_fgetline(f, buf, len));
+}
+
+EXPORT int
+getline(buf, len)
+	char	*buf;
+	int	len;
+{
+	return (js_fgetline(stdin, buf, len));
+}
+#endif
+#endif
 
 /*
  * XXX should we check if HAVE_USG_STDIO is defined and
  * XXX use something line memccpy to speed things up ???
  */
+#if !defined(getc)
+#include <schily/string.h>
 
 EXPORT int
-fgetline(f, buf, len)
+js_fgetline(f, buf, len)
+	register	FILE	*f;
+			char	*buf;
+	register	int	len;
+{
+	char	*bp = fgets(buf, len, f);
+
+	if (bp) {
+		len = strlen(bp);
+
+		if (len > 0) {
+			if (bp[len-1] == '\n')
+				bp[--len] = '\0';
+		}
+		return (len);
+	}
+	buf[0] = '\0';
+	return (-1);
+}
+
+#else
+EXPORT int
+js_fgetline(f, buf, len)
 	register	FILE	*f;
 			char	*buf;
 	register	int	len;
@@ -41,12 +103,14 @@ fgetline(f, buf, len)
 		if (--len > 0) {
 			*bp++ = (char)c;
 		} else {
+#ifdef	__never__
 			/*
 			 * Read up to end of line
 			 */
 			while ((c = getc(f)) >= 0 && c != nl)
 				/* LINTED */
 				;
+#endif
 			break;
 		}
 	}
@@ -59,11 +123,12 @@ fgetline(f, buf, len)
 
 	return (bp - buf);
 }
+#endif
 
 EXPORT int
-getline(buf, len)
+js_getline(buf, len)
 	char	*buf;
 	int	len;
 {
-	return (fgetline(stdin, buf, len));
+	return (js_fgetline(stdin, buf, len));
 }

@@ -1,14 +1,14 @@
-/* @(#)star_sym.c	1.12 09/07/11 Copyright 2005-2009 J. Schilling */
+/* @(#)star_sym.c	1.15 11/10/19 Copyright 2005-2011 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)star_sym.c	1.12 09/07/11 Copyright 2005-2009 J. Schilling";
+	"@(#)star_sym.c	1.15 11/10/19 Copyright 2005-2011 J. Schilling";
 #endif
 /*
  *	Read in the star inode data base and write a human
  *	readable version.
  *
- *	Copyright (c) 2005-2009 J. Schilling
+ *	Copyright (c) 2005-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -34,6 +34,10 @@ static	UConst char sccsid[] =
 #include <schily/schily.h>
 #include <schily/maxpath.h>
 #include "starsubs.h"
+
+#ifndef	HAVE_LSTAT
+#define	lstat	stat
+#endif
 
 struct star_stats	xstats;		/* for printing statistics	*/
 
@@ -227,7 +231,7 @@ extern	BOOL		is_star;
 	return (0);
 }
 
-/*--------------------------------------------------------------------------*/
+/* ------------------------------------------------------------------------- */
 #include <schily/nlsdefs.h>
 
 #include <schily/walk.h>
@@ -310,7 +314,7 @@ walkfunc(nm, fs, type, state)
 		cwd[0] = '\0';
 		getcwd(cwd, sizeof (cwd));
 #else
-		f = open(".", 0);
+		f = open(".", O_SEARCH);
 #endif
 		walkhome(state);
 		lstat(name, &sb);
@@ -350,7 +354,6 @@ doscan(ac, av)
 		fa.std[i] = std[i];
 	}
 	fa.walkflags = WALK_CHDIR | WALK_PHYS;
-/*	fa.walkflags |= WALK_NOSTAT;*/
 	fa.walkflags |= WALK_NOEXIT;
 
 	Tree = 0;

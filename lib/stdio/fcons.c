@@ -1,6 +1,6 @@
-/* @(#)fcons.c	2.18 07/04/03 Copyright 1986, 1995-2007 J. Schilling */
+/* @(#)fcons.c	2.20 10/11/06 Copyright 1986, 1995-2010 J. Schilling */
 /*
- *	Copyright (c) 1986, 1995-2007  J. Schilling
+ *	Copyright (c) 1986, 1995-2010  J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -17,8 +17,8 @@
 #include "schilyio.h"
 
 /*
- * Note that because of a definition in schilyio.h we are using fseeko()/ftello()
- * instead of fseek()/ftell() if available.
+ * Note that because of a definition in schilyio.h we are using
+ * fseeko()/ftello() instead of fseek()/ftell() if available.
  */
 
 LOCAL	char	*fmtab[] = {
@@ -75,5 +75,5 @@ _fcons(fd, f, flag)
 	if (flag & FI_CLOSE)
 		close(f);
 
-	return ((FILE *) NULL);
+	return ((FILE *)NULL);
 }

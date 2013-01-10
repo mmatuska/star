@@ -1,8 +1,8 @@
-/* @(#)find.h	1.20 09/01/13 Copyright 2005-2009 J. Schilling */
+/* @(#)find.h	1.23 11/08/05 Copyright 2005-2011 J. Schilling */
 /*
  *	Definitions for libfind users.
  *
- *	Copyright (c) 2004-2009 J. Schilling
+ *	Copyright (c) 2004-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -72,6 +72,11 @@ typedef struct find_args {
 #define	findn_t	void
 #endif
 
+#ifndef	__sqfun_t_defined
+typedef	int	(*sqfun_t)	__PR((void *arg));
+#define	__sqfun_t_defined
+#endif
+
 #ifndef	__squit_t_defined
 
 typedef struct {
@@ -95,11 +100,15 @@ extern	void	find_firstprim	__PR((int *pac, char *const **pav));
 
 extern	BOOL	find_primary	__PR((findn_t *t, int op));
 extern	BOOL	find_pname	__PR((findn_t *t, char *word));
-extern	BOOL	find_expr	__PR((char *f, char *ff, struct stat *fs, struct WALK *state, findn_t *t));
+extern	BOOL	find_hasprint	__PR((findn_t *t));
+extern	BOOL	find_hasexec	__PR((findn_t *t));
+extern	BOOL	find_expr	__PR((char *f, char *ff, struct stat *fs,
+					struct WALK *state, findn_t *t));
 
 extern	int	find_plusflush	__PR((void *p, struct WALK *state));
 extern	void	find_usage	__PR((FILE *f));
-extern	int	find_main	__PR((int ac, char **av, char **ev, FILE *std[3], squit_t *__quit));
+extern	int	find_main	__PR((int ac, char **av, char **ev,
+					FILE *std[3], squit_t *__quit));
 
 #ifdef	__cplusplus
 }

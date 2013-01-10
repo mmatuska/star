@@ -1,8 +1,8 @@
-/* @(#)align.h	1.7 09/06/06 Copyright 1995-2009 J. Schilling */
+/* @(#)align.h	1.9 12/12/03 Copyright 1995-2012 J. Schilling */
 /*
  *	Platform dependent definitions for aligning data.
  *
- *	Copyright (c) 1995-2009 J. Schilling
+ *	Copyright (c) 1995-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -125,9 +125,26 @@
 #endif
 
 #ifndef	__JS_ARCH_ALIGN_INCL
+/*
+ * #error will not work for all compilers (e.g. sunos4)
+ * The following line will abort compilation on all compilers
+ * if none of the above is defined. And that's  what we want.
+ */
 Error unconfigured architecture
+
+#include <schily/err_arch.h>	/* Avoid "unknown directive" with K&R */
 #endif
 
 #endif	/* SCHILY_BUILD */
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+/*
+ * Fake in order to keep the silly hdrchk(1) quiet.
+ */
+#ifdef	__cplusplus
+}
+#endif
 
 #endif /* _SCHILY_ALIGN_H */

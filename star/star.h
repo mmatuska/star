@@ -1,6 +1,6 @@
-/* @(#)star.h	1.119 09/05/06 Copyright 1985, 1995-2009 J. Schilling */
+/* @(#)star.h	1.125 11/04/12 Copyright 1985, 1995-2011 J. Schilling */
 /*
- *	Copyright (c) 1985, 1995-2009 J. Schilling
+ *	Copyright (c) 1985, 1995-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -20,6 +20,10 @@
 #include <schily/utypes.h>
 #include <schily/time.h>
 #include <schily/types.h>
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 /*
  * Be careful not to overflow off_t when computing tarblocks()
@@ -43,9 +47,9 @@
 #define	H_GNUTAR	5	/* gnu tar format (1989) */
 #define	H_USTAR		6	/* ieee 1003.1-1988 format (1987 ff.) */
 #define	H_XSTAR		7	/* extended 1003.1-1988 format (1994) */
-#define	H_XUSTAR	8	/* ext 1003.1-1988 format without "tar" signature (1998) */
-#define	H_EXUSTAR	9	/* ext 1003.1-2001 format without "tar" signature (2001) */
-#define	H_PAX		10	/* ieee 1003.1-2001 extended ustar format called PAX */
+#define	H_XUSTAR	8	/* ext 1003.1-1988 fmt w/o "tar" sign. (1998) */
+#define	H_EXUSTAR	9	/* ext 1003.1-2001 fmt w/o "tar" sign. (2001) */
+#define	H_PAX		10	/* ieee 1003.1-2001 ext. ustar format (PAX) */
 #define	H_SUNTAR	11	/* Sun's tar implementaion from Solaris 7/8/9 */
 #define	H_TARMAX	11	/* Highest TAR type # */
 #define	H_RES12		12	/* Reserved */
@@ -92,7 +96,9 @@
 #define	C_BZIP2		7	/* Compr. with 'bzip2', unpack with 'bzip2' */
 #define	C_LZO		8	/* Compr. with 'lzop', unpack with 'lzop'   */
 #define	C_7Z		9	/* Compr. with 'p7zip', unpack with 'p7zip' */
-#define	C_MAX		9
+#define	C_XZ		10	/* Compr. with 'xz', unpack with 'xz'	    */
+#define	C_LZIP		11	/* Compr. with 'lzip', unpack with 'lzip'   */
+#define	C_MAX		11
 
 /*
  * Header size values
@@ -256,6 +262,32 @@ struct header {
 	char t_prefix[PFXSIZ];	    /* 345 Prefix fuer t_name		*/
 				    /* 500 Ende				*/
 	char t_mfill[12];	    /* 500 Filler bis 512		*/
+};
+
+/*
+ * This is the ustar (Posix 1003.1) header with extended name arrays.
+ * Extended name arrays are needed to avoid compiler warnings for the code
+ * that deals with 100/155 byte names that are not null terminated.
+ */
+struct name_header {
+	char t_name[NAMSIZ+1];	    /*   0 Dateiname			*/
+	char t_res1[7];		    /* 101 Reserved: t_mode Rest	*/
+	char t_uid[8];		    /* 108 Benutzernummer		*/
+	char t_gid[8];		    /* 116 Benutzergruppe		*/
+	char t_size[12];	    /* 124 Dateigroesze			*/
+	char t_mtime[12];	    /* 136 Zeit d. letzten Aenderung	*/
+	char t_chksum[8];	    /* 148 Checksumme			*/
+	Uchar t_typeflag;	    /* 156 Typ der Datei		*/
+	char t_linkname[NAMSIZ+1];  /* 157 Zielname des Links		*/
+	char t_res2[TMAGLEN-1];	    /* 258 Reserved: t_magic Rest	*/
+	char t_version[TVERSLEN];   /* 263 Version v. star		*/
+	char t_uname[TUNMLEN];	    /* 265 Benutzername			*/
+	char t_gname[TGNMLEN];	    /* 297 Gruppenname			*/
+	char t_devmajor[8];	    /* 329 Major bei Geraeten		*/
+	char t_devminor[8];	    /* 337 Minor bei Geraeten		*/
+	char t_prefix[PFXSIZ+1];    /* 345 Prefix fuer t_name		*/
+				    /* 501 Ende				*/
+	char t_res3[11];	    /* 501 Filler bis 512		*/
 };
 
 /*
@@ -511,6 +543,7 @@ typedef union hblock {
 	struct xstar_in_header xstar_in_dbuf;
 	struct xstar_ext_header xstar_ext_dbuf;
 	struct header ustar_dbuf;
+	struct name_header ndbuf;
 	struct gnu_header gnu_dbuf;
 	struct gnu_in_header gnu_in_dbuf;
 	struct gnu_extended_header gnu_ext_dbuf;
@@ -632,6 +665,7 @@ typedef	struct	{
 #define	F_SAME		0x80000	/* Same symlink of special found	  */
 #define	F_DATA_SKIPPED	0x100000 /* The data part of the file was skipped */
 #define	F_BAD_ACL	0x200000 /* Unsupported ACL encoding type	  */
+#define	F_ALL_HOLE	0x400000 /* File is sparse, one hole with no data */
 
 /*
  * Used with f_xflags
@@ -850,8 +884,12 @@ extern	struct	star_stats	xstats;
  * XXX we know a secure way to let autoconf ckeck for fseeko()/ftello()
  * XXX without defining FILE_OFFSETBITS to 64 in confdefs.h
  */
-#	define	fseek	fseeko
-#	define	ftell	ftello
+#define	fseek	fseeko
+#define	ftell	ftello
+#endif
+
+#ifdef	__cplusplus
+}
 #endif
 
 #endif	/* _STAR_H */

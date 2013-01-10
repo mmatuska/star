@@ -1,11 +1,11 @@
-/* @(#)dumpdate.c	1.21 09/07/11 Copyright 2003-2009 J. Schilling */
+/* @(#)dumpdate.c	1.24 11/08/03 Copyright 2003-2011 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)dumpdate.c	1.21 09/07/11 Copyright 2003-2009 J. Schilling";
+	"@(#)dumpdate.c	1.24 11/08/03 Copyright 2003-2011 J. Schilling";
 #endif
 /*
- *	Copyright (c) 2003-2009 J. Schilling
+ *	Copyright (c) 2003-2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -32,8 +32,6 @@ static	UConst char sccsid[] =
 #include "dumpdate.h"
 #include "starsubs.h"
 
-/*#define	DEBUG*/
-
 #ifdef	HAVE_LARGEFILES
 /*
  * XXX Hack until fseeko()/ftello() are available everywhere or until
@@ -52,8 +50,14 @@ static	UConst char sccsid[] =
 #ifdef	HAVE_FCNTL_LOCKF
 LOCAL	struct flock	__fl;
 #define	flock(fd, flag)	(__fl.l_type = (flag), fcntl(fd, F_SETLKW, &__fl))
+/*
+ * #undef before as AIX has left over junk from a no longer existing flock()
+ */
+#undef	LOCK_EX
 #define	LOCK_EX	F_WRLCK
+#undef	LOCK_SH
 #define	LOCK_SH	F_RDLCK
+#undef	LOCK_UN
 #define	LOCK_UN	F_UNLCK
 #else
 #define	flock(fd, flag)	lockf(fd, flag, (off_t)0)
@@ -65,7 +69,7 @@ LOCAL	struct flock	__fl;
 
 #ifndef	HAVE_LOCKING
 #undef	flock
-#define	flock(fd, flag)
+#define	flock(fd, flag)	(0)
 #endif
 
 LOCAL	dumpd_t	*dumpdates;

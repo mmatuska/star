@@ -1,14 +1,14 @@
-/* @(#)cmpbytes.c	1.21 09/10/17 Copyright 1988, 1995-2009 J. Schilling */
+/* @(#)cmpbytes.c	1.23 10/08/21 Copyright 1988, 1995-2010 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)cmpbytes.c	1.21 09/10/17 Copyright 1988, 1995-2009 J. Schilling";
+	"@(#)cmpbytes.c	1.23 10/08/21 Copyright 1988, 1995-2010 J. Schilling";
 #endif  /* lint */
 /*
  *	compare data
- *	Return the index of the first differing character 
+ *	Return the index of the first differing character
  *
- *	Copyright (c) 1988, 1995-2009 J. Schilling
+ *	Copyright (c) 1988, 1995-2010 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -68,10 +68,12 @@ cmpbytes(fromp, top, cnt)
 
 			n /= (8 * sizeof (long));
 			do {
+				/* BEGIN CSTYLED */
 				DO8(
 					if (*tol++ != *froml++)
 						break;
 				);
+				/* END CSTYLED */
 			} while (--n > 0);
 
 			if (n > 0) {
@@ -89,10 +91,12 @@ cmpbytes(fromp, top, cnt)
 		if (n >= 8) {
 			n -= 8;
 			do {
+				/* BEGIN CSTYLED */
 				DO8(
 					if (*to++ != *from++)
 						goto cdiff;
 				);
+				/* END CSTYLED */
 			} while ((n -= 8) >= 0);
 			n += 8;
 		}

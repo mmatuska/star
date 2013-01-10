@@ -1,6 +1,6 @@
-dnl @(#)configure.in	1.201 09/11/29 Copyright 1998-2009 J. Schilling
+dnl @(#)configure.in	1.243 11/11/22 Copyright 1998-2011 J. Schilling
 dnl Process this file with autoconf to produce a configure script.
-AC_REVISION(1.201)dnl
+AC_REVISION(1.243)dnl
 
 dnl AC_INIT(xconfig.h.in)
 AC_INIT(config.guess)
@@ -16,9 +16,25 @@ AC_BIN_SHELL_BOSH
 AC_OPT_SCHILY_BIN_SHELL_BOSH
 dnl CC=${CC-cc}
 dnl AC_PROG_CC
+AC_CHECK_PROG(CC, cc, cc, gcc)	dnl we default to cc not gcc
+dnl The cross compile concepts from GNU autoconf are not usable.
+dnl We permit to execute test programs on a remote machine while
+dnl running "configure" in a cross compile environment.
+AC_PROG_CC			dnl now check for cross compiling
+dnl cross_compiling=remote	dnl disable GNU cross compile "defaults"
+dnl rmtcall="$CONFIG_RMTCALL"	dnl enable script for remote execution
+dnl remote execution of test programs may be set up with:
+dnl CONFIG_RMTCALL=script-path
+dnl and
+dnl CONFIG_RMTHOST=host or CONFIG_RMTHOST=user@host
+dnl If AC_PROG_CC detects a cross compiler and CONFIG_RMTCALL is set, then
+dnl all test programs are automatically transferred to the test machine
+dnl and run on that machine.
+AC_REMOTE_PARMS			dnl check for correct remote parameters
 AC_OBJEXT
 AC_EXEEXT
 AC_PROG_CPP
+AC_PROG_CPPX
 AC_SUN_CC64_OPT
 AC_HP_CC_ANSI_OPT
 AC_HP_CC_OPT_OPT
@@ -26,6 +42,8 @@ AC_HP_CC_GPROF_OPT
 dnl AC_PROG_INSTALL
 AC_PROG_RANLIB
 AC_PROG_MAKE_SET
+AC_CHECK_PROGS(YACC, yacc 'bison -y' byacc, noyacc)
+AC_CHECK_PROGS(BISON, bison, nobison)
 
 dnl Checks for header files.
 AC_HEADER_STDC
@@ -45,7 +63,8 @@ AC_HEADER_SYS_SELECT
 dnl check whether select() needs sys/socket.h (BeOS)
 AC_HEADER_SELECT2
 AC_CHECK_HEADERS(assert.h)
-AC_CHECK_HEADERS(stdio.h varargs.h stdarg.h stdlib.h stddef.h string.h strings.h unistd.h fcntl.h sys/file.h)
+AC_CHECK_HEADERS(stdio.h varargs.h stdarg.h stdlib.h stddef.h string.h strings.h unistd.h fcntl.h io.h sys/file.h)
+AC_CHECK_HEADERS(conio.h)
 AC_CHECK_HEADERS(getopt.h)
 AC_CHECK_HEADERS(limits.h)
 AC_CHECK_HEADERS(a.out.h aouthdr.h elf.h)
@@ -58,7 +77,9 @@ AC_CHECK_HEADERS(sys/time.h sys/times.h utime.h sys/utime.h sys/ioctl.h sys/fili
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(mach/machine.h)
 AC_CHECK_HEADERS(mntent.h sys/mntent.h sys/mnttab.h sys/mount.h)
-AC_CHECK_HEADERS(sys/fork.h vfork.h wait.h sys/wait.h sys/resource.h procfs.h sys/procfs.h)
+AC_CHECK_HEADERS(sys/fork.h vfork.h wait.h sys/wait.h sys/resource.h procfs.h sys/procfs.h libproc.h)
+AC_CHECK_HEADERS(ulimit.h)
+AC_CHECK_HEADERS(process.h)
 AC_CHECK_HEADERS(sys/utsname.h sys/priocntl.h sys/rtpriocntl.h sys/procset.h)
 AC_CHECK_HEADERS(sys/mtio.h sys/tape.h sys/mman.h linux/pg.h camlib.h)
 AC_CHECK_HEADERS(sys/shm.h sys/sem.h sys/ipc.h)
@@ -75,6 +96,7 @@ AC_CHECK_HEADERS(bsd/dev/scsireg.h)
 dnl Check for HP-UX sys/bsdtty.h (needed for TIOCGPGRP)
 AC_CHECK_HEADERS(sys/bsdtty.h)
 dnl Check for Linux kernel definitions
+AC_CHECK_HEADERS(scsi/scsi.h scsi/sg.h linux/scsi.h linux.sg.h)
 AC_CHECK_HEADERS(linux/types.h linux/gfp.h asm/types.h)
 dnl Check for BeOS kernel definitions (e.g. B_PAGE_SIZE)
 AC_CHECK_HEADERS(OS.h)
@@ -97,6 +119,7 @@ AC_CHECK_HEADERS(exec_attr.h secdb.h)
 AC_CHECK_HEADERS(direct.h)
 AC_CHECK_HEADERS(pthread.h thread.h)
 AC_CHECK_HEADERS(libgen.h)
+AC_CHECK_HEADERS(regex.h regexp.h regexpr.h)
 AC_CHECK_HEADERS(dlfcn.h link.h dl.h)
 
 dnl from aclocal.m4 (uses AC_TRY_COMPILE)
@@ -162,6 +185,132 @@ AC_CHECK_TYPE(u_short, unsigned short)
 AC_CHECK_TYPE(u_int, unsigned int)
 AC_CHECK_TYPE(u_long, unsigned long)
 
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], int8_t, Int8_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], int16_t, Int16_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], int32_t, Int32_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], int64_t, Int64_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], intmax_t, Intmax_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], intptr_t, Intptr_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uint8_t, UInt8_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uint16_t, UInt16_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uint32_t, UInt32_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uint64_t, UInt64_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uintmax_t, UIntmax_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_INTTYPES_H
+[#include <inttypes.h>
+#endif
+#ifdef	HAVE_STDINT_H
+#include <stdint.h>
+#endif
+], uintptr_t, UIntptr_t)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_WCHAR_H
+[#include <wchar.h>
+#endif
+#ifdef	HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+], wctype_t, int)
+
+AC_INCL_CHECK_TYPE(
+#ifdef	HAVE_WCHAR_H
+[#include <wchar.h>
+#endif
+#ifdef	HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+], mbstate_t, int)
+
 AC_CHECK_SIZEOF(char)
 AC_CHECK_SIZEOF(short int)
 AC_CHECK_SIZEOF(int)
@@ -185,6 +334,15 @@ AC_CHECK_SIZEOF(size_t)
 AC_CHECK_SIZEOF(ssize_t)
 AC_CHECK_SIZEOF(ptrdiff_t)
 
+AC_CHECK_SIZEOF(mode_t)
+AC_CHECK_SIZEOF(uid_t)
+AC_CHECK_SIZEOF(gid_t)
+AC_CHECK_SIZEOF(pid_t)
+
+AC_CHECK_SIZEOF(dev_t)
+AC_CHECK_SIZEOF(major_t)
+AC_CHECK_SIZEOF(minor_t)
+
 dnl This call must be past AC_CHECK_SIZEOF(long int)
 AC_CHECK_SIZE_TIME_T
 AC_CHECK_SIZE_WCHAR
@@ -193,6 +351,8 @@ AC_CHECK_SIZE_WCHAR_T
 dnl # AC_TYPE_SIZE_T_		# Defines HAVE_SIZE_T / NO_SIZE_T
 AC_TYPE_CHAR
 AC_TYPE_VA_LIST
+AC_HEADER_FILE__FLAGS
+AC_HEADER_FILE__IO_BUF_BASE
 AC_STRUCT_TIMEVAL
 AC_STRUCT_TIMEZONE
 AC_STRUCT_MTGET_TYPE
@@ -215,6 +375,7 @@ AC_STRUCT_UNION_WAIT
 AC_USE_STRUCT_UNION_WAIT
 AC_STRUCT_ST_SPARE1
 AC_STRUCT_ST_ATIMENSEC
+AC_STRUCT_ST_ATIME_N
 AC_STRUCT_ST_NSEC
 AC_STRUCT_ST__TIM
 AC_STRUCT_ST_ATIMESPEC
@@ -223,6 +384,7 @@ AC_STRUCT_ST_BLOCKS
 AC_STRUCT_ST_FSTYPE
 AC_STRUCT_ST_ACLCNT
 AC_STRUCT_ST_RDEV
+AC_STRUCT_ST_FLAG
 AC_STRUCT_ST_FLAGS
 AC_STRUCT_DIRENT_D_INO
 AC_STRUCT_DIR_DD_FD
@@ -255,6 +417,7 @@ AC_FUNC_FCVT
 AC_FUNC_GCVT
 AC_FUNC_DTOA
 AC_FUNC_DTOA_R
+AC_FUNC_GETPAGESIZE
 jsAC_FUNC_MMAP
 AC_MMAP_SIZEP
 AC_FUNC_SMMAP
@@ -272,8 +435,11 @@ AC_FUNC_C99_ISINF
 AC_FUNC_C99_ISNAN
 AC_FUNC_SIGSETJMP
 AC_FUNC_SIGLONGJMP
+AC_FUNC_PRINTF_J
+AC_FUNC_PRINTF_LL
+AC_FUNC_REALLOC_NULL
 AC_CHECK_FUNCS(access eaccess euidaccess)
-AC_CHECK_FUNCS(memchr memcpy memmove memset)
+AC_CHECK_FUNCS(memchr memcmp memcpy memccpy memmove memset)
 AC_CHECK_FUNCS(brk sbrk strerror nice flock lockf fchdir statvfs quotactl)
 AC_CHECK_FUNCS(realpath resolvepath)
 AC_CHECK_FUNCS(dup dup2)
@@ -285,27 +451,42 @@ AC_CHECK_FUNCS(getuid geteuid getgid getegid)
 AC_CHECK_FUNCS(getpid getppid)
 AC_CHECK_FUNCS(getpgid setpgid getsid setsid)
 AC_CHECK_FUNCS(getpgrp setpgrp)
+AC_CHECK_FUNCS(getpwnam getpwent getpwuid setpwent endpwent)
+AC_CHECK_FUNCS(getgrnam getgrent getgrgid setgrent endgrent)
 dnl			getspwnam() on HP-UX is in libsec.a
 AC_CHECK_FUNCS(getspnam getspwnam)
+AC_CHECK_FUNCS(getlogin)
 AC_CHECK_FUNCS(sync fsync fork forkx vforkx forkall forkallx wait wait4 waitid waitpid getrusage getrlimit setrlimit ulimit)
 AC_CHECK_FUNCS(execl execle execlp execv execve execvp)
+AC_CHECK_FUNCS(spawnl spawnle spawnlp spawnlpe)
+AC_CHECK_FUNCS(spawnv spawnve spawnvp spawnvpe)
+AC_CHECK_FUNCS(cwait)
 AC_CHECK_FUNCS(getexecname)
 AC_CHECK_FUNCS(getprogname setprogname)
-AC_CHECK_FUNCS(gethostid gethostname getdomainname getpagesize getdtablesize)
+AC_CHECK_FUNCS(proc_pidpath)
+AC_CHECK_FUNCS(gethostid gethostname getdomainname getdtablesize)
 AC_CHECK_FUNCS(gettimeofday settimeofday time stime gethrtime)
 AC_CHECK_FUNCS(ftime tzset mktime gmtime localtime timegm timelocal)
 AC_CHECK_FUNCS(ctime cftime ascftime strftime)
 AC_CHECK_FUNCS(poll select isastream)
 AC_CHECK_FUNCS(chown fchown lchown chmod fchmod lchmod times utime utimes futimes lutimes)
 AC_CHECK_FUNCS(futimens utimensat)
+AC_CHECK_FUNCS(ioctl fcntl)
 dnl AC_CHECK_FUNCS(ecvt fcvt gcvt)
+AC_CHECK_FUNCS(qecvt qfcvt qgcvt)
+AC_CHECK_FUNCS(_qecvt _qfcvt _qgcvt)
+AC_CHECK_FUNCS(_qecvt_r _qfcvt_r _qgcvt_r)
+AC_CHECK_FUNCS(_ldecvt _ldfcvt _ldgcvt)
 AC_CHECK_FUNCS(ecvt_r fcvt_r gcvt_r)
+AC_CHECK_FUNCS(_ldecvt_r _ldfcvt_r _ldgcvt_r)
 AC_CHECK_FUNCS(econvert fconvert gconvert)
+AC_CHECK_FUNCS(qeconvert qfconvert qgconvert)
 AC_CHECK_FUNCS(isinf isnan)
 AC_CHECK_FUNCS(rand drand48)
 AC_CHECK_FUNCS(strtol strtoll strtoul strtoull strtod)
 AC_CHECK_FUNCS(setpriority DosSetPriority)
 AC_CHECK_FUNCS(DosAllocSharedMem)
+AC_CHECK_FUNCS(getdelim)
 AC_CHECK_FUNCS(seekdir fdopendir)
 dnl These are POSIX.1 functions (syscalls on Solaris)
 AC_CHECK_FUNCS(openat fstatat fchownat futimesat renameat unlinkat)
@@ -317,17 +498,41 @@ dnl This appeared not yet in POSIX
 AC_CHECK_FUNCS(accessat)
 dnl This are POSIX extensions not found on Solaris 10
 AC_CHECK_FUNCS(mkdirat faccessat fchmodat linkat mkfifoat mknodat readlinkat symlinkat)
+AC_CHECK_FUNCS(pipe _pipe)
 AC_CHECK_FUNCS(popen pclose _popen _pclose)
 AC_CHECK_FUNCS(strsignal str2sig sig2str)
 AC_CHECK_FUNCS(kill killpg)
-AC_CHECK_FUNCS(signal sigrelse sigprocmask sigsetmask sigset sigaltstack)
-AC_CHECK_FUNCS(sleep usleep yield)
-AC_CHECK_FUNCS(tcgetattr tcsetattr tcgetpgrp tcsetpgrp)
+AC_CHECK_FUNCS(signal sighold sigrelse sigignore sigpause sigprocmask sigsetmask sigset sigaltstack sigblock)
+AC_CHECK_FUNCS(alarm sleep usleep yield)
+dnl tcgetattr and tcsetattr are a inline functions in termios.h on Android
+AC_CHECK_DFUNC([
+#ifdef	HAVE_TERMIOS_H
+#include <termios.h>
+#endif
+], tcgetattr)
+AC_CHECK_DFUNC([
+#ifdef	HAVE_TERMIOS_H
+#include <termios.h>
+#endif
+], tcsetattr)
+AC_CHECK_FUNCS(tcgetpgrp tcsetpgrp)
 AC_CHECK_FUNCS(getenv putenv setenv unsetenv)
-AC_CHECK_FUNCS(snprintf strcasecmp)
-AC_CHECK_FUNCS(strcat strncat strcmp strncmp strcpy strlcpy strncpy strdup strlen strchr strrchr)
-AC_CHECK_FUNCS(wcscat wcsncat wcscmp wcsncmp wcscpy wcslcpy wcsncpy wcsdup wcslen wcschr wcsrchr)
+AC_CHECK_FUNCS(snprintf strcasecmp strncasecmp)
+
+AC_CHECK_DFUNCS([
+#ifdef	HAVE_STRING_H
+#include <string.h>
+#endif
+], strcat strncat strcmp strncmp strcpy strlcat strlcpy strncpy strdup strndup strlen strnlen strchr strrchr strstr)
+AC_CHECK_DFUNCS([
+#ifdef	HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+], wcscat wcsncat wcscmp wcsncmp wcscpy wcslcat wcslcpy wcsncpy wcsdup wcsndup wcslen wcsnlen wcschr wcsrchr wcsstr)
+
 AC_CHECK_FUNCS(wcwidth wcswidth wctype iswctype)
+AC_CHECK_FUNCS(basename dirname)
+AC_CHECK_FUNCS(pathconf fpathconf)
 AC_CHECK_FUNCS(malloc calloc valloc realloc memalign posix_memalign)
 AC_CHECK_FUNCS(madvise)
 AC_CHECK_FUNCS(mktemp mkstemp)
@@ -374,6 +579,45 @@ AC_CHECK_DFUNC([
 #endif
 ], iswprint)
 
+AC_CHECK_DFUNC([
+#ifdef	HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+#ifdef	HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+], mbsinit)
+
+AC_CHECK_DFUNC([
+#ifdef	HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+], mbtowc)
+
+AC_CHECK_DFUNC([
+#ifdef	HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+], wctomb)
+
+AC_CHECK_DFUNC([
+#ifdef	HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+#ifdef	HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+], mbrtowc)
+
+AC_CHECK_DFUNC([
+#ifdef	HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+#ifdef	HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+], wcrtomb)
+
 AC_CHECK_DFUNC([#include <ieeefp.h>], finite)
 AC_CHECK_DFUNC([#include <ieeefp.h>], isnand)
 
@@ -383,11 +627,14 @@ AC_USER_MALLOC
 dnl AC_USER_XCVT test macro does not yet work
 AC_VAR_TIMEZONE
 AC_VAR_TIMEZONE_DEF
+AC_VAR___PROGNAME
+AC_VAR___PROGNAME_FULL
 
 dnl Checks for OS characteristics.
 AC_HARD_SYMLINKS
 AC_LINK_NOFOLLOW
 AC_ACCESS_E_OK
+AC_FNMATCH_IGNORECASE
 
 dnl Need to check this in default compilation mode to find out
 dnl whether this platform supports both functions by default too.
@@ -401,10 +648,22 @@ AC_CHECK_LIB(c, dlopen, lib_dl="",
   [AC_CHECK_LIB(dl, dlopen, lib_dl="-ldl")])
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_dl"
-AC_CHECK_FUNCS(dlopen dlclose dlsym dlerror)
+AC_CHECK_FUNCS(dlopen dlclose dlsym dlerror dlinfo)
 AC_CHECK_FUNCS(shl_load shl_unload shl_gethandle)
-AC_CHECK_FUNCS(LoadLibrary FreeLibrary GetProcAddress)
 LIBS="$ac_save_LIBS"
+if test ."$lib_dl" = .""; then
+	AC_DEFINE(HAVE_DLOPEN_IN_LIBC)
+fi
+
+AC_CHECK_DFUNCS([
+#ifdef	HAVE_WINDOWS_H
+#undef	u_char
+#undef	u_short
+#undef	u_int
+#undef	u_long
+#include <windows.h>
+#endif
+], LoadLibrary FreeLibrary GetProcAddress)
 
 dnl ??? AC_CHECK_LIB(socket, socket, lib_socket="-lsocket")
 dnl
@@ -559,27 +818,9 @@ AC_CHECK_FUNCS(nanosleep)
 LIBS="$ac_save_LIBS"
 
 dnl Misc OS checks.
-AC_MSG_CHECKING(for /dev/tty)
-if test -r /dev/tty; then
-	echo yes
-	AC_DEFINE(HAVE_DEV_TTY)
-else
-	echo no
-fi
-AC_MSG_CHECKING(for /dev/null)
-if test -r /dev/null; then
-	echo yes
-	AC_DEFINE(HAVE_DEV_NULL)
-else
-	echo no
-fi
-AC_MSG_CHECKING(for /dev/zero)
-if test -r /dev/zero; then
-	echo yes
-	AC_DEFINE(HAVE_DEV_ZERO)
-else
-	echo no
-fi
+AC_CHECK_FILES(/dev/tty /dev/null /dev/zero)
+AC_CHECK_FILES(/dev/stdin /dev/stdout /dev/stderr)
+AC_CHECK_FILES(/dev/fd/0 /dev/fd/1 /dev/fd/2)
 
 dnl Checks for OS madness.
 UNAME=`uname || true`

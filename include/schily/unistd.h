@@ -1,8 +1,8 @@
-/* @(#)unistd.h	1.21 09/07/27 Copyright 1996-2009 J. Schilling */
+/* @(#)unistd.h	1.25 12/11/13 Copyright 1996-2012 J. Schilling */
 /*
  *	Definitions for unix system interface
  *
- *	Copyright (c) 1996-2009 J. Schilling
+ *	Copyright (c) 1996-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -119,15 +119,30 @@
 extern	char	**environ;
 #endif
 
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
 #if	!defined(HAVE_UNISTD_H) || !defined(_POSIX_VERSION)
 /*
  * Maybe we need a lot more definitions here...
  * It is not clear whether we should have prototyped definitions.
  */
+#ifndef	_MSC_VER
+/*
+ * MS C comes with broken prototypes in wrong header files (in our case, the
+ * wrong prototype is in io.h). Avoid to redefine the broken MS stuff with
+ * correct prototypes.
+ */
 extern	int	access	__PR((const char *, int));
 extern	int	close	__PR((int));
 extern	int	dup	__PR((int));
 extern	int	dup2	__PR((int, int));
+extern	int	link	__PR((const char *, const char *));
+extern	int	read	__PR((int, void *, size_t));
+extern	int	unlink	__PR((const char *));
+extern	int	write	__PR((int, const void *, size_t));
+#endif
 #ifndef	_MSC_VER
 /*
  * MS C comes with broken prototypes in wrong header files (in our case, the
@@ -136,10 +151,24 @@ extern	int	dup2	__PR((int, int));
  */
 extern	void	_exit	__PR((int));
 #endif
-extern	int	link	__PR((const char *, const char *));
-extern	int	read	__PR((int, void *, size_t));
-extern	int	unlink	__PR((const char *));
-extern	int	write	__PR((int, const void *, size_t));
+#endif
+
+#if !defined(HAVE_PIPE) && defined(HAVE__PIPE) && defined(HAVE_IO_H)
+#ifndef	_SCHILY_LIMITS_H
+#include <schily/limits.h>	/* for PIPE_BUF */
+#endif
+#ifndef	_SCHILY_FCNTL_H
+#include <schily/fcntl.h>	/* for O_BINARY */
+#endif
+#ifndef	_SCHILY_IO_H
+#include <schily/io.h>		/* for _pipe() */
+#endif
+
+#define	pipe(pp)	_pipe(pp, PIPE_BUF, O_BINARY)
+#endif
+
+#ifdef	__cplusplus
+}
 #endif
 
 #endif	/* _SCHILY_UNISTD_H */

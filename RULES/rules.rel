@@ -1,4 +1,4 @@
-#ident @(#)rules.rel	1.7 07/06/10 
+#ident @(#)rules.rel	1.9 11/04/14 
 ###########################################################################
 # Written 2001 by J. Schilling
 ###########################################################################
@@ -23,7 +23,16 @@ MAKE_LICENSE=MKGNU2
 REL_SRC_MATCH=cat
 REL_MAKEFILE_MATCH=cat
 
-rel: $(CFILES:%=release/%) $(HFILES:%=release/%) $(XRELFILES:%=release/%)
+DRELFILES=	$(CFILES:%=release/%) $(HFILES:%=release/%) $(XRELFILES:%=release/%)
+
+_RELFILES=	$(_UNIQ)$(RELFILES)
+__RELFILES=	$(_RELFILES:$(_UNIQ)=$(DRELFILES))
+RELFILES_=      $(__RELFILES:$(_UNIQ)%=%)
+
+rel: release/ $(RELFILES_)
+
+release/:
+	$(MKDIR) -p $@
 
 release/%.c: %.c
 	rm -f $@

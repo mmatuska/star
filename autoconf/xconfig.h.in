@@ -1,14 +1,22 @@
-/* @(#)xconfig.h.in	1.187 09/11/29 Copyright 1998-2009 J. Schilling */
+/* @(#)xconfig.h.in	1.228 11/11/22 Copyright 1998-2011 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
+ *	Do not edit, this file has been created automatically.
  *
- *	Copyright (c) 1998-2009 J. Schilling
+ *	Copyright (c) 1998-2011 J. Schilling
+ *
+ *	The layout for this file is controlled by "configure".
+ *	Switch off cstyle(1) checks for now.
  */
+#ifndef	__XCONFIG_H
+#define	__XCONFIG_H
+/* BEGIN CSTYLED */
 
 /*
  * Header Files
  */
 #undef PROTOTYPES	/* if Compiler supports ANSI C prototypes */
+#undef HAVE_INLINE	/* if Compiler supports "inline" keyword */
 #undef HAVE_ASSERT_H	/* to use stdio.h */
 #undef HAVE_STDIO_H	/* to use stdio.h */
 #undef HAVE_STDARG_H	/* to use stdarg.h, else use varargs.h NOTE: SaberC on a Sun has prototypes but no stdarg.h */
@@ -25,6 +33,8 @@
 #undef HAVE_AOUTHDR_H	/* if aouthdr.h is present. This is a COFF system */
 #undef HAVE_ELF_H	/* if elf.h is present. This is an ELF system */
 #undef HAVE_FCNTL_H	/* to access, O_XXX constants for open(), otherwise use sys/file.h */
+#undef HAVE_IO_H	/* to access setmode()... from WIN-DOS, OS/2 and similar */
+#undef HAVE_CONIO_H	/* to access getch()... from WIN-DOS, OS/2 and similar */
 #undef HAVE_SYS_FILE_H	/* to use O_XXX constants for open() and flock() defs */
 #undef HAVE_INTTYPES_H	/* to use UNIX-98 inttypes.h */
 #undef HAVE_STDINT_H	/* to use SUSv3 stdint.h */
@@ -68,9 +78,12 @@
 #undef HAVE_SYS_MOUNT_H		/* if sys/mount.h is present */
 #undef HAVE_WAIT_H		/* to use wait.h for prototypes and union wait */
 #undef HAVE_SYS_WAIT_H		/* else use sys/wait.h */
+#undef HAVE_ULIMIT_H		/* to use ulimit() as fallback for getrlimit()  */
+#undef HAVE_PROCESS_H		/* to use process.h for spawn*() and cwait() */
 #undef HAVE_SYS_RESOURCE_H	/* to use sys/resource.h for rlimit() and wait3() */
 #undef HAVE_PROCFS_H		/* to use procfs.h instead of sys/procfs.h (Solaris forces profcs-2) */
 #undef HAVE_SYS_PROCFS_H	/* to use sys/procfs.h for wait3() emulation */
+#undef HAVE_LIBPROC_H		/* to use libproc.h (Mac OS X) */
 #undef HAVE_SYS_SYSTEMINFO_H	/* to use SVr4 sysinfo() */
 #undef HAVE_SYS_SYSCTL_H	/* to use BSD sysctl() */
 #undef HAVE_SYS_UTSNAME_H	/* to use uname() */
@@ -124,6 +137,10 @@
 #undef HAVE_ARPA_INET_H		/* if we have arpa/inet.h (missing on BeOS) */
 				/* BeOS has inet_ntoa() in <netdb.h> */
 #undef HAVE_BSD_DEV_SCSIREG_H	/* if we have a NeXT Step compatible sg driver */
+#undef HAVE_SCSI_SCSI_H		/* if we may include scsi/scsi.h */
+#undef HAVE_SCSI_SG_H		/* if we may include scsi/sg.h */
+#undef HAVE_LINUX_SCSI_H	/* if we may include linux/scsi.h */
+#undef HAVE_LINUX_SG_H		/* if we may include linux/sg.h */
 #undef HAVE_LINUX_TYPES_H	/* if we may include linux/types.h */
 #undef HAVE_LINUX_GFP_H		/* if we may include linux/gfp.h */
 #undef HAVE_ASM_TYPES_H		/* if we may include asm/types.h */
@@ -156,6 +173,9 @@
 #undef HAVE_THREAD_H		/* if we may include thread.h */
 
 #undef HAVE_LIBGEN_H		/* if we may include libgen.h */
+#undef HAVE_REGEX_H		/* if we may include regex.h */
+#undef HAVE_REGEXP_H		/* if we may include regexp.h */
+#undef HAVE_REGEXPR_H		/* if we may include regexpr.h */
 
 #undef HAVE_DLFCN_H		/* if we may include dlfcn.h */
 #undef HAVE_LINK_H		/* if we may include linh.h */
@@ -198,7 +218,9 @@
 #undef HAVE_CRYPT		/* crypt() is present in libc or libcrypt */
 #undef HAVE_STRERROR		/* strerror() is present in libc */
 #undef HAVE_MEMCHR		/* memchr() is present in libc */
+#undef HAVE_MEMCMP		/* memcmp() is present in libc */
 #undef HAVE_MEMCPY		/* memcpy() is present in libc */
+#undef HAVE_MEMCCPY		/* memccpy() is present in libc */
 #undef HAVE_MEMMOVE		/* memmove() is present in libc */
 #undef HAVE_MEMSET		/* memset() is present in libc */
 #undef HAVE_MADVISE		/* madvise() is present in libc */
@@ -211,6 +233,7 @@
 #undef HAVE_FCNTL_LOCKF		/* file locking via fcntl() is present in libc */
 #undef HAVE_FCHDIR		/* fchdir() is present in libc */
 #undef HAVE_FDOPENDIR		/* fdopendir() is present in libc */
+#undef HAVE_GETDELIM		/* getdelim() is present in libc */
 #undef HAVE_OPENAT		/* openat() is present in libc */
 #undef HAVE_ATTROPEN		/* attropen() is present in libc */
 #undef HAVE_FSTATAT		/* fstatat() is present in libc */
@@ -235,6 +258,10 @@
 #undef HAVE_SYMLINKAT		/* symlinkat() is present in libc */
 #undef HAVE_FUTIMENS		/* futimens() is present in libc */
 #undef HAVE_UTIMENSAT		/* utimensat() is present in libc */
+#undef HAVE_IOCTL		/* ioctl() is present in libc */
+#undef HAVE_FCNTL		/* fcntl() is present in libc */
+#undef HAVE_PIPE		/* pipe() is present in libc */
+#undef HAVE__PIPE		/* _pipe() is present in libc */
 #undef HAVE_POPEN		/* popen() is present in libc */
 #undef HAVE_PCLOSE		/* pclose() is present in libc */
 #undef HAVE__POPEN		/* _popen() is present in libc */
@@ -264,8 +291,19 @@
 #undef HAVE_SETPGRP		/* setpgrp() is present in libc (ANY) */
 #undef HAVE_BSD_GETPGRP		/* getpgrp() in libc is BSD-4.2 compliant */
 #undef HAVE_BSD_SETPGRP		/* setpgrp() in libc is BSD-4.2 compliant */
+#undef HAVE_GETPWNAM		/* getpwnam() in libc */
+#undef HAVE_GETPWENT		/* getpwent() in libc */
+#undef HAVE_GETPWUID		/* getpwuid() in libc */
+#undef HAVE_SETPWENT		/* setpwent() in libc */
+#undef HAVE_ENDPWENT		/* endpwent() in libc */
+#undef HAVE_GETGRNAM		/* getgrnam() in libc */
+#undef HAVE_GETGRENT		/* getgrent() in libc */
+#undef HAVE_GETGRGID		/* getgrgid() in libc */
+#undef HAVE_SETGRENT		/* setgrent() in libc */
+#undef HAVE_ENDGRENT		/* endgrent() in libc */
 #undef HAVE_GETSPNAM		/* getspnam() in libc (SVR4 compliant) */
 #undef HAVE_GETSPWNAM		/* getspwnam() in libsec.a (HP-UX) */
+#undef HAVE_GETLOGIN		/* getlogin() in libc */
 #undef HAVE_SYNC		/* sync() is present in libc */
 #undef HAVE_FSYNC		/* fsync() is present in libc */
 #undef HAVE_TCGETATTR		/* tcgetattr() is present in libc */
@@ -277,6 +315,7 @@
 #undef HAVE_WAIT4		/* wait4() is present in libc */
 #undef HAVE_WAITID		/* waitid() is present in libc */
 #undef HAVE_WAITPID		/* waitpid() is present in libc */
+#undef HAVE_CWAIT		/* cwait() is present in libc */
 #undef HAVE_GETHOSTID		/* gethostid() is present in libc */
 #undef HAVE_GETHOSTNAME		/* gethostname() is present in libc */
 #undef HAVE_GETDOMAINNAME	/* getdomainname() is present in libc */
@@ -343,9 +382,27 @@
 #undef HAVE_ECVT_R		/* ecvt_r() is present in libc */
 #undef HAVE_FCVT_R		/* fcvt_r() is present in libc */
 #undef HAVE_GCVT_R		/* gcvt_r() is present in libc */
+#undef HAVE_QECVT		/* qecvt() is present in libc */
+#undef HAVE_QFCVT		/* qfcvt() is present in libc */
+#undef HAVE_QGCVT		/* qgcvt() is present in libc */
+#undef HAVE__QECVT		/* _qecvt() is present in libc */
+#undef HAVE__QFCVT		/* _qfcvt() is present in libc */
+#undef HAVE__QGCVT		/* _qgcvt() is present in libc */
+#undef HAVE__QECVT_R		/* _qecvt_r() is present in libc */
+#undef HAVE__QFCVT_R		/* _qfcvt_r() is present in libc */
+#undef HAVE__QGCVT_R		/* _qgcvt_r() is present in libc */
+#undef HAVE__LDECVT		/* _ldecvt() is present in libc */
+#undef HAVE__LDFCVT		/* _ldfcvt() is present in libc */
+#undef HAVE__LDGCVT		/* _ldgcvt() is present in libc */
+#undef HAVE__LDECVT_R		/* _ldecvt_r() is present in libc */
+#undef HAVE__LDFCVT_R		/* _ldfcvt_r() is present in libc */
+#undef HAVE__LDGCVT_R		/* _ldgcvt_r() is present in libc */
 #undef HAVE_ECONVERT		/* econvert() is present in libc */
 #undef HAVE_FCONVERT		/* fconvert() is present in libc */
 #undef HAVE_GCONVERT		/* gconvert() is present in libc */
+#undef HAVE_QECONVERT		/* qeconvert() is present in libc */
+#undef HAVE_QFCONVERT		/* qfconvert() is present in libc */
+#undef HAVE_QGCONVERT		/* qgconvert() is present in libc */
 #undef HAVE_ISINF		/* isinf() is present in libc */
 #undef HAVE_ISNAN		/* isnan() is present in libc */
 #undef HAVE_C99_ISINF		/* isinf() is present in math.h/libc */
@@ -376,13 +433,22 @@
 #undef HAVE_STRCMP		/* strcmp() is present in libc */
 #undef HAVE_STRNCMP		/* strncmp() is present in libc */
 #undef HAVE_STRCPY		/* strcpy() is present in libc */
+#undef HAVE_STRLCAT		/* strlcat() is present in libc */
 #undef HAVE_STRLCPY		/* strlcpy() is present in libc */
 #undef HAVE_STRNCPY		/* strncpy() is present in libc */
 #undef HAVE_STRDUP		/* strdup() is present in libc */
+#undef HAVE_STRNDUP		/* strndup() is present in libc */
 #undef HAVE_STRLEN		/* strlen() is present in libc */
+#undef HAVE_STRNLEN		/* strnlen() is present in libc */
 #undef HAVE_STRCHR		/* strchr() is present in libc */
 #undef HAVE_STRRCHR		/* strrchr() is present in libc */
+#undef HAVE_STRSTR		/* strstr() is present in libc */
 #undef HAVE_STRCASECMP		/* strcasecmp() is present in libc */
+#undef HAVE_STRNCASECMP		/* strncasecmp() is present in libc */
+#undef HAVE_BASENAME		/* basename() is present in libc */
+#undef HAVE_DIRNAME		/* dirname() is present in libc */
+#undef HAVE_PATHCONF		/* pathconf() is present in libc */
+#undef HAVE_FPATHCONF		/* fpathconf() is present in libc */
 #undef HAVE_STRTOL		/* strtol() is present in libc */
 #undef HAVE_STRTOLL		/* strtoll() is present in libc */
 #undef HAVE_STRTOUL		/* strtoul() is present in libc */
@@ -396,12 +462,17 @@
 #undef HAVE_KILL		/* kill() is present in libc */
 #undef HAVE_KILLPG		/* killpg() is present in libc */
 #undef HAVE_SIGNAL		/* signal() is present in libc */
+#undef HAVE_SIGHOLD		/* sighold() is present in libc */
 #undef HAVE_SIGRELSE		/* sigrelse() is present in libc */
+#undef HAVE_SIGIGNORE		/* sigignore() is present in libc */
+#undef HAVE_SIGPAUSE		/* sigpause() is present in libc */
 #undef HAVE_SIGPROCMASK		/* sigprocmask() is present in libc (POSIX) */
 #undef HAVE_SIGSETMASK		/* sigsetmask() is present in libc (BSD) */
 #undef HAVE_SIGSET		/* sigset() is present in libc (POSIX) */
 #undef HAVE_SIGALTSTACK		/* sigaltstack() is present in libc (POSIX) */
+#undef HAVE_SIGBLOCK		/* sigblock() is present in libc (BSD) */
 #undef HAVE_SYS_SIGLIST		/* char *sys_siglist[] is present in libc */
+#undef HAVE_ALARM		/* alarm() is present in libc */
 #undef HAVE_SLEEP		/* sleep() is present in libc */
 #undef HAVE_USLEEP		/* usleep() is present in libc */
 #undef HAVE_FORK		/* fork() is present in libc */
@@ -416,13 +487,25 @@
 #undef HAVE_EXECV		/* execv() is present in libc */
 #undef HAVE_EXECVE		/* execve() is present in libc */
 #undef HAVE_EXECVP		/* execvp() is present in libc */
+#undef HAVE_SPAWNL		/* spawnl() is present in libc */
+#undef HAVE_SPAWNLE		/* spawnle() is present in libc */
+#undef HAVE_SPAWNLP		/* spawnlp() is present in libc */
+#undef HAVE_SPAWNLPE		/* spawnlpe() is present in libc */
+#undef HAVE_SPAWNV		/* spawnv() is present in libc */
+#undef HAVE_SPAWNVE		/* spawnve() is present in libc */
+#undef HAVE_SPAWNVP		/* spawnvp() is present in libc */
+#undef HAVE_SPAWNVPE		/* spawnvpe() is present in libc */
 #undef HAVE_GETEXECNAME		/* getexecname() is present in libc */
 #undef HAVE_GETPROGNAME		/* getprogname() is present in libc */
 #undef HAVE_SETPROGNAME		/* setprogname() is present in libc */
+#undef HAVE_PROC_PIDPATH	/* proc_pidpath() is present in libc */
+#undef HAVE_VAR_PROGNAME	/* extern char *__progname is present in libc */
+#undef HAVE_VAR_PROGNAME_FULL	/* extern char *__progname_full is present in libc */
 #undef HAVE_ALLOCA		/* alloca() is present (else use malloc())*/
 #undef HAVE_MALLOC		/* malloc() is present in libc */
 #undef HAVE_CALLOC		/* calloc() is present in libc */
 #undef HAVE_REALLOC		/* realloc() is present in libc */
+#undef HAVE_REALLOC_NULL	/* realloc() implements realloc(NULL, size) */
 #undef HAVE_VALLOC		/* valloc() is present in libc (else use malloc())*/
 #undef HAVE_MEMALIGN		/* memalign() is present in libc */
 #undef HAVE_POSIX_MEMALIGN	/* posix_memalign() is present in libc */
@@ -432,12 +515,16 @@
 #undef HAVE_WCSCMP		/* wcscmp() is present in libc */
 #undef HAVE_WCSNCMP		/* wcsncmp() is present in libc */
 #undef HAVE_WCSCPY		/* wcscpy() is present in libc */
+#undef HAVE_WCSLCAT		/* wcsncat() is present in libc */
 #undef HAVE_WCSLCPY		/* wcsncpy() is present in libc */
 #undef HAVE_WCSNCPY		/* wcsncpy() is present in libc */
 #undef HAVE_WCSDUP		/* wcsdup() is present in libc */
+#undef HAVE_WCSNDUP		/* wcsndup() is present in libc */
 #undef HAVE_WCSLEN		/* wcslen() is present in libc */
+#undef HAVE_WCSNLEN		/* wcsnlen() is present in libc */
 #undef HAVE_WCSCHR		/* wcschr() is present in libc */
 #undef HAVE_WCSRCHR		/* wcsrchr() is present in libc */
+#undef HAVE_WCSSTR		/* wcsstr() is present in libc */
 #undef HAVE_WCWIDTH		/* wcwidth() is present in libc */
 #undef HAVE_WCSWIDTH		/* wcswidth() is present in libc */
 #undef HAVE_WCTYPE		/* wctype() is present in libc */
@@ -458,6 +545,7 @@
 #undef HAVE_SETVBUF		/* setvbuf() is present in libc */
 
 #undef HAVE_FNMATCH		/* fnmatch() is present in libc */
+#undef HAVE_FNMATCH_IGNORECASE	/* fnmatch() implements FNM_IGNORECASE */
 
 #undef HAVE_MKTEMP		/* mktemp() is present in libc */
 #undef HAVE_MKSTEMP		/* mkstemp() is present in libc */
@@ -479,10 +567,12 @@
 #undef HAVE_CREATE_AREA		/* create_area() is present in libc */
 #undef HAVE_DELETE_AREA		/* delete_area() is present in libc */
 
+#undef HAVE_DLOPEN_IN_LIBC	/* whether dlopen() is in libc (needs no -ldl) */
 #undef HAVE_DLOPEN		/* dlopen() is present in libc */
 #undef HAVE_DLCLOSE		/* dlclose() is present in libc */
 #undef HAVE_DLSYM		/* dlsym() is present in libc */
 #undef HAVE_DLERROR		/* dlerror() is present in libc */
+#undef HAVE_DLINFO		/* dlinfo() is present in libc */
 #undef HAVE_SHL_LOAD		/* shl_load() is present in libc */
 #undef HAVE_SHL_UNLOAD		/* shl_unload() is present in libc */
 #undef HAVE_SHL_GETHANDLE	/* shl_gethandle() is present in libc */
@@ -511,6 +601,14 @@
 
 #undef HAVE_DIRFD		/* dirfd() is present in libc */
 #undef HAVE_ISWPRINT		/* iswprint() is present in libc */
+#undef HAVE_MBSINIT		/* mbsinit() is present in libc */
+#undef HAVE_MBTOWC		/* mbtowc() is present in libc */
+#undef HAVE_WCTOMB		/* wctomb() is present in libc */
+#undef HAVE_MBRTOWC		/* mbrtowc() is present in libc */
+#undef HAVE_WCRTOMB		/* wcrtomb() is present in libc */
+
+#undef HAVE_PRINTF_J		/* *printf() in libc supports %jd */
+#undef HAVE_PRINTF_LL		/* *printf() in libc supports %lld */
 
 /*
  * Functions that we defined in 1982 but where POSIX.1-2008 defined
@@ -532,9 +630,17 @@
 /*
  * Misc OS stuff
  */
-#undef HAVE_DEV_TTY		/* /dev/tty present */
-#undef HAVE_DEV_NULL		/* /dev/null present */
-#undef HAVE_DEV_ZERO		/* /dev/zero present */
+#ifndef	_MSC_VER		/* Dirty hack, better use C program not test */
+#undef HAVE__DEV_TTY		/* /dev/tty present */
+#undef HAVE__DEV_NULL		/* /dev/null present */
+#undef HAVE__DEV_ZERO		/* /dev/zero present */
+#undef HAVE__DEV_STDIN		/* /dev/stdin present */
+#undef HAVE__DEV_STDOUT		/* /dev/stdout present */
+#undef HAVE__DEV_STDERR		/* /dev/stderr present */
+#undef HAVE__DEV_FD_0		/* /dev/fd/0 present */
+#undef HAVE__DEV_FD_1		/* /dev/fd/1 present */
+#undef HAVE__DEV_FD_2		/* /dev/fd/2 present */
+#endif
 
 /*
  * Misc OS programs
@@ -617,6 +723,9 @@
 /*
  * Structures
  */
+#undef HAVE_FILE__FLAGS		/* if FILE * contains _flags */
+#undef HAVE_FILE__IO_BUF_BASE	/* if FILE * contains _IO_buf_base */
+
 #undef HAVE_MTGET_TYPE		/* if struct mtget contains mt_type (drive type) */
 #undef HAVE_MTGET_MODEL		/* if struct mtget contains mt_model (drive type) */
 #undef HAVE_MTGET_DSREG		/* if struct mtget contains mt_dsreg (drive status) */
@@ -646,6 +755,7 @@
  */
 #undef HAVE_ST_SPARE1		/* if struct stat contains st_spare1 (usecs) */
 #undef HAVE_ST_ATIMENSEC	/* if struct stat contains st_atimensec (nanosecs) */
+#undef HAVE_ST_ATIME_N		/* if struct stat contains st_atime_n (nanosecs) */
 #undef HAVE_ST_NSEC		/* if struct stat contains st_atim.tv_nsec (nanosecs) */
 #undef HAVE_ST__TIM		/* if struct stat contains st_atim.st__tim.tv_nsec (nanosecs) */
 #undef HAVE_ST_ATIMESPEC	/* if struct stat contains st_atimespec.tv_nsec (nanosecs) */
@@ -654,6 +764,7 @@
 #undef HAVE_ST_FSTYPE		/* if struct stat contains st_fstype */
 #undef HAVE_ST_ACLCNT		/* if struct stat contains st_aclcnt */
 #undef HAVE_ST_RDEV		/* if struct stat contains st_rdev */
+#undef HAVE_ST_FLAG		/* if struct stat contains st_flag */
 #undef HAVE_ST_FLAGS		/* if struct stat contains st_flags */
 #undef STAT_MACROS_BROKEN	/* if the macros S_ISDIR, S_ISREG .. don't work */
 
@@ -702,6 +813,25 @@
 #undef SIZEOF_SSIZE_T
 #undef SIZEOF_PTRDIFF_T
 
+#undef SIZEOF_MODE_T
+#undef SIZEOF_UID_T
+#undef SIZEOF_GID_T
+#undef SIZEOF_PID_T
+
+/*
+ * If sizeof (mode_t) is < sizeof (int) and used with va_arg(),
+ * GCC4 will abort the code. So we need to use the promoted size.
+ */
+#if	SIZEOF_MODE_T < SIZEOF_INT
+#define	PROMOTED_MODE_T	int
+#else
+#define	PROMOTED_MODE_T	mode_t
+#endif
+
+#undef SIZEOF_DEV_T
+#undef SIZEOF_MAJOR_T
+#undef SIZEOF_MINOR_T
+
 #undef SIZEOF_TIME_T
 #undef SIZEOF_WCHAR		/* sizeof (L'a')	*/
 #undef SIZEOF_WCHAR_T		/* sizeof (wchar_t)	*/
@@ -734,6 +864,21 @@
 #undef	HAVE_TYPE_INTMAX_T	/* if <stdint.h> defines intmax_t */
 #undef	HAVE_TYPE_UINTMAX_T	/* if <stdint.h> defines uintmax_t */
 
+#undef int8_t			/* To be used if int8_t is not present */
+#undef int16_t			/* To be used if int16_t is not present */
+#undef int32_t			/* To be used if int32_t is not present */
+#if	defined(HAVE_LONGLONG) || defined(HAVE___INT64)
+#undef int64_t			/* To be used if int64_t is not present */
+#endif
+#undef intmax_t			/* To be used if intmax_t is not present */
+#undef uint8_t			/* To be used if uint8_t is not present */
+#undef uint16_t			/* To be used if uint16_t is not present */
+#undef uint32_t			/* To be used if uint32_t is not present */
+#if	defined(HAVE_LONGLONG) || defined(HAVE___INT64)
+#undef uint64_t			/* To be used if uint64_t is not present */
+#endif
+#undef uintmax_t		/* To be used if uintmax_t is not present */
+
 #undef	HAVE_TYPE_GREG_T	/* if <sys/frame.h> defines greg_t */
 
 #undef	HAVE_STACK_T		/* if <signal.h> defines stack_t */
@@ -756,6 +901,9 @@
 #undef u_short			/* To be used if u_short is not present	*/
 #undef u_int			/* To be used if u_int is not present	*/
 #undef u_long			/* To be used if u_long is not present	*/
+
+#undef wctype_t			/* To be used if wctype_t is not in wchar.h */
+#undef mbstate_t		/* To be used if mbstate_t is not in wchar.h */
 
 /*#undef HAVE_SIZE_T*/
 /*#undef NO_SIZE_T*/
@@ -899,3 +1047,5 @@
 /*
  * End restricted code for quality assurance.
  */
+
+#endif	/* __XCONFIG_H */

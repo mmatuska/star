@@ -1,4 +1,4 @@
-dnl @(#)aclocal.m4	1.86 09/11/29 Copyright 1998-2009 J. Schilling
+dnl @(#)aclocal.m4	1.99 11/08/02 Copyright 1998-2011 J. Schilling
 
 dnl Set VARIABLE to VALUE in C-string form, verbatim, or 1.
 dnl AC_DEFINE_STRING(VARIABLE [, VALUE])
@@ -32,7 +32,7 @@ changequote([,]), [#include <sys/types.h>
 #if	HAVE_STDDEF_H || STDC_HEADERS
 #include <stddef.h>
 #endif
-$1], ac_cv_have_type_$2=yes, ac_cv_have_type_$2=no)])dnl
+$1], eval ac_cv_have_type_$2=yes, eval ac_cv_have_type_$2=no)])dnl
 AC_MSG_RESULT($ac_cv_have_type_$2)
 changequote(, )dnl
   ac_tr_type=HAVE_TYPE_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
@@ -55,6 +55,41 @@ fi])
 if test $ac_cv_iconv_const = yes; then
   AC_DEFINE(HAVE_ICONV_CONST)
 fi])
+
+AC_DEFUN(AC_PROG_CPPX,
+[AC_REQUIRE([AC_PROG_CPP])dnl
+AC_MSG_CHECKING(how to run the C preprocessor for any type of file)
+if test -z "$CPPX"; then
+AC_CACHE_VAL(ac_cv_prog_CPPX,
+[  # This must be in double quotes, not single quotes, because CPP may get
+  # substituted into the Makefile and "${CC-cc}" will confuse make.
+  CPPX="$CPP"
+	cat > conftestcpp << EOF
+	xxzzy
+EOF
+	# gcc -E does not accept any file suffix, so we need to test
+	# and if $CC -E fails, we try to use dirname(which($CC))/cpp
+	# We cannot use AC_TRY_EVAL(CPPX conftestcpp | grep xxzzy) because
+	# of a bug in the parser from bash
+	ac_result=`(echo configure:1288: "$CPPX conftestcpp | grep xxzzy" 1>&5; eval $CPPX conftestcpp | grep xxzzy) 2>&5`
+	if test -z "$ac_result"; then
+		changequote(, )dnl
+		ac_file=`eval type ${CC-cc} 2>/dev/null | sed 's%[^/]*/%/%'`
+		# Remove last slash and all that follows it.  Not all systems have dirname.
+		ac_dir=`echo "$ac_file" | sed 's%/[^/][^/]*$%%'`
+		changequote([, ])dnl
+		if test -f "$ac_dir"/cpp; then
+			CPPX="$ac_dir"/cpp
+		fi
+	fi
+	ac_cv_prog_CPPX="$CPPX"])dnl
+	CPPX="$ac_cv_prog_CPPX"
+else
+	ac_cv_prog_CPPX="$CPPX"
+fi
+AC_MSG_RESULT($CPPX)
+AC_SUBST(CPPX)dnl
+])
 
 dnl Checks if /bin/sh is bash
 dnl Defines BIN_SHELL_IS_BASH on success.
@@ -262,9 +297,10 @@ dnl XXX this used to be:
 dnl #ifndef $2 
 dnl	char *p = (char *) $2; 
 dnl #endif
-dnl but we use this test un order to check whether we are able to get the
+dnl but we use this test in order to check whether we are able to get the
 dnl address of a function from this name, so we did replace this by:
 dnl  char *p = (char *) $2;
+dnl  exit (p != (char *)0 && *p != 0);	Prevent optimizer from removing previous line
 dnl 
 dnl AC_CHECK_DECLARE(INCLUDES, SYMBOL)
 dnl Checks if symbol is declared
@@ -272,9 +308,9 @@ dnl Defines HAVE_DECL_SYMBOL on success.
 AC_DEFUN([AC_CHECK_DECLARE],
 [AC_CACHE_CHECK([if $2 is declared], ac_cv_have_decl_$2,
                 [AC_TRY_COMPILE([$1],
-[ char *p = (char *) $2; ],
-		[ac_cv_have_decl_$2=yes],
-		[ac_cv_have_decl_$2=no])])
+[ char *p = (char *) $2; exit (p != (char *)0 && *p != 0); ],
+		[eval ac_cv_have_decl_$2=yes],
+		[eval ac_cv_have_decl_$2=no])])
 changequote(, )dnl
   ac_tr_decl=HAVE_DECL_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
 changequote([, ])dnl
@@ -286,21 +322,31 @@ dnl AC_CHECK_DFUNC(INCLUDES, SYMBOL)
 dnl Checks if symbol is defined or a function
 dnl Defines HAVE_SYMBOL on success.
 AC_DEFUN([AC_CHECK_DFUNC],
-[AC_CACHE_CHECK([if $2 is defined or function], ac_cv_have_$2,
+[AC_CACHE_CHECK([if $2 is defined or function], ["ac_cv_have_$2"],
                 [AC_TRY_LINK([$1],
 [
 #ifndef $2
 	char *p = (char *) $2;
+	exit (p != (char *)0 && *p != 0);
 #endif],
-		[ac_cv_have_$2=yes],
-		[ac_cv_have_$2=no])])
+		[eval ac_cv_have_$2=yes],
+		[eval ac_cv_have_$2=no])])
 changequote(, )dnl
   ac_tr_dfunc=HAVE_`echo $2 | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
 changequote([, ])dnl
-if test $ac_cv_have_$2 = yes; then
+if eval "test \"`echo '$ac_cv_have_'$2`\" = yes"; then
   AC_DEFINE_UNQUOTED($ac_tr_dfunc)
-fi])
+fi
+])
 
+dnl AC_CHECK_DFUNCS(INCLUDES, FUNCTION...)
+AC_DEFUN(AC_CHECK_DFUNCS,
+[for ac_func in [$2]
+do
+AC_CHECK_DFUNC([$1], $ac_func)dnl
+done
+])
+ 
 dnl Checks whether symbol is defined or a function in a lib
 dnl AC_CHECK_DLIB(INCLUDES, LIBRARY, FUNCTION [, ACTION-IF-FOUND [, ACTION-IF-NOT-FOUND
 dnl              [, OTHER-LIBRARIES]]])
@@ -318,6 +364,7 @@ AC_TRY_LINK([$1],
 [
 #ifndef $3
 	char *p = (char *) $3;
+	exit (p != (char *)0 && *p != 0);
 #endif],
 	    eval "ac_cv_lib_$ac_lib_var=yes",
 	    eval "ac_cv_lib_$ac_lib_var=no")
@@ -381,6 +428,14 @@ ifelse([$5], , , [$5
 fi
 ])
 
+dnl getpagesize is a inline function in unistd.h on Android
+AC_DEFUN([AC_FUNC_GETPAGESIZE],
+[AC_CHECK_DFUNC([
+#ifdef	HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+], getpagesize)])
+
 
 dnl Checks if structure 'stat' have field 'st_spare1'.
 dnl Defines HAVE_ST_SPARE1 on success.
@@ -406,6 +461,19 @@ AC_DEFUN([AC_STRUCT_ST_ATIMENSEC],
                                 [ac_cv_struct_st_atimensec=no])])
 if test $ac_cv_struct_st_atimensec = yes; then
   AC_DEFINE(HAVE_ST_ATIMENSEC)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_atime_n'.
+dnl Defines HAVE_ST_ATIME_N on success.
+AC_DEFUN([AC_STRUCT_ST_ATIME_N],
+[AC_CACHE_CHECK([if struct stat contains st_atime_n], ac_cv_struct_st_atime_n,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_atime_n = 0;],
+                                [ac_cv_struct_st_atime_n=yes],
+                                [ac_cv_struct_st_atime_n=no])])
+if test $ac_cv_struct_st_atime_n = yes; then
+  AC_DEFINE(HAVE_ST_ATIME_N)
 fi])
 
 dnl Checks if structure 'stat' have field 'st_atim.tv_nsec'.
@@ -445,6 +513,19 @@ AC_DEFUN([AC_STRUCT_ST_ATIMESPEC],
                                 [ac_cv_struct_st_atimespec=no])])
 if test $ac_cv_struct_st_atimespec = yes; then
   AC_DEFINE(HAVE_ST_ATIMESPEC)
+fi])
+
+dnl Checks if structure 'stat' have field 'st_flag'.
+dnl Defines HAVE_ST_FLAG on success.
+AC_DEFUN([AC_STRUCT_ST_FLAG],
+[AC_CACHE_CHECK([if struct stat contains st_flag], ac_cv_struct_st_flag,
+                [AC_TRY_COMPILE([#include <sys/types.h>
+#include <sys/stat.h>],
+                                [struct  stat s; s.st_flag = 0;],
+                                [ac_cv_struct_st_flag=yes],
+                                [ac_cv_struct_st_flag=no])])
+if test $ac_cv_struct_st_flag = yes; then
+  AC_DEFINE(HAVE_ST_FLAG)
 fi])
 
 dnl Checks if structure 'stat' have field 'st_flags'.
@@ -834,7 +915,7 @@ dnl Defines HAVE_DIR_DD_FD on success.
 AC_DEFUN([AC_STRUCT_DIR_DD_FD],
 [AC_CACHE_CHECK([if DIR * contains dd_fd], ac_cv_struct_dir_dd_fd,
                 [AC_TRY_COMPILE([#include <dirent.h>],
-                                [DIR d; d.dd_fd = 0;],
+                                [DIR d; d.dd_fd = 0; exit (d.dd_fd == 0);],
                                 [ac_cv_struct_dir_dd_fd=yes],
                                 [ac_cv_struct_dir_dd_fd=no])])
 if test $ac_cv_struct_dir_dd_fd = yes; then
@@ -950,6 +1031,38 @@ if test $ac_cv_header_usg_stdio = yes; then
   AC_DEFINE(HAVE_USG_STDIO)
 fi])
 
+dnl Checks for Linux stdio with f->_flags
+dnl Defines HAVE_FILE__FLAGS on success.
+AC_DEFUN([AC_HEADER_FILE__FLAGS],
+[AC_CACHE_CHECK([for f->_flags in FILE *], ac_cv_file__flags,
+                [AC_TRY_LINK([#include <stdio.h>],
+[FILE    *f;
+int     flags;
+f = fopen("confdefs.h", "r");
+flags  = f->_flags;
+fclose(f);],
+                [ac_cv_file__flags=yes],
+                [ac_cv_file__flags=no])])
+if test $ac_cv_file__flags = yes; then
+  AC_DEFINE(HAVE_FILE__FLAGS)
+fi])
+
+dnl Checks for Linux stdio with f->_IO_buf_base
+dnl Defines HAVE_FILE__IO_BUF_BASE on success.
+AC_DEFUN([AC_HEADER_FILE__IO_BUF_BASE],
+[AC_CACHE_CHECK([for f->_IO_buf_base in FILE *], ac_cv_file__io_buf_base,
+                [AC_TRY_LINK([#include <stdio.h>],
+[FILE    *f;
+char     *ptr;
+f = fopen("confdefs.h", "r");
+ptr = f->_IO_buf_base;
+fclose(f);],
+                [ac_cv_file__io_buf_base=yes],
+                [ac_cv_file__io_buf_base=no])])
+if test $ac_cv_file__io_buf_base = yes; then
+  AC_DEFINE(HAVE_FILE__IO_BUF_BASE)
+fi])
+
 dnl Checks for errno definition in <errno.h>
 dnl Defines HAVE_ERRNO_DEF on success.
 AC_DEFUN([AC_HEADER_ERRNO_DEF],
@@ -987,7 +1100,7 @@ dnl Defines HAVE_SYS_SIGLIST_DEF on success.
 AC_DEFUN([AC_HEADER_SYS_SIGLIST_DEF],
 [AC_CACHE_CHECK([for sys_siglist definition in signal.h], ac_cv_header_sys_siglist_def,
                 [AC_TRY_COMPILE([#include <signal.h>],
-[char *cp = (char *)sys_siglist[0];],
+[char *cp = (char *)sys_siglist[0]; exit (cp != (char *)0 && *cp != 0);],
                 [ac_cv_header_sys_siglist_def=yes],
                 [ac_cv_header_sys_siglist_def=no])])
 if test $ac_cv_header_sys_siglist_def = yes; then
@@ -1033,6 +1146,42 @@ main()
                 [ac_cv_var_timezone=no])])
 if test $ac_cv_var_timezone = yes; then
   AC_DEFINE(HAVE_VAR_TIMEZONE)
+fi])
+
+dnl Checks if extern char *__progname exists in libc
+dnl Defines HAVE_VAR___PROGNAME on success.
+AC_DEFUN([AC_VAR___PROGNAME],
+[AC_CACHE_CHECK([for working extern char *__progname ], ac_cv_var___progname,
+                [AC_TRY_RUN([
+extern	char	*__progname;
+
+int
+main()
+{
+	exit (!(__progname != 0 && *__progname != '\0'));
+}],
+                [ac_cv_var___progname=yes],
+                [ac_cv_var___progname=no])])
+if test $ac_cv_var___progname = yes; then
+  AC_DEFINE(HAVE_VAR___PROGNAME)
+fi])
+
+dnl Checks if extern char *__progname_full exists in libc
+dnl Defines HAVE_VAR___PROGNAME_FULL on success.
+AC_DEFUN([AC_VAR___PROGNAME_FULL],
+[AC_CACHE_CHECK([for working extern char *__progname_full ], ac_cv_var___progname_full,
+                [AC_TRY_RUN([
+extern	char	*__progname_full;
+
+int
+main()
+{
+	exit (!(__progname_full != 0 && *__progname_full != '\0'));
+}],
+                [ac_cv_var___progname_full=yes],
+                [ac_cv_var___progname_full=no])])
+if test $ac_cv_var___progname_full = yes; then
+  AC_DEFINE(HAVE_VAR___PROGNAME_FULL)
 fi])
 
 dnl Checks for UNIX-98 compliant <inttypes.h>
@@ -1300,7 +1449,7 @@ dnl Defines HAVE_STACK_T on success.
 AC_DEFUN([AC_TYPE_STACK_T],
 [AC_CACHE_CHECK([if stack_t is declared in signal.h], ac_cv_stack_t,
                 [AC_TRY_COMPILE([#include <signal.h>],
-                                [stack_t ss; ss.ss_size = 0;],
+                                [stack_t ss; ss.ss_size = 0; exit (ss.ss_size == 0);],
                                 [ac_cv_stack_t=yes],
                                 [ac_cv_stack_t=no])])
 if test $ac_cv_stack_t = yes; then
@@ -1319,7 +1468,7 @@ AC_DEFUN([AC_TYPE_SIGINFO_T],
 #include <sys/siginfo.h>
 #endif
 #endif],
-                                [siginfo_t si; si.si_signo = 0;],
+                                [siginfo_t si; si.si_signo = 0; exit (si.si_signo == 0);],
                                 [ac_cv_siginfo_t=yes],
                                 [ac_cv_siginfo_t=no])])
 if test $ac_cv_siginfo_t = yes; then
@@ -1331,7 +1480,7 @@ dnl Defines HAVE_SOCKADDR_STORAGE on success.
 AC_DEFUN([AC_STRUCT_SOCKADDR_STORAGE],
 [AC_CACHE_CHECK([if struct sockaddr_storage is declared in socket.h], ac_cv_struct_sockaddr_storage,
                 [AC_TRY_COMPILE([#include <sys/socket.h>],
-                                [struct  sockaddr_storage ss; ss.ss_family = 0;],
+                                [struct  sockaddr_storage ss; ss.ss_family = 0; exit (ss.ss_family == 0);],
                                 [ac_cv_struct_sockaddr_storage=yes],
                                 [ac_cv_struct_sockaddr_storage=no])])
 if test $ac_cv_struct_sockaddr_storage = yes; then
@@ -1731,9 +1880,9 @@ if test $ac_cv_func_mlockall = yes; then
 fi])
 
 AC_DEFUN([jsAC_FUNC_MMAP],
-[AC_REQUIRE([AC_MMAP_SIZEP])dnl
-AC_CHECK_HEADERS(unistd.h)
-AC_CHECK_FUNCS(getpagesize)
+[AC_CHECK_HEADERS(unistd.h)dnl
+AC_REQUIRE([AC_MMAP_SIZEP])dnl
+AC_REQUIRE([AC_FUNC_GETPAGESIZE])dnl
 AC_CACHE_CHECK(for working mmap, ac_cv_func_mmap_fixed_mapped,
 [AC_TRY_RUN([
 /* Thanks to Mike Haertel and Jim Avera for this test.
@@ -1888,8 +2037,8 @@ fi
 ])
 
 AC_DEFUN([AC_MMAP_SIZEP],
-[AC_CHECK_HEADERS(unistd.h)
-AC_CHECK_FUNCS(getpagesize)
+[AC_CHECK_HEADERS(unistd.h)dnl
+AC_REQUIRE([AC_FUNC_GETPAGESIZE])dnl
 AC_CACHE_CHECK(for mmap that needs ptr to size, ac_cv_func_mmap_sizep,
 [AC_TRY_RUN([
 #include <sys/types.h>
@@ -2421,6 +2570,45 @@ if test $ac_cv_func_bsd_setpgrp = yes; then
   AC_DEFINE(HAVE_BSD_SETPGRP)
 fi])
 
+dnl Checks if *printf() supports %jd
+dnl Defines HAVE_PRINTF_J on success.
+AC_DEFUN([AC_FUNC_PRINTF_J],
+[AC_CACHE_CHECK([whether *printf() supports %jd], ac_cv_func_printf_j,
+                [AC_TRY_RUN([
+#include <inttypes.h>
+int
+main()
+{ intmax_t m = 123456789012LL;
+char buf[32];
+sprintf(buf, "%jd", m);
+if (strcmp(buf, "123456789012") == 0)
+	exit(0);
+exit(1);}],
+                [ac_cv_func_printf_j=yes],
+                [ac_cv_func_printf_j=no])])
+if test $ac_cv_func_printf_j = yes; then
+  AC_DEFINE(HAVE_PRINTF_J)
+fi])
+
+dnl Checks if *printf() supports %lld
+dnl Defines HAVE_PRINTF_LL on success.
+AC_DEFUN([AC_FUNC_PRINTF_LL],
+[AC_CACHE_CHECK([whether *printf() supports %lld], ac_cv_func_printf_ll,
+                [AC_TRY_RUN([
+int
+main()
+{ long long ll = 123456789012LL;
+char buf[32];
+sprintf(buf, "%lld", ll);
+if (strcmp(buf, "123456789012") == 0)
+	exit(0);
+exit(1);}],
+                [ac_cv_func_printf_ll=yes],
+                [ac_cv_func_printf_ll=no])])
+if test $ac_cv_func_printf_ll = yes; then
+  AC_DEFINE(HAVE_PRINTF_LL)
+fi])
+
 dnl Checks if C99 compliant isinf() exists
 dnl Defines HAVE_C99_ISINF on success.
 AC_DEFUN([AC_FUNC_C99_ISINF],
@@ -2682,6 +2870,72 @@ main()
                 [ac_cv_access_e_ok=no])])
 if test $ac_cv_access_e_ok = yes; then
   AC_DEFINE(HAVE_ACCESS_E_OK)
+fi])
+
+dnl Checks if fnmatch() does implement FNM_IGNORECASE
+dnl Defines HAVE_FNMATCH_IGNORECASE on success.
+AC_DEFUN([AC_FNMATCH_IGNORECASE],
+[AC_CHECK_HEADERS(fnmatch.h)
+AC_CACHE_CHECK([if fnmatch() does implement FNM_IGNORECASE or FNM_CASEFOLD], ac_cv_fnmatch_igncase,
+                [AC_TRY_RUN([
+#ifdef	HAVE_FNMATCH
+#include <fnmatch.h>
+#endif
+
+#ifndef	FNM_IGNORECASE
+#ifdef	FNM_CASEFOLD
+#define	FNM_IGNORECASE	FNM_CASEFOLD
+#endif
+#endif
+
+main()
+{
+	int	ret;
+
+	ret = fnmatch("a", "A", FNM_IGNORECASE);
+	exit(ret);
+}],
+                [ac_cv_fnmatch_igncase=yes],
+                [ac_cv_fnmatch_igncase=no])])
+if test $ac_cv_fnmatch_igncase = yes; then
+  AC_DEFINE(HAVE_FNMATCH_IGNORECASE)
+fi])
+
+
+
+dnl Checks if realloc() does implement realloc(NULL, size)
+dnl Defines HAVE_REALLOC_NULL on success.
+AC_DEFUN([AC_FUNC_REALLOC_NULL],
+[AC_CHECK_HEADERS(stdlib.h)
+AC_TYPE_SIGNAL
+AC_CACHE_CHECK([if realloc() does implement realloc(NULL, size)], ac_cv_realloc_null,
+                [AC_TRY_RUN([
+#ifdef	HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <signal.h>
+
+RETSIGTYPE
+sig(s)
+	int	s;
+{
+	exit(1);
+}
+int
+main()
+{
+	char	*p;
+
+	signal(SIGSEGV, sig);
+	p = realloc((char *)0, 10);
+	if (p == (char *)0)
+		exit(1);
+	exit(0);
+}],
+                [ac_cv_realloc_null=yes],
+                [ac_cv_realloc_null=no])])
+if test $ac_cv_realloc_null = yes; then
+  AC_DEFINE(HAVE_REALLOC_NULL)
 fi])
 
 

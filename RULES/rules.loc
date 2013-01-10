@@ -1,4 +1,4 @@
-#ident "@(#)rules.loc	1.7 07/05/06 "
+#ident "@(#)rules.loc	1.8 12/01/22 "
 ###########################################################################
 # Written 1997 by J. Schilling
 ###########################################################################
@@ -31,7 +31,7 @@ INSMODEI=	$(__INSMODEI:$(_UNIQ)%=%)
 
 all:		$(ARCHDIR) $(PTARGET)
 
-$(PTARGET):	$(SRCFILE)
+$(PTARGET):	$(ARCHDIR) $(SRCFILE)
 		$(LOCALIZE) $(SRCFILE) $@
 
 $(ARCHDIR):

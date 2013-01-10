@@ -1,12 +1,12 @@
-/* @(#)getargs.c	2.62 09/11/28 Copyright 1985, 1988, 1994-2009 J. Schilling */
+/* @(#)getargs.c	2.65 10/11/06 Copyright 1985, 1988, 1994-2010 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)getargs.c	2.62 09/11/28 Copyright 1985, 1988, 1994-2009 J. Schilling";
+	"@(#)getargs.c	2.65 10/11/06 Copyright 1985, 1988, 1994-2010 J. Schilling";
 #endif
 #define	NEW
 /*
- *	Copyright (c) 1985, 1988, 1994-2009 J. Schilling
+ *	Copyright (c) 1985, 1988, 1994-2010 J. Schilling
  *
  *	1.3.88	 Start implementation of release 2
  */
@@ -23,9 +23,6 @@ static	UConst char sccsid[] =
  *		'&'	call function for any type flag
  *		'~'	call function for BOOLEAN flag
  *		'+'	inctype			+++ NEU +++
- *
- *		XXX Single char Boolen type '~' flags cannot yet be combined
- *		XXX Single char Boolen type '%' flags cannot yet be combined
  *
  *	The format string 'f* ' may be used to disallow -ffoo for f*
  *	The same behavior is implemented for 'f# ', 'f? ' and 'f& '.
@@ -101,7 +98,9 @@ LOCAL	int	dofile __PR((int *, char *const **, const char **,
 							struct ga_props *));
 LOCAL	int	doflag __PR((int *, char *const **, const char *,
 						void *, int, va_list));
-LOCAL	int	dosflags __PR((const char *, void *, int, va_list));
+LOCAL	int	dosflags __PR((const char *, void *,
+						int *, char *const **,
+						int, va_list));
 LOCAL	int	checkfmt __PR((const char *));
 LOCAL	int	checkeql __PR((const char *));
 
@@ -128,11 +127,9 @@ _getarginit(props, size, flags)
 	return (0);
 }
 
-/*---------------------------------------------------------------------------
-|
-|	get flags until a non flag type argument is reached (old version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get flags until a non flag type argument is reached (old version)
+ */
 /* VARARGS3 */
 #ifdef	PROTOTYPES
 EXPORT int
@@ -160,11 +157,9 @@ getargs(pac, pav, fmt, va_alist)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get flags until a non flag type argument is reached (list version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get flags until a non flag type argument is reached (list version)
+ */
 /* VARARGS4 */
 #ifdef	PROTOTYPES
 EXPORT int
@@ -193,11 +188,9 @@ getlargs(pac, pav, props, fmt, va_alist)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get flags until a non flag type argument is reached (vector version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get flags until a non flag type argument is reached (vector version)
+ */
 EXPORT int
 getvargs(pac, pav, vfmt, props)
 	int	*pac;
@@ -209,11 +202,9 @@ getvargs(pac, pav, vfmt, props)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get all flags on the command line, do not stop on files (old version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get all flags on the command line, do not stop on files (old version)
+ */
 /* VARARGS3 */
 #ifdef	PROTOTYPES
 EXPORT int
@@ -244,11 +235,9 @@ getallargs(pac, pav, fmt, va_alist)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get all flags on the command line, do not stop on files (list version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get all flags on the command line, do not stop on files (list version)
+ */
 /* VARARGS4 */
 #ifdef	PROTOTYPES
 EXPORT int
@@ -282,11 +271,9 @@ getlallargs(pac, pav, props, fmt, va_alist)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get all flags on the command line, do not stop on files (vector version)
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get all flags on the command line, do not stop on files (vector version)
+ */
 EXPORT int
 getvallargs(pac, pav, vfmt, props)
 	int	*pac;
@@ -306,12 +293,10 @@ getvallargs(pac, pav, vfmt, props)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get next non flag type argument (i.e. a file) (old version)
-|	getfiles() is a dry run getargs()
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get next non flag type argument (i.e. a file) (old version)
+ *	getfiles() is a dry run getargs()
+ */
 EXPORT int
 getfiles(pac, pav, fmt)
 	int		*pac;
@@ -322,12 +307,10 @@ getfiles(pac, pav, fmt)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get next non flag type argument (i.e. a file) (list version)
-|	getlfiles() is a dry run getlargs()
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get next non flag type argument (i.e. a file) (list version)
+ *	getlfiles() is a dry run getlargs()
+ */
 EXPORT int
 getlfiles(pac, pav, props, fmt)
 	int		*pac;
@@ -339,12 +322,10 @@ getlfiles(pac, pav, props, fmt)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	get next non flag type argument (i.e. a file) (vector version)
-|	getvfiles() is a dry run getvargs()
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	get next non flag type argument (i.e. a file) (vector version)
+ *	getvfiles() is a dry run getvargs()
+ */
 EXPORT int
 getvfiles(pac, pav, vfmt, props)
 	int		*pac;
@@ -356,21 +337,20 @@ getvfiles(pac, pav, vfmt, props)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	check args until the next non flag type argmument is reached
-|	*pac is decremented, *pav is incremented so that the
-|	non flag type argument is at *pav[0]
-|
-|	return code:
-|		+2 FLAGDELIM	"--" stopped flag processing
-|		+1 NOTAFLAG	not a flag type argument (is a file)
-|		 0 NOARGS	no more args
-|		-1 BADFLAG	a non-matching flag type argument
-|		-2 BADFMT	bad syntax in format string
-|
-+---------------------------------------------------------------------------*/
-/*LOCAL*/ int
+/*
+ *	check args until the next non flag type argmument is reached
+ *	*pac is decremented, *pav is incremented so that the
+ *	non flag type argument is at *pav[0]
+ *
+ *	return code:
+ *		+2 FLAGDELIM	"--" stopped flag processing
+ *		+1 NOTAFLAG	not a flag type argument (is a file)
+ *		 0 NOARGS	no more args
+ *		-1 BADFLAG	a non-matching flag type argument
+ *		-2 BADFMT	bad syntax in format string
+ */
+/* LOCAL int */
+EXPORT int
 _getargs(pac, pav, vfmt, flags, props, args)
 	register int		*pac;
 	register char	*const	**pav;
@@ -406,11 +386,9 @@ _getargs(pac, pav, vfmt, flags, props, args)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-| check if *pargp is a file type argument
-|
-+---------------------------------------------------------------------------*/
+/*
+ * check if *pargp is a file type argument
+ */
 LOCAL int
 dofile(pac, pav, pargp, props)
 	register int		*pac;
@@ -471,17 +449,15 @@ dofile(pac, pav, pargp, props)
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	compare argp with the format string
-|	if a match is found store the result a la scanf in one of the
-|	arguments pointed to in the va_list
-|
-|	If (flags & SETARGS) == 0, only check arguments for getfiles()
-|	In case that (flags & SETARGS) == 0 or that (flags & ARGVECTOR) != 0,
-|	va_list may be a dummy argument.
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	compare argp with the format string
+ *	if a match is found store the result a la scanf in one of the
+ *	arguments pointed to in the va_list
+ *
+ *	If (flags & SETARGS) == 0, only check arguments for getfiles()
+ *	In case that (flags & SETARGS) == 0 or that (flags & ARGVECTOR) != 0,
+ *	va_list may be a dummy argument.
+ */
 LOCAL int
 doflag(pac, pav, argp, vfmt, flags, oargs)
 		int		*pac;
@@ -565,7 +541,8 @@ doflag(pac, pav, argp, vfmt, flags, oargs)
 	 */
 again:
 	if (fmt[0] != '\0' &&
-	    (fmt[1] == ',' || fmt[1] == '+' || fmt[1] == '\0'))
+	    (fmt[1] == ',' || fmt[1] == '+' ||
+	    fmt[1] == '~' || fmt[1] == '%' || fmt[1] == '\0'))
 		singlecharflag++;
 	/*
 	 * check the whole format string for a match
@@ -709,12 +686,14 @@ again:
 				}
 			}
 			if (singlecharflag && !doubledash &&
-			    (val = dosflags(sargp, vfmt, flags & ~SETARGS,
+			    (val = dosflags(sargp, vfmt, pac, pav,
+							flags & ~SETARGS,
 							va_dummy)) == BADFLAG) {
 				return (val);
 			}
 			if (singlecharflag && !doubledash &&
-			    (val = dosflags(sargp, vfmt, flags,
+			    (val = dosflags(sargp, vfmt, pac, pav,
+							flags,
 							oargs)) != BADFLAG) {
 				return (val);
 			}
@@ -982,6 +961,8 @@ again:
 				int	ret;
 				void	*funarg = va_arg(args, void *);
 
+				if (curarg == NULL)
+					return (BADFMT);
 				ret = ((*(getpargfun)curarg) (argp, funarg,
 								pac, pav, fmtp));
 				if (ret != NOTAFILE)
@@ -998,35 +979,39 @@ again:
 }
 
 
-/*---------------------------------------------------------------------------
-|
-|	parse args for combined single char flags
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	parse args for combined single char flags
+ */
 typedef struct {
-	void	*curarg;	/* The pointer to the arg to modify	 */
-	short	count;		/* The number of times a sc flag appears */
-	char	c;		/* The single char flag character	 */
-	char	type;		/* The type of the single char flag	 */
+	void	*curarg;	/* The pointer to the arg to modify	   */
+	void	*curfun;	/* The pointer to the function to call	   */
+	char	c;		/* The single char flag character	   */
+	char	type;		/* The type of the single char flag	   */
+	char	fmt;		/* The format type of the single char flag */
+	char	val;		/* The value to assign for BOOL flags	   */
 } sflags;
 
 LOCAL int
-dosflags(argp, vfmt, flags, oargs)
+dosflags(argp, vfmt, pac, pav, flags, oargs)
 	register const char	*argp;
 		void		*vfmt;
+		int		*pac;
+		char	*const	**pav;
 		int		flags;
 		va_list		oargs;
 {
 	register const char	*fmt = (const char *)vfmt;
 	struct ga_flags		*flagp = vfmt;
-#define	MAXSF	32
+#define	MAXSF	64
 		sflags	sf[MAXSF];
+		char	fl[256];
 		va_list args;
 	register sflags	*rsf	= sf;
 	register int	nsf	= 0;
 	register const char *p	= argp;
 	register int	i;
 	register void	*curarg = (void *)0;
+	getpargfun	curfun = 0;
 		char	type;
 
 	/*
@@ -1049,12 +1034,17 @@ dosflags(argp, vfmt, flags, oargs)
 		fmt = flagp->ga_format;
 		if (fmt == NULL)
 			fmt = "";
-		if (flags & SETARGS)
+		if (flags & SETARGS) {
 			curarg = flagp->ga_arg;
+			curfun = flagp->ga_funcp;
+		}
 	} else if (flags & SETARGS) {
 		curarg = va_arg(args, void *);
 	}
 
+	for (i = 0; i < sizeof (fl); i++) {
+		fl[i] = 0;
+	}
 	while (*p) {
 		for (i = 0; i < nsf; i++) {
 			if (rsf[i].c == *p)
@@ -1064,26 +1054,27 @@ dosflags(argp, vfmt, flags, oargs)
 			return (BADFLAG);
 		if (i == nsf) {
 			rsf[i].curarg = (void *)0;
-			rsf[i].count = 0;
+			rsf[i].curfun = (void *)0;
 			rsf[i].c = *p;
 			rsf[i].type = (char)-1;
+			rsf[i].fmt = '\0';
+			rsf[i].val = (char)TRUE;
 			nsf++;
 		}
-		rsf[i].count++;
+		fl[*p & 0xFF] = i;
 		p++;
 	}
 
-	/*
-	 * XXX Single char Boolen type '~' flags cannot yet be combined
-	 */
 again:
 	while (*fmt) {
 		if (!isfmtspec(*fmt) &&
-		    (fmt[1] == ',' || fmt[1] == '+' || fmt[1] == '\0') &&
+		    (fmt[1] == ',' || fmt[1] == '+' ||
+		    fmt[1] == '~' || fmt[1] == '%' || fmt[1] == '\0') &&
 		    strchr(argp, *fmt)) {
 			for (i = 0; i < nsf; i++) {
 				if (rsf[i].c == *fmt) {
 					if (fmt[1] == '+') {
+						rsf[i].fmt = '+';
 						fmt++;
 						if (fmt[1] == ',' ||
 						    fmt[1] == '\0') {
@@ -1103,6 +1094,44 @@ again:
 							 */
 							rsf[i].type = fmt[1];
 						}
+					} else if (fmt[1] == '%') {
+						fmt++;
+						rsf[i].fmt = '%';
+						if (fmt[1] == '0')
+							rsf[i].val = (char)FALSE;
+						else if (fmt[1] == '1')
+							rsf[i].val = (char)TRUE;
+						fmt++;
+						if (fmt[1] == ',' ||
+						    fmt[1] == '\0') {
+							rsf[i].type = 'i';
+						} else if ((fmt[1] == 'l' ||
+							    fmt[1] == 'L') &&
+							    (fmt[2] == 'l' ||
+							    fmt[2] == 'L')) {
+							/*
+							 * Type 'Q'uad (ll)
+							 */
+							rsf[i].type = 'Q';
+							fmt++;
+						} else {
+							/*
+							 * Type 'l','i','s','c'
+							 */
+							rsf[i].type = fmt[1];
+						}
+					} else if (fmt[1] == '~') {
+						/*
+						 * Let fmt point to ',' to
+						 * prevent to fetch the
+						 * func arg twice.
+						 */
+						fmt += 2;
+						rsf[i].fmt = '~';
+						rsf[i].type = '~';
+						rsf[i].curfun = curarg;
+						if ((flags & (SETARGS|ARGVECTOR)) == SETARGS)
+							curarg = va_arg(args, void *);
 					} else {
 						/*
 						 * ',' or '\0' for BOOL
@@ -1131,29 +1160,66 @@ again:
 	if ((flags & ARGVECTOR) && flagp[1].ga_format != NULL) {
 		flagp++;
 		fmt = flagp->ga_format;
-		if (flags & SETARGS)
+		if (flags & SETARGS) {
 			curarg = flagp->ga_arg;
+			curfun = flagp->ga_funcp;
+		}
 		goto again;
 	}
 
-	for (i = 0; i < nsf; i++) {
+	for (p = argp; *p; p++) {
+		char tfmt;
+
+		i = fl[*p & 0xFF];
+		tfmt  = rsf[i].fmt;
 		type = rsf[i].type;
 		if (type == (char)-1) {
 			return (BADFLAG);
 		}
-		if (rsf[i].curarg) {
+
+		if ((flags & SETARGS) &&
+		    (rsf[i].curfun || rsf[i].curarg)) {
 			if (type == ',' || type == '\0') {
 				*((int *)rsf[i].curarg) = TRUE;
 			} else if (type == 'i' || type == 'I') {
-				*((int *)rsf[i].curarg) += rsf[i].count;
+				if (tfmt == '+')
+					*((int *)rsf[i].curarg) += 1;
+				else
+					*((int *)rsf[i].curarg) = rsf[i].val;
 			} else if (type == 'l' || type == 'L') {
-				*((long *)rsf[i].curarg) += rsf[i].count;
+				if (tfmt == '+')
+					*((long *)rsf[i].curarg) += 1;
+				else
+					*((long *)rsf[i].curarg) = rsf[i].val;
 			} else if (type == 'Q') {
-				*((Llong *)rsf[i].curarg) += rsf[i].count;
+				if (tfmt == '+')
+					*((Llong *)rsf[i].curarg) += 1;
+				else
+					*((Llong *)rsf[i].curarg) = rsf[i].val;
 			} else if (type == 's' || type == 'S') {
-				*((short *)rsf[i].curarg) += rsf[i].count;
+				if (tfmt == '+')
+					*((short *)rsf[i].curarg) += 1;
+				else
+					*((short *)rsf[i].curarg) = rsf[i].val;
 			} else if (type == 'c' || type == 'C') {
-				*((char *)rsf[i].curarg) += rsf[i].count;
+				if (tfmt == '+')
+					*((char *)rsf[i].curarg) += 1;
+				else
+					*((char *)rsf[i].curarg) = rsf[i].val;
+			} else if (type == '~') {
+				int	ret;
+				char	cfmt[3];
+
+				cfmt[0] = '-';
+				cfmt[1] = rsf[i].c;
+				cfmt[2] = '\0';
+
+				if (rsf[i].curfun == NULL)
+					return (BADFMT);
+				ret = ((*(getpargfun)rsf[i].curfun) ("",
+								rsf[i].curarg,
+								pac, pav, cfmt));
+					return (ret);
 			} else {
 				return (BADFLAG);
 			}
@@ -1162,13 +1228,11 @@ again:
 	return (NOTAFLAG);
 }
 
-/*---------------------------------------------------------------------------
-|
-|	If the next format character is a comma or the string delimiter,
-|	there are no invalid format specifiers. Return success.
-|	Otherwise raise the getarg_bad_format condition.
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	If the next format character is a comma or the string delimiter,
+ *	there are no invalid format specifiers. Return success.
+ *	Otherwise raise the getarg_bad_format condition.
+ */
 LOCAL int
 checkfmt(fmt)
 	const char	*fmt;
@@ -1186,15 +1250,13 @@ checkfmt(fmt)
 	}
 }
 
-/*---------------------------------------------------------------------------
-|
-|	Parse the string as long as valid characters can be found.
-|	Valid flag identifiers are chosen from the set of
-|	alphanumeric characters, '-' and '_'.
-|	If the next character is an equal sign the string
-|	contains a valid flag identifier.
-|
-+---------------------------------------------------------------------------*/
+/*
+ *	Parse the string as long as valid characters can be found.
+ *	Valid flag identifiers are chosen from the set of
+ *	alphanumeric characters, '-' and '_'.
+ *	If the next character is an equal sign the string
+ *	contains a valid flag identifier.
+ */
 LOCAL int
 checkeql(str)
 	register const char *str;

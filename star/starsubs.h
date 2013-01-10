@@ -1,8 +1,8 @@
-/* @(#)starsubs.h	1.109 09/01/06 Copyright 1996-2009 J. Schilling */
+/* @(#)starsubs.h	1.114 12/01/01 Copyright 1996-2012 J. Schilling */
 /*
  *	Prototypes for star subroutines
  *
- *	Copyright (c) 1996-2009 J. Schilling
+ *	Copyright (c) 1996-2012 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -34,6 +34,7 @@ extern	int	getnum		__PR((char *arg, long *valp));
 extern	int	getbnum		__PR((char *arg, Llong *valp));
 extern	int	getknum		__PR((char *arg, Llong *valp));
 extern	void	copy_create	__PR((int ac, char *const *av));
+extern	void	star_verifyopts	__PR((void));
 
 /*
  * chdir.c
@@ -94,7 +95,8 @@ extern	Llong	tblocks		__PR((void));
 extern	void	prstats		__PR((void));
 extern	BOOL	checkerrs	__PR((void));
 extern	void	exprstats	__PR((int ret));
-extern	void	excomerrno	__PR((int err, char *fmt, ...)) __printflike__(2, 3);
+extern	void	excomerrno	__PR((int err, char *fmt, ...))
+						__printflike__(2, 3);
 extern	void	excomerr	__PR((char *fmt, ...)) __printflike__(1, 2);
 extern	void	die		__PR((int err));
 
@@ -115,7 +117,8 @@ extern	int	_fileread	__PR((int *fp, void *buf, int len));
 extern	void	create		__PR((char *name, BOOL Hflag, BOOL forceadd));
 extern	void	createlist	__PR((void));
 #ifdef _STAR_H
-extern	BOOL	read_symlink	__PR((char *sname, char *name, FINFO *info, TCB *ptb));
+extern	BOOL	read_symlink	__PR((char *sname, char *name,
+					FINFO *info, TCB *ptb));
 extern	BOOL	last_cpio_link	__PR((FINFO *info));
 extern	BOOL	xcpio_link	__PR((FINFO *info));
 extern	void	flushlinks	__PR((void));
@@ -124,10 +127,13 @@ extern	BOOL	read_link	__PR((char *name, int namlen, FINFO *info,
 #ifdef	EOF
 extern	void	put_file	__PR((int *fp, FINFO *info));
 #endif
-extern	void	cr_file		__PR((FINFO *info, int (*)(void *, char *, int), void *arg, int amt, char *text));
+extern	void	cr_file		__PR((FINFO *info,
+					int (*)(void *, char *, int),
+					void *arg, int amt, char *text));
 #endif
 #if defined(_SCHILY_STAT_H) && defined(_SCHILY_WALK_H)
-extern	int	walkfunc	__PR((char *nm, struct stat *fs, int type, struct WALK *state));
+extern	int	walkfunc	__PR((char *nm, struct stat *fs,
+					int type, struct WALK *state));
 #endif
 
 /*
@@ -143,7 +149,8 @@ extern	void	prdiffopts	__PR((FILE *f, char *label, int flags));
  */
 #ifdef _STAR_H
 #ifdef _RESTORE_H
-extern	imap_t	*padd_node	__PR((char *name, ino_t oino, ino_t nino, Int32_t flags));
+extern	imap_t	*padd_node	__PR((char *name, ino_t oino, ino_t nino,
+					Int32_t flags));
 extern	imap_t	*sym_addrec	__PR((FINFO *info));
 extern	void	sym_addstat	__PR((FINFO *info, imap_t *imp));
 extern	imap_t	*sym_dirprepare	__PR((FINFO *info, imap_t *idir));
@@ -183,7 +190,9 @@ extern	BOOL	same_special	__PR((FINFO *info));
 extern	BOOL	create_dirs	__PR((char *name));
 extern	BOOL	make_adir	__PR((FINFO *info));
 extern	BOOL	void_file	__PR((FINFO *info));
-extern	int	xt_file		__PR((FINFO *info, int (*)(void *, char *, int), void *arg, int amt, char *text));
+extern	int	xt_file		__PR((FINFO *info,
+					int (*)(void *, char *, int),
+					void *arg, int amt, char *text));
 extern	void	skip_slash	__PR((FINFO *info));
 #endif
 
@@ -201,6 +210,7 @@ extern	void	fifo_owake	__PR((int amount));
 extern	void	fifo_oflush	__PR((void));
 extern	int	fifo_owait	__PR((int amount));
 extern	void	fifo_iwake	__PR((int amt));
+extern	void	fifo_reelwake	__PR((void));
 extern	void	fifo_resume	__PR((void));
 extern	void	fifo_sync	__PR((int size));
 extern	int	fifo_errno	__PR((void));
@@ -243,7 +253,8 @@ extern	void	ginit		__PR((void));
 extern	void	grinit		__PR((void));
 extern	void	gipsetup	__PR((GINFO *gp));
 extern	void	griprint	__PR((GINFO *gp));
-extern	BOOL	verifyvol	__PR((char *buf, int amt, int volno, int *skipp));
+extern	BOOL	verifyvol	__PR((char *buf, int amt, int volno,
+					int *skipp));
 extern	char	*dt_name	__PR((int type));
 extern	int	dt_type		__PR((char *name));
 extern	void	put_release	__PR((void));
@@ -291,8 +302,11 @@ extern	BOOL	get_xtime	__PR((char *keyword, char *arg, int len,
 #ifdef	__needed_
 extern	BOOL	get_number	__PR((char *keyword, char *arg, Llong *llp));
 #endif
-extern	BOOL	get_unumber	__PR((char *keyword, char *arg, Ullong *ullp, Ullong maxval));
-extern	BOOL	get_snumber	__PR((char *keyword, char *arg, Ullong *ullp, BOOL *negp, Ullong minval, Ullong maxval));
+extern	BOOL	get_unumber	__PR((char *keyword, char *arg, Ullong *ullp,
+					Ullong maxval));
+extern	BOOL	get_snumber	__PR((char *keyword, char *arg, Ullong *ullp,
+					BOOL *negp,
+					Ullong minval, Ullong maxval));
 #endif
 
 /*
@@ -312,6 +326,7 @@ extern	void	free_xattr	__PR((star_xattr_t **xattr));
 #ifdef	EOF
 extern	int	get_forced_hole	__PR((FILE *f, FINFO *info));
 extern	int	get_sparse	__PR((FILE *f, FINFO *info));
+extern	int	get_as_hole	__PR((FILE *f, FINFO *info));
 extern	BOOL	cmp_sparse	__PR((FILE *f, FINFO *info));
 extern	void	put_sparse	__PR((int *fp, FINFO *info));
 extern	BOOL	sparse_file	__PR((int *fp, FINFO *info));

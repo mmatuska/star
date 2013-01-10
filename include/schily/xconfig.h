@@ -1,8 +1,8 @@
-/* @(#)xconfig.h	1.8 09/11/05 Copyright 1995-2009 J. Schilling */
+/* @(#)xconfig.h	1.11 12/12/03 Copyright 1995-2012 J. Schilling */
 /*
  *	This file either includes the dynamic or manual autoconf stuff.
  *
- *	Copyright (c) 1995-2009 J. Schilling
+ *	Copyright (c) 1995-2012 J. Schilling
  *
  *	This file is included from <schily/mconfig.h> and usually
  *	includes $(SRCROOT)/incs/$(OARCH)/xconfig.h via
@@ -119,6 +119,11 @@
 #define	__JS_ARCH_CONF_INCL
 #endif
 
+#ifdef	__LINUX_ARMV5TEJL_GCC32
+#include <schily/armv5tejl-linux-gcc/xconfig.h>
+#define	__JS_ARCH_CONF_INCL
+#endif
+
 #ifdef	__MSWIN_X86_CL32
 #include <schily/i686-cygwin32_nt-cl/xconfig.h>
 #define	__JS_ARCH_CONF_INCL
@@ -130,11 +135,28 @@
 #endif
 
 #ifndef	__JS_ARCH_CONF_INCL
+/*
+ * #error will not work for all compilers (e.g. sunos4)
+ * The following line will abort compilation on all compilers
+ * if none of the above is defined. And that's  what we want.
+ */
 Error unconfigured architecture
+
+#include <schily/err_arch.h>	/* Avoid "unknown directive" with K&R */
 #endif
 
 #endif	/* SCHILY_BUILD */
 
 #endif	/* USE_STATIC_CONF */
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+/*
+ * Fake in order to keep the silly hdrchk(1) quiet.
+ */
+#ifdef	__cplusplus
+}
+#endif
 
 #endif /* _SCHILY_XCONFIG_H */

@@ -1,6 +1,6 @@
-/* @(#)limits.h	1.1 09/05/24 Copyright 2009 J. Schilling */
+/* @(#)limits.h	1.7 11/08/13 Copyright 2011 J. Schilling */
 /*
- *	Copyright (c) 2009 J. Schilling
+ *	Copyright (c) 2011 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -27,5 +27,28 @@
 #define	_INCL_LIMITS_H
 #endif
 #endif
+
+#ifndef	COLL_WEIGHTS_MAX
+#define	COLL_WEIGHTS_MAX	2
+#endif
+
+#ifndef	_POSIX2_LINE_MAX
+#define	_POSIX2_LINE_MAX	2048
+#endif
+
+/*
+ * Include sys/param.h for PIPE_BUF
+ */
+#ifndef	_SCHILY_PARAM_H
+#include <schily/param.h>
+#endif
+
+#ifndef	PIPE_BUF
+#if	defined(__MINGW32__) || defined(_MSC_VER)
+#define	PIPE_BUF		5120
+#else
+#define	PIPE_BUF		512
+#endif
+#endif	/* PIPE_BUF */
 
 #endif	/* _SCHILY_LIMITS_H */

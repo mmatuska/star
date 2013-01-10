@@ -1,0 +1,718 @@
+Star is the fastest tar archiver for UNIX
+
+Star has many improvements compared to other tar 
+implementations (including gnu tar). See below for a short description
+of the highlight of star.
+
+Star is located on:
+
+ftp://ftp.berlios.de/pub/star
+
+Since Summer 2012, star offers more than 30 years of maintained service
+
+Note that this project includes a stripped down version of libschily.
+Do not try to link star dynamically against this library. If you like to link
+dynamically, get the "schily" project bundle from:
+
+ftp://ftp.berlios.de/pub/schily/
+
+that includes a complete libschily.
+
+Changes since star-1.5.1:
+
+/*--------------------------------------------------------------------------*/
+
+-	Try to make star immune against signals that appear while opening a 
+	file from a network filesystem.
+
+-	Let the star FIFO better handle the media change operation at the end of
+	a tape volume in multi volume create mode.
+
+-	Allow star to auto-detect the "EOF" condition on a raw disk when writing
+	in multi volume create mode. ENXIO has been added as an alias for EFBIG
+	and ENOSPC.
+
+-	The star.4 manpage was enhanced.
+
+-	star_sym.c now uses O_SEARCH for opening directories.
+
+-	star/longnames.c adds more workarounds against wrong buffer overflow
+	aborts from gcc.
+
+-	star/extract.c now uses access(name, F_OK) instead of access(name, 0)
+
+-	star now only sets up signal handlers for existing signals to support MSC
+
+-	star fixed a typo in dumpdates.c that hit on WIN-DOS because flock() is 
+	not present
+
+-	star now checks HAVE_FSYNC to support MSC
+
+-	star::findinfo.c now checks whether stat.st_blksize exists
+
+-	star/dumpdates.c works around a problem with LOCK_EX/LOCK_EX/LOCK_UN
+	defined although the flock() call no longer exists.
+
+-	New (previously missing) man pages:
+	bsh/pfbsh.1 sh/bosh.1 sh/jsh.1 sh/pfsh.1 mt/mt.1 scgskeleton/scgskeleton.1 label/label.1
+	star/ustar.1 star_sym/star_sym.1 ved/ved-e.1 ved/ved-w.1
+
+-	star now supports automatic recognition of xz(1) compressed archives
+	and offers a new option -xz
+
+-	star offers new behavior:
+
+	A tar archive created with "star -c -dump -meta ..." does not include
+	the content for plain files but only the meta data. With "star -c -xmeta"
+	these files could be extracted as 0 by sized files in case that this would
+	not overwrite existing files. Star now supports "star -x -xmeta -fore-hole"
+	to extract these files as files of the original size but as sparse files
+	without any data inside. This is sufficient as a reference for wget -mirror.
+
+-	The man page star/spax.1 fixed a typo.
+
+-	star/header.c now uses a new structure "ndbuf" that defines 
+	a namelength of 101 instead of 100 in order to be able to access
+	the 101th element in the arrays without accessing an aray out of
+	bounds.
+
+-	Fixed a typo in star/buffer.c that caused star to dump core
+	on Linux with -c -mulvivol due to the unusual memory layout found
+	on Linux.
+
+-	The star -multivol buffer management now mallocs less memory.
+	Before it malloc()d the same size as the FIFO size, now it only
+	malloc()s 2 * bufsize
+
+-	star -c -find is now interruptable by ^C
+
+-	star -x -U -k now works as well as star -x -U -keep-old
+
+-	Some typo fixes in star.4 man page
+
+-	Star -sparse -force-hole now archives all files as sparse files in case
+	that they at least contain 512 block aligned bytes of nulls.
+	Thanks to markk@clara.co.uk
+
+-	star -find now removes leading "./" in filenames as star does in
+	other cases.
+
+-	star -r/-u now correctly depends on the old archive format type.
+
+-	Star adds a new option -lzip and automated support to recognize lzip
+	compressed archives.
+	Thanks to markk@clara.co.uk
+
+-	star now accepts a command like:
+
+	star -c -onull -find . -ls
+
+	as there is no archive output to stdout that could mix with the -ls
+	output
+
+-	Fixed a bug in libfind/walk.c (calling strcatl() with last parameter 0
+	instead of (char *)0)
+
+-	libfind bumped to version 1.5
+
+-	New file libfind/find_tok.h to separate the token names from the rest of the implementation.
+
+-	Moved token definitions from find.c to find_tok.h
+
+-	The primary -perm now implements a new feature:
+
+	-perm +mode will evaluate as true if any of the bits set in mode are set in the
+	permission bits fro a file.
+
+-	A bug with -exec introduced with using vfork() instead of fork() was fixed.
+	The replacement of the string "{}" now works correctly again even if the location
+	of the path in memory was changed during a realloc().
+
+-	New primary operators:
+		-amin			deprecated - only for GNU find compatibility
+		-cmin			deprecated - only for GNU find compatibility
+		-mmin			deprecated - only for GNU find compatibility
+		-empty			TRUE zero sized plain file or empty directory
+		-execdir program [argument ...] \\;
+		-fls file     		list files similar to 'ls -ilds' into 'file' (always TRUE)
+		-fprint file		print file names line separated into 'file' (always TRUE)
+		-fprint0 file		print file names nul separated into 'file' (always TRUE)
+		-fprintnnl file		print file names space separated into 'file' (always TRUE)
+		-ilname glob		TRUE if symlink name matches shell glob
+		-ilpat pattern		TRUE if symlink name matches pattern
+		-iname glob		TRUE if path component matches shell glob
+		-ipat pattern		TRUE if path component matches pattern
+		-ipath glob		TRUE if full path matches shell glob
+		-ippat pattern		TRUE if full path matches pattern
+		-okdir program [argument ...] \\;
+		-print0			print file names nul separated to stdout (always TRUE)
+		-executable		TRUE if file is executable by real user id of process
+		-readable		TRUE if file is readable by real user id of process
+		-writable		TRUE if file is writable by real user id of process
+
+
+-	libfind no longer exits the process in treewalk() in case that 
+	the path strings could not be allocated.
+
+-	libfind::walkclose() now free()s the internal data structures
+	in case of a user that does not call treewalk() (e.g.  star -x)
+
+-	The function defltcntl() in libdeflt is now working and allows to
+	select a case insensitive mode.
+
+-	New function defltsect() in libdeflt allows to create sub-sections
+	in configuration files. These subsections need to be named:
+	"[section-name]" and the '[' must be at the beginning of a line.
+
+
+-	Support for "pcc" on Solaris x86 was added as a first step.
+	The C-Compiler "pcc" http://pcc.ludd.ltu.se/ is based on the
+	Portable C-Comppiler from AT&T from the late 1970s. It is
+	under BSDl and thus offers compilation with a really free
+	build environment.
+
+	Note that due to a pcc bug, the autoconf results for
+	Large File support are incorrect. Unless you edit the file
+	incs/i386-sunos5-pcc/xconfig.h and manually correct the
+	file to contain this:
+
+#define _FILE_OFFSET_BITS 64    /* # of bits in off_t if settable          */ 
+
+	You will not get working large file support with pcc.
+
+	Support for more Operating system will follow after the issues
+	in the compiler have been resolved.
+
+-	conf/mkdep-aix.sh now calls "cc -M -qsyntaxonly" instead of
+	"cc -M -E" as the IBM C-preprocessor does not like
+	#pragma weak a = b
+	although the compiler supports it.
+
+-	Added support for DragonFly/x86_64
+
+-	New autoconf test for nanosecond time stamps on AIX.
+
+-	conf/mkdep-aix.sh was changed to avoid warnings for #pragma weak a = b
+	as the IBM C-compiler calls a non "#pragma weak" cpp when called with -E
+
+-	include/schily/stat.h now supports nonosecond timestamps in struct stat on AIX.
+
+-	include/schily/stat.h now supports struct stat.st_atime_n
+	for AIX nanosecond support.
+
+-	Trying to add support for 32 bit compilation on newer Mac OS X
+	version via smake CCOM=cc32
+	This only works if 32 Bit development support is installed on Mac OS X.
+
+-	Trying to add support for 32 bit compilation on newer Linux
+	version via smake CCOM=cc32
+	This only works if 32 Bit development support is installed on Linux.
+
+-	New autoconf test checks whether fnmatch() has a working FNM_IGNORECASE
+
+-	New autoconf tests for supporting stateful multibyte locales
+	mbsinit() mbrtowc() wcrtomb()
+
+-	New autoconf tests for wctype_t mbstate_t
+
+-	New autoconf tests for basename() dirname() strndup() wcsndup()
+
+-	include/schily/wchar.h enhanced to support mbrtowc() and wcrtomb()
+
+-	include/schily/regex.h added
+
+-	include/schily/libgen.h added
+
+-	New autoconf test for strlcat() wcslcat()  strnlen() wcsnlen()
+
+-	New autoconf test for strndup() wcsndup()
+
+-	libschily fnmatch() now supports FNM_IGNORECASE
+
+-	libschily fnmatch() now supports multibyte characters
+
+-	libschily: new files strlcat.c wcslcat.c  strnlen.c wcsnlen.c strndup.c wcsndup.c
+			basename.c dirname.c
+
+-	A new algorithm in libschily
+	strncat.c strncmp.c strncpy.c strnlen.c wcsncat.c wcsncmp.c wcsncpy.c wcsnlen.c
+	makes the code faster and smaller.
+
+-	Conf-files in /etc/default are now installed 0644
+
+-	Man pages are now by default installed in $(INS_BASE)/share/man
+	The base directory "share" may be changed by caling 
+
+		smake DEFMANBASE=something
+
+-	README.compile now mentions:
+
+	INS_RBASE=		Set different "root" install path
+	DEFMANBASE=		Set different man base directory
+	STRIPFLAGS=-s		Strip all binaries with "make install"
+	RUNPATH=		Overwrite ELF RUNPATH
+	DEFUMASK=		Set different default permissions for
+				creating directories
+	DEFINSUMASK=		Set different default permissions for
+				creating directories in the install path
+
+-	Man pages are now by default installed in $(INS_BASE)/share/man
+	The base directory "share" may be changed by caling 
+
+-	All Makefile.dfl now detect whether /etc/default/* already exists
+
+-	The macros XARCH_GEN & XARCH_OPT are now in RULES/cc-sunpro*.rul
+
+-	The include file include/schily/ccomdefs.h now allows to disable
+	the printf() format checks for GCC with -DNO_PRINTFLIKE
+	This is needed in order to allow star to compile in the Solaris ON
+	cosolidation as GCC id too dumb for the printf() extensions.
+
+-	libschily/?eterrno.c no longer overwrite the _TS_ERRNO definition
+	in order to pass the compile constrints in the Solaris ON consoliation.
+
+-	Several new global symbols in the mapfile for libschily/libschily-mapvers
+
+-	libschily/wcsndup.c had frgotten code and still did internaly implement
+	strndup()
+
+-	librmt.so now includes libsocked in the NEEDED ELF tag
+
+-	All include files (even those created by autoconf) are now protected
+	against multiple inclusion.
+
+-	New autoconf test for pathconf() and fpathconf()
+
+-	The linker map files are now processed via "cpp" (or $CC -E) and
+	the output is stored in $(ARCHDIR). This allows to have a single
+	linker map file source for all platforms.
+
+-	New autoconf test for a working cpp.
+
+-	New autoconf test for /dev/stdin, /dev/stdout, /dev/stderr,
+	/dev/fd/0, /dev/fd/1, /dev/fd2
+
+-	New autoconf tests for: qecvt() qfcvt() qgcvt()
+	_ldecvt() _ldfcvt() _ldgcvt() _ldecvt_r() _ldfcvt_r() _ldgcvt_r()
+	qeconvert() qfconvert() qgconvert()
+	needed for long double support.
+
+-	All linker map files have been modified to allow platform
+	dependent #ifdef's
+
+-	libschily now by default renames getline(), fgetline() and
+	fexec*() into js_getline(), js_fgetline() and js_fexec*().
+	This was needed because the POSIX standard commitee ignored
+	POSIX basic rules not to define functions that are in conflict
+	with existing published functions. The functions from linschily
+	have been in the public since more than 25 years and the 
+	functions defined by POSIX.1-2008 even violate POSIX naming rules.
+	The POSIX fexec*() functions would e.g. have to be correctly called
+	fdexec*().
+
+	Existing programs can keep the official names getline(), fgetline()
+	and fexec*() as they are by default #defined to the new js_*() names.
+	To disable this convenience, add:
+
+	#define NO_SCHILY_GETLINE	To disable schily getline(), fgetline()
+	#define	NO_SCHILY_FEXEC		To disable schily fexec*()
+	#define	NO_SCHILY_FSPAWN	To disable schily fspawn*()
+
+-	Libschily now has new "long double" support functions:
+	qftoes() and qftofs()
+
+-	Libschily now supports a locale dependend decimal point for printing
+	floating point numbers.
+
+-	Libschily now supports to print long double numbers using the
+	format() based portable printf() implementation. If this does not
+	work for your platform or if this does not work correctly for
+	your platform, please report. This was needed for out new "od" 
+	implementation.
+
+-	The option parsing implementation getargs()/getfiles() from
+	libschily now supports to combine single character boolean
+	flags even in case the option string mentions to call a callback
+	function if a valid option was found. This was needed for out new 
+	"od" implementation.
+
+-	filereopen() from libschily no longer calls open() internally
+	as long as there is no need to create or truncate the file.
+
+-	include/schily/wchar.h now includes a workyround for platforms
+	that do not have wcwidth().
+
+-	libschily's findinpath() now includes a new path parameter
+	to allow to use the function from bsh.
+
+-	fnmatch is now always available as js_fnmatch()
+
+-	New autoconf test for _qecvt() _qfcvt() _qgcvt()
+	and _qecvt_r() _qfcvt_r() _qgcvt_r() on AIX
+
+-	libschily/getexecpath.c new
+
+-	include/schily/nlsdefs.h now includes macros _(s) and __(s) to support
+	gettext() and xgettext(1)
+
+-	Disable Simple suffix rules and Sufffix rules in smake to speedup builds
+
+-	Added a comment in RULES/rules.rdi that this rule is no longer needed.
+	Use RULES/rules.dir in all cases.
+
+-	New configuration files in the Schily makefilesystem for:
+
+	-	*BSD on amd64
+
+	-	MacOS X on amd64
+
+	-	kfreebsd (Debian on a FreeBSD kernel)
+
+	-	Android
+
+-	The Schily makefilesystem now supports CC_COM for all platforms to
+	allow to overwrite the low level command for the C-compiler.
+
+-	The Schily makefilesystem now supports CC++_COM for all platforms to
+	allow to overwrite the low level command for the C++-compiler.
+
+-	Mingw now by default links against -lminwg32 instead of -lmgw32
+
+-	Mac OS X now by default links against -lgcc_s.1 instead of -lgcc
+
+-	Speed up the dependency generation for cl.exe by pooling some
+	sed commands in a single sed call
+
+-	Fixed a bug with the dependency generation for HP-UX
+
+-	The Schily makefilesystem restructuresd some dependencies to allow
+	to run a parallel make.
+
+-	Android is not POSIX (by not defining various functions as functions 
+	in libc as required by POSIX) because it tries to define many 
+	functions that are part of the standard as inline macros in
+	include files only. This breaks autoconf, so we needed to rewrite
+	some tests (e.g for getpagesize, tcgetpgrp, tcsetpgrp)
+
+-	The Schily autoconf system has been enhanced to support cross
+	compilation. Schily autoconf is based on GNU autoconf and
+	GNU autoconf does not support cross compilation because it needs
+	to run scripts on the target system for some of the tests.
+
+	The "configure" script that is delivered with the Schily makefile
+	system runs 718 tests and 68 of them need to be run on the target
+	system.
+
+	The Schily autoconf system now supports a method to run these 65
+	tests natively on a target system. You either need a machine with
+	remote login features or you need an emulator with a method to
+	copy files into the emulated system and to run binaries on the
+	emulated system as e.g. the Android emulator.
+
+	We currently deliver three scripts for "remote" execution of
+	programs on the target system:
+
+	runrmt_ssh		runs the commands remove via ssh
+	runrmt_rsh		runs the commands remove via rsh
+	runrmt_android		runs the commands remove via the debug bridge
+
+	If you need to remotely run programs on a system that is not
+	supported by one of there three scripts, you need to modify one
+	of them to match your needs.
+
+	To enable Cross Compilation use the following environment variables:
+
+	CONFIG_RMTCALL=		Set up to point to a script that does
+				the remote execution, e.g.:
+
+				CONFIG_RMTCALL=`pwd`/conf/runrmt_ssh
+
+	CONFIG_RMTHOST=		Set up to point to your remote host, e.g.:
+
+				CONFIG_RMTHOST=hostname 
+				or
+				CONFIG_RMTHOST=user@hostname
+
+				use a dummy if you like to use something
+				like to the Android emulator.
+
+	CONFIG_RMTDEBUG=	Set to something non-null in order to 
+				let the remote execution script mark
+				remote comands. This will result in
+				configure messages like:
+
+				checking bits in minor device number... REMOTE 8
+
+	Note that smake includes automake features that automatically
+	retrieve system ID information. For this reason, you need to overwrite 
+	related macros from the command line if you like to do a
+	cross compilation.
+
+	Related make macros:
+
+	K_ARCH=			# (sun4v) Kernel ARCH filled from uname -m / arch -k
+	M_ARCH=			# (sun4)  Machine filled from arch
+	P_ARCH=			# (sparc) CPU ARCH filled from uname -p / mach
+	OSNAME=			# sunos, linux, ....
+	OSREL=			# 5.11
+	OSVERSION=		# snv_130
+	CCOM=			# generic compiler name (e.g. "gcc")
+	CC_COM=			# compiler to call (name + basic args)
+
+	ARCH=			overwrites M_ARCH and P_ARCH
+
+	It is usually suffucient to set ARCH and OSNAME.
+
+	In order to use a cross compiler environment instead of a native compiler,
+	set the make macro CC_COM to something different than "cc".
+
+	If you are on Linux and like to compile for Android, do the following:
+
+	1) 	set up CC acording to the instructions from the cross compiler
+		tool chain
+
+	2)	set environment variables CONFIG_RMTCALL / CONFIG_RMTHOST, e.g.:
+		setenv CONFIG_RMTCALL `pwd`/conf/runrmt_android
+		setenv CONFIG_RMTHOST NONE
+
+	3)	call smake:
+
+		smake ARCH=armv5 OSNAME=linux CCOM=gcc "CC_COM=$CC"
+	
+
+-	Several programs no longer test for HAVE_DEV_* but for HAVE__DEV_*
+	as we did switch from hand written tests for /dev/tty, /dev/null 
+	and similar to  AC_CHECK_FILES(/dev/tty /dev/null /dev/zero)
+
+-	Support for Pyro (a Syllable clone) was added.
+	Thanks to Flemming H. Sørensen
+
+-	Better support for Win32 sockets when using cl.exe
+
+-	Avoid problems with the non-standard prototypes for link() unlink()
+	read() and write() from cl.exe
+
+-	Add support for semi-static (preconfigured) include files for Android:
+	include/schily/armv5tejl-linux-gcc/xconfig.h
+
+-	New include files include/schily/err_*.h are used to encapsulate
+	#error CPP statements that would otherwise always prevent compilation
+	with K&R compilers.
+
+-	Added a workaround for a llvm compiler bug that creates code with 
+	endless loops in some cases.
+
+-	Libschily is now linked against $(LIB_INTL) when a shared libschily
+	is created.
+
+-	Avoid warnings from cl.exe for libschily/gettimeofday.c
+
+
+-	The make program specific configuration files for the Schily Makefilesystem
+	RULES/mk-.id (for SunPro make), RULES/mk-smake.id RULES/mk-gmake.id
+	now include definitions for the macros:
+
+	SPACE		A single space character (' ')
+	NUMBER_SIGN	The ASCII number sing ('#')
+
+	Note that the POSIX standard otherwise requires the make program 
+	to be unable to have the '#' appear in non-comment sections of
+	Makefiles.
+
+-	Try to work around an imprudent change in the file windef.h from
+	Cygwin-1.7.17 (Autumn 2012) related to the type BOOL that makes 
+	windefs.h from the recent Cygwin no longer compatible to the 
+	original file from Microsoft. The fix is in include/schily/windows.h
+
+	Thanks to Alain Hoang, Thomas Plank and others for reporting and
+	help with getting a fix for the problem named above
+
+-	Better comment in libschily/comerr.c to help to understand exit() code
+	folding to 8 bits and how it may be avoided.
+
+
+/*--------------------------------------------------------------------------*/
+
+
+TODO: 
+
+	-	Complete the man page for spax
+
+	-	Implement multi volume continuation headers that work for
+		files > 8 GB where the last tar header
+		(a POSIX.1-2001 'x'-header) was split across volumes.
+		In this case, if only POSIX compliant TAR features are allowed,
+		the extracting TAR would not be able to correctly skip the
+		large file as it does not know the content of the POSIX.1-2001
+		'x'-header. For this reason, later star versions need to implement
+		a method to create multi volume continuation (skip) headers that
+		include the size of the split POSIX.1-2001 'x'-header and the
+		size of the following large file.
+
+		Note that even with this method we would need a new method
+		(different from the current bitmap) to deal with multi volume
+		continuation headers for split files in case the FIFO in star
+		may be larger than 8 GB.
+
+	-	Implement a autoconf extension to to deal with Linux with XFS
+		where not all ACL handling is inside -lacl ??? is this still true?
+
+Revision history (short)
+
+1982	First version on UNOS (extract only)
+1985	Port to UNIX (fully functional version)
+1985	Added pre Posix method of handling special files/devices
+1986	First experiments with fifo as external process.
+1993	Remote tape access
+1993	diff option
+1994	Fifo with shared memory integrated into star
+1994	Very long filenames and sparse files
+1994	Gnutar and Ustar(Posix.1-1988) handling added
+1994	Xstar format (extended Posix.1-1988) defined and introduced
+1995	Ported to many platforms
+1999	Support for Win32 (Cygwin)
+1999	base 256 support to overcome limitation with octal fields
+2001	Large file support
+2001	Support for POSIX.1-2001 extended headers
+2001	Support for ACLs in POSIX.1-2001 extended headers
+2002	Support for extended file flags in POSIX.1-2001 extended headers
+2002	Support for extended inode meta data and meta files
+2003	New program tartest allows to verify POSIX.1-1990 tar archive compliance
+2003	Error control added to allow to selectively ignore error contitions
+2003	ED like pattern based file name substitution with -s '/from/to/[gp]'
+2003	Efficient built in -copy mode
+2003	Basic support for incremental dumps (incremental restore not yet ready)
+2003	CPIO archive support
+2003	New command 'pax/spax' for POSIX.1 command line compatibility.
+2003	New command 'cpio/scpio' for SUSv2 command line compatibility.
+2003	New command 'suntar' for Solaris command line compatibility.
+2003	New command 'gnutar' for GNU tar command line compatibility.
+2003	Support for reliable multi-volume archives with media size detection
+2004	Options -copyhardlinks/-copysymlinks/-copydlinks allow to extract links on platforms that do not support links
+2005	Support for full and incremental dumps and restores.
+2005	Support for cumulative incremental dumps and restores.
+2005	The find(1) code has been integrated via libfind and allows to use find on archives
+2005	Changed license from GPL to CDDL
+2005	Added support for a reliable sparse file interface in Solaris using SEEK_HOLE/SEEK_DATA
+2005	Added support for reliable multi volume handling
+2006	Added support for sparse files that end in a hole
+2007	Added new option -install that allows to overwrite live program text (install on a running system)
+2007	Added new option -xmeta to extrace meta data only
+
+
+Supported platforms:
+
+Virtually any! Known to work:
+
+SunOS 4.x, Solaris (SunOS 5.x), Linux,
+HP-UX, DG/UX, IRIX, AIX, FreeBSD, NetBSD, OpenBSD,
+OSF-1, True-64, QNX, BeOS, Apollo Domain/OS, Next-STep, 
+OS/2, SCO-openserver, SCO-unixware, Caldera OpenUnix,
+Cygwin (Win32), Sony NewsOS,  BSDi (BSD/OS), QNX,
+Apple Rhapsody, MacOS X, AmigaOS, GNU Hurd
+
+Joerg
+
+-------------------------------------------------------------
+Star is the fastest known implementation of a tar archiver.
+
+Star development started 1982, the first complete implementation has 
+been done in 1985. I never did my backups with other tools than star.
+
+Its main advantages over other tar implementations are:
+
+	fifo			- keeps the tape streaming.
+				  This gives you faster backups than
+				  you can achieve with ufsdump, if the
+				  size of the filesystem is > 1 GByte.
+
+	remote tape support	- a fast RMT implementation that has no
+				  probems to saturate a 100 Mb/s network.
+
+	accurate sparse files	- star is able to reproduce holes in sparse
+				  files accurately if the OS includes 
+				  the needed support functions. This is
+				  currently true for Solaris-2.3 to
+				  Solaris-2.5.1
+
+	pattern matcher		- for a convenient user interface
+				  (see manual page for more details).
+				  To archive/extract a subset of files.
+
+	sophisticated diff	- user tailorable interface for comparing
+				  tar archives against file trees
+				  This is one of the most interesting parts
+				  of the star implementation.
+
+	no namelen limitation	- Pathnames up to 1024 Bytes may be archived.
+				  (The same limitation applies to linknames)
+				  This limit may be expanded in future
+				  without changing the method to record
+				  long names.
+
+	deals with all 3 times	- stores/restores all 3 times of a file
+				  (even creation time)
+				  With POSIX.1-2001 the times are in nanosecond
+				  granularity.
+				  Star may reset access time after doing
+				  backup. On Solaris this can be done without
+				  changing the ctime.
+
+	does not clobber files	- more recent copies on disk will not be 
+				  clobbered from tape
+				  This may be the main advantage over other
+				  tar implementations. This allows
+				  automatically repairing of corruptions
+				  after a crash & fsck (Check for differences
+				  after doing this with the diff option).
+
+	automatic byte swap	- star automatically detects swapped archives
+				  and transparently reads them the right way
+
+	automatic format detect	- star automatically detects several common
+				  archive formats and adopts to them.
+				  Supported archive types are:
+				  Old tar, gnu tar, ansi tar, star,
+				  POSIX.1-2001 PAX, Sun's Solaris tar.
+
+
+	automatic compression detect - star automatically detects whether the
+				  archive is compressed. If it has been
+				  compressed with a compression program that
+				  is compatible to decompression with "gzip"
+				  or "bzip2", star automatically activates
+				  decompression.
+
+	fully ansi compatible	- Star is fully ANSI/Posix 1003.1 compatible.
+				  See README.otherbugs for a complete
+				  description of bugs found in other tar
+				  implementations. Star is the first tar
+				  implementation that supports POSIX.1-2001.
+
+	support for ACLs and file flags - star supports Access Control Lists
+				  and extended file flags (as found on FreeBSD
+				  and Linux). Support to archive and restore
+				  other file properties may be easily added.
+
+	support for all inode metadata - star supports to put all inode
+				  metadata on the archive. This allows future
+				  versions of star to perform true
+				  incremental dumps.
+
+	sophisticated error control - allows to tell star which error types
+				  should be ignored for wich file name pattern.
+				  This allows to write backup scripts that give
+				  no error messages for all problems that are
+				  tolerable (e.g. growing log files).
+
+	ED like filename substitution - star supports automated pattern rule based
+				  file name substitution as documented for 'pax'.
+
+	A fast built in -copy mode - allows to make fast and accurate copies and
+				  directory tree comparisons.
+
+	Integrated find(1) code - allows many interesting new features that would
+				  be possible with a separate find call.
+
+Have a look at the manual page, it is included in the distribution.
+

@@ -1,8 +1,8 @@
-/* @(#)getperm.c	1.4 09/07/08 Copyright 2004-2009 J. Schilling */
+/* @(#)getperm.c	1.5 12/04/15 Copyright 2004-2009 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)getperm.c	1.4 09/07/08 Copyright 2004-2009 J. Schilling";
+	"@(#)getperm.c	1.5 12/04/15 Copyright 2004-2009 J. Schilling";
 #endif
 /*
  *	Parser for chmod(1)/find(1)-perm, ....
@@ -30,7 +30,7 @@ static	UConst char sccsid[] =
 #include <schily/nlsdefs.h>
 
 EXPORT	int	getperm		__PR((FILE *f, char *perm, char *opname, mode_t *modep, int smode, int flag));
-LOCAL	char	*getsperm	__PR((FILE *f, char *p, mode_t *mp, int smode, int isX));
+LOCAL	char	*getsperm	__PR((FILE *f, char *p, mode_t *mp, int smode, int flag));
 LOCAL	mode_t	iswho		__PR((int c));
 LOCAL	int	isop		__PR((int c));
 LOCAL	mode_t	isperm		__PR((int c, int isX));
@@ -119,9 +119,6 @@ getperm(f, perm, opname, modep, smode, flag)
 		*modep = OSMODE(mm);
 		return (0);
 	}
-	flag &= ~GP_FPERM;
-	if (flag & GP_XERR)
-		flag = -1;
 	p = getsperm(f, p, modep, smode, flag);
 	if (p && *p != '\0') {
 		if (f) {
@@ -144,12 +141,12 @@ getperm(f, perm, opname, modep, smode, flag)
 }
 
 LOCAL char *
-getsperm(f, p, mp, smode, isX)
+getsperm(f, p, mp, smode, flag)
 	FILE	*f;
 	char	*p;		/* The perm input string		*/
 	mode_t	*mp;		/* To set the mode			*/
 	int	smode;		/* The start mode for the computation	*/
-	int	isX;		/* -1: Ignore X, 0: no dir/X 1: X OK	*/
+	int	flag;		/* Flags, see getperm() flag defs	*/
 {
 #ifdef	OLD
 	mode_t	permval = 0;	/* POSIX start value for "find" */
@@ -172,11 +169,15 @@ nextclause:
 		who |= m;
 	}
 	if (who == 0) {
-		mode_t	mask = umask(0);
+		mode_t	mask;
 
-		umask(mask);
-		who = ~mask;
-		who &= (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
+		if (flag & GP_UMASK) {
+			who = (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
+		} else {
+			umask(mask = umask(0));
+			who = ~mask;
+			who &= (S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO);
+		}
 	}
 #ifdef	PERM_DEBUG
 	error("WHO %4.4lo\n", (long)who);
@@ -197,8 +198,11 @@ nextop:
 		return (p);
 	}
 
+	flag &= ~(GP_FPERM|GP_UMASK);
+	if (flag & GP_XERR)
+		flag = -1;
 	perms = 0;
-	while ((pm = isperm(*p, isX)) != (mode_t)-1) {
+	while ((pm = isperm(*p, flag)) != (mode_t)-1) {
 		p++;
 		perms |= pm;
 	}
