@@ -1,6 +1,6 @@
-/* @(#)star.h	1.125 11/04/12 Copyright 1985, 1995-2011 J. Schilling */
+/* @(#)star.h	1.127 13/11/05 Copyright 1985, 1995-2013 J. Schilling */
 /*
- *	Copyright (c) 1985, 1995-2011 J. Schilling
+ *	Copyright (c) 1985, 1995-2013 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -9,6 +9,8 @@
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -631,8 +633,9 @@ typedef	struct	{
 #ifdef	HAVE_ST_ACLCNT
 	int	f_aclcnt;
 #endif
-	char	*f_acl_access;	/* POSIX Access Control List		  */
-	char	*f_acl_default;	/* POSIX Default ACL			  */
+	char	*f_acl_access;	/* POSIX Draft Access Control List	  */
+	char	*f_acl_default;	/* POSIX Draft Default ACL		  */
+	char	*f_acl_ace;	/* NFSv4 Access Control List		  */
 #endif
 #ifdef USE_XATTR
 	star_xattr_t *f_xattr;	/* Extended File Attributes		  */
@@ -687,14 +690,15 @@ typedef	struct	{
 #define	XF_DEVMAJOR	0x1000	/* Major bei Geräten			  */
 #define	XF_DEVMINOR	0x2000	/* Major bei Geräten			  */
 
-#define	XF_ACL_ACCESS	0x4000	/* POSIX Access Control List		  */
-#define	XF_ACL_DEFAULT	0x8000	/* POSIX Default ACL			  */
+#define	XF_ACL_ACCESS	0x04000	/* POSIX Draft Access Control List	  */
+#define	XF_ACL_DEFAULT	0x08000	/* POSIX Draft Default ACL		  */
+#define	XF_ACL_ACE	0x10000	/* NFSv4 Access Control List		  */
 
-#define	XF_FFLAGS	0x10000	/* File flags				  */
+#define	XF_FFLAGS	0x20000	/* File flags				  */
 				/* Echte Dateigröße (f_size)		  */
-#define	XF_REALSIZE	0x20000	/* Dateigröße wenn > 8 GB		  */
-#define	XF_OFFSET	0x40000	/* Multi Volume Offset			  */
-#define	XF_XATTR	0x80000	/* Extended Attributes			  */
+#define	XF_REALSIZE	0x40000	/* Dateigröße wenn > 8 GB		  */
+#define	XF_OFFSET	0x80000	/* Multi Volume Offset			  */
+#define	XF_XATTR	0x100000 /* Extended Attributes			  */
 
 #define	XF_NOTIME    0x10000000	/* Keine extended Zeiten		  */
 
@@ -759,8 +763,8 @@ typedef struct {
 	int		dumptype;	/* Dump type see below */
 	int		dumplevel;	/* Level of this dump */
 	int		reflevel;	/* Level this dump refers to */
-	struct timeval	dumpdate;	/* Date of this dump */
-	struct timeval	refdate;	/* Date this dump refers to */
+	struct timespec	dumpdate;	/* Date of this dump */
+	struct timespec	refdate;	/* Date this dump refers to */
 	int		volno;		/* Volume number starting with 1 */
 	Ullong		tapesize;	/* Tape size in 512 byte units */
 	Ullong		blockoff;	/* 512 byte based offset within all */

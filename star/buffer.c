@@ -1,13 +1,13 @@
-/* @(#)buffer.c	1.164 12/01/01 Copyright 1985, 1995, 2001-2012 J. Schilling */
+/* @(#)buffer.c	1.166 13/10/05 Copyright 1985, 1995, 2001-2013 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)buffer.c	1.164 12/01/01 Copyright 1985, 1995, 2001-2012 J. Schilling";
+	"@(#)buffer.c	1.166 13/10/05 Copyright 1985, 1995, 2001-2013 J. Schilling";
 #endif
 /*
  *	Buffer handling routines
  *
- *	Copyright (c) 1985, 1995, 2001-2012 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2013 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -16,6 +16,8 @@ static	UConst char sccsid[] =
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -40,7 +42,6 @@ static	UConst char sccsid[] =
 #include <schily/stdio.h>
 #include <schily/stdlib.h>
 #include <schily/unistd.h>
-#include <schily/libport.h>	/* getpagesize() */
 #include <schily/fcntl.h>
 #include <schily/ioctl.h>
 #include <schily/varargs.h>
@@ -51,12 +52,13 @@ static	UConst char sccsid[] =
 #include "fifo.h"
 #include <schily/string.h>
 #include <schily/wait.h>
-#include <schily/schily.h>
 #include <schily/mtio.h>
 #include <schily/librmt.h>
+#include <schily/schily.h>
 #include "starsubs.h"
 
 #include <schily/io.h>		/* for setmode() prototype */
+#include <schily/libport.h>	/* getpagesize() */
 
 long	bigcnt	= 0;
 int	bigsize	= 0;		/* Tape block size (may shrink < bigbsize) */
@@ -73,8 +75,8 @@ m_stats	*stats	= &bstat;
 int	pid;
 
 #ifdef	timerclear
-LOCAL	struct	timeval	starttime;
-LOCAL	struct	timeval	stoptime;
+LOCAL	struct	timespec	starttime;
+LOCAL	struct	timespec	stoptime;
 #endif
 
 LOCAL	BOOL	isremote = FALSE;
@@ -417,8 +419,8 @@ opentape()
 	}
 
 #ifdef	timerclear
-	if (showtime && starttime.tv_sec == 0 && starttime.tv_usec == 0 &&
-	    gettimeofday(&starttime, (struct timezone *)0) < 0)
+	if (showtime && starttime.tv_sec == 0 && starttime.tv_nsec == 0 &&
+	    getnstimeofday(&starttime) < 0)
 		comerr("Cannot get starttime\n");
 #endif
 }
@@ -1639,7 +1641,7 @@ prstats()
 	int	per;
 #ifdef	timerclear
 	int	sec;
-	int	usec;
+	int	nsec;
 	int	tmsec;
 #endif
 	char	*p;
@@ -1661,7 +1663,7 @@ prstats()
 		return;
 
 #ifdef	timerclear
-	if (showtime && gettimeofday(&stoptime, (struct timezone *)0) < 0)
+	if (showtime && getnstimeofday(&stoptime) < 0)
 		comerr("Cannot get stoptime\n");
 #endif
 #ifdef	FIFO
@@ -1702,11 +1704,11 @@ prstats()
 		Llong	kbs;
 
 		sec = stoptime.tv_sec - starttime.tv_sec;
-		usec = stoptime.tv_usec - starttime.tv_usec;
-		tmsec = sec*1000 + usec/1000;
-		if (usec < 0) {
+		nsec = stoptime.tv_nsec - starttime.tv_nsec;
+		tmsec = sec*1000 + nsec/1000000;
+		if (nsec < 0) {
 			sec--;
-			usec += 1000000;
+			nsec += 1000000000;
 		}
 		if (tmsec == 0)
 			tmsec++;
@@ -1714,7 +1716,7 @@ prstats()
 		kbs = kbytes*(Llong)1000/tmsec;
 
 		errmsgno(EX_BAD, "Total time %d.%03dsec (%lld kBytes/sec)\n",
-				sec, usec/1000, kbs);
+				sec, nsec/1000000, kbs);
 	}
 #endif
 }

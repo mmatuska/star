@@ -1,13 +1,13 @@
-/* @(#)pax.c	1.28 11/04/16 Copyright 1989, 2003-2011 J. Schilling */
+/* @(#)pax.c	1.30 13/07/22 Copyright 1989, 2003-2013 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	const char _p_sccsid[] =
-	"@(#)pax.c	1.28 11/04/16 Copyright 1989, 2003-2011 J. Schilling";
+	"@(#)pax.c	1.30 13/07/22 Copyright 1989, 2003-2013 J. Schilling";
 #endif
 /*
  *	PAX specific routines for star main program.
  *
- *	Copyright (c) 1989, 2003-2011 J. Schilling
+ *	Copyright (c) 1989, 2003-2013 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -16,6 +16,8 @@ static	const char _p_sccsid[] =
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -127,6 +129,7 @@ gargs(ac, av)
 	paxmatch	= TRUE;
 	nopflag		= TRUE;			/* pax default */
 	no_stats	= TRUE;			/* -no-statitstics	   */
+	nochown		= TRUE;			/* chown only with -po / -pe */
 
 	--ac, ++av;
 	files = getfilecount(ac, av, opts);
@@ -266,9 +269,11 @@ usage(ret)
 	error("\t-c\t\tinvert matching rules\n");
 	error("\t-d\t\tdo not descend directories\n");
 	error("\t-f nm\t\tuse 'nm' as tape instead of stdin/stdout\n");
+	error("\t-H\t\tfollow symbolic links from cmdline as if they were files\n");
 	error("\t-i\t\tdo interactive creation/extraction/renaming\n");
 	error("\t-k\t\tkeep existing files\n");
 	error("\t-l\t\tlink files rather than copying them\n");
+	error("\t-L\t\tfollow symbolic links as if they were files\n");
 	error("\t-n\t\tone match per pattern only\n");
 	error("\t-o\t\toptions (none specified with SUSv2 / UNIX-98)\n");
 	error("\t-p string\tset privileges\n");

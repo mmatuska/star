@@ -1,4 +1,4 @@
-dnl @(#)aclocal.m4	1.99 11/08/02 Copyright 1998-2011 J. Schilling
+dnl @(#)aclocal.m4	1.101 14/03/24 Copyright 1998-2014 J. Schilling
 
 dnl Set VARIABLE to VALUE in C-string form, verbatim, or 1.
 dnl AC_DEFINE_STRING(VARIABLE [, VALUE])
@@ -1259,6 +1259,29 @@ AC_CACHE_CHECK([for struct timezone in time.h or sys/time.h], ac_cv_struct_timez
                 [ac_cv_struct_timezone=no])])
 if test $ac_cv_struct_timezone = yes; then
   AC_DEFINE(HAVE_STRUCT_TIMEZONE)
+fi])
+
+dnl Checks for struct timespec in time.h or sys/time.h
+dnl Defines HAVE_STRUCT_TIMESPEC on success.
+AC_DEFUN([AC_STRUCT_TIMESPEC],
+[AC_REQUIRE([AC_HEADER_TIME])dnl
+AC_CACHE_CHECK([for struct timespec in time.h or sys/time.h], ac_cv_struct_timespec,
+                [AC_TRY_COMPILE([
+#include <sys/types.h>
+#ifdef	TIME_WITH_SYS_TIME_H
+#	include <sys/time.h>
+#	include <time.h>
+#else
+#ifdef	HAVE_SYS_TIME_H
+#	include <sys/time.h>
+#else
+#	include <time.h>
+#endif
+#endif], [struct timespec ts;],
+                [ac_cv_struct_timespec=yes],
+                [ac_cv_struct_timespec=no])])
+if test $ac_cv_struct_timespec = yes; then
+  AC_DEFINE(HAVE_STRUCT_TIMESPEC)
 fi])
 
 dnl Checks for type time_t
@@ -3118,7 +3141,8 @@ dnl Checks if the compiler allows #pragma weak
 dnl Defines HAVE_PRAGMA_WEAK on success.
 AC_DEFUN([AC_PRAGMA_WEAK],
 [AC_CACHE_CHECK([if compiler allows pragma weak], ac_cv_pragma_weak,
-                [AC_TRY_LINK([#pragma weak test2 = test1
+                [AC_TRY_LINK([extern int test2();
+#pragma weak test2 = test1
 int test1() {return 0;}],
 [return test2();],
                 [ac_cv_pragma_weak=yes],

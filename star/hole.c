@@ -1,13 +1,13 @@
-/* @(#)hole.c	1.61 11/04/08 Copyright 1993-2011 J. Schilling */
+/* @(#)hole.c	1.63 14/01/16 Copyright 1993-2014 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)hole.c	1.61 11/04/08 Copyright 1993-2011 J. Schilling";
+	"@(#)hole.c	1.63 14/01/16 Copyright 1993-2014 J. Schilling";
 #endif
 /*
  *	Handle files with holes (sparse files)
  *
- *	Copyright (c) 1993-2011 J. Schilling
+ *	Copyright (c) 1993-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -16,6 +16,8 @@ static	UConst char sccsid[] =
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -68,6 +70,7 @@ extern	char	*bigptr;
 extern	BOOL	debug;
 extern	BOOL	force_hole;
 extern	BOOL	nullout;
+extern	BOOL	silent;
 
 /*
  * XXX If we have really big files, there could in theory be more than
@@ -754,18 +757,6 @@ mk_sp_list(fp, info, spp)
 		return (i);
 	}
 
-	/*
-	 * Shortcut for files which consist of a single hole and no written
-	 * data. In that case on some file systems a file may occupy 0 blocks
-	 * on disk, and the F_ALL_HOLE flag could be set in info->f_flags. In
-	 * such a case, we can avoid scanning the file on dumb operating
-	 * systems that do not support SEEK_HOLE nor something equivalent.
-	 */
-	if (info->f_flags & F_ALL_HOLE) {
-		pos = info->f_size;
-		goto scan_done;
-	}
-
 #if	defined(SEEK_HOLE) && defined(SEEK_DATA)
 	/*
 	 * Error codes: EINVAL -> OS does not support SEEK_HOLE
@@ -791,6 +782,26 @@ mk_sp_list(fp, info, spp)
 	fai.fai_num = 0;			/* start at 0 again  */
 #endif	/* _FIOAI */
 #endif	/* SEEK_HOLE */
+
+	/*
+	 * Shortcut for files which consist of a single hole and no written
+	 * data. In that case on some file systems a file may occupy 0 blocks
+	 * on disk, and the F_ALL_HOLE flag could be set in info->f_flags. In
+	 * such a case, we can avoid scanning the file on dumb operating
+	 * systems that do not support SEEK_HOLE nor something equivalent.
+	 *
+	 * Before, we made a decision based on F_ALL_HOLE unconditionally but
+	 * in October 2013, it turned out that at least NetAPP stores
+	 * files up to 64 bytes in the inode and then returns
+	 * sp->st_blocks == 0 for a non sparse file. We now moved this decision
+	 * past the check for a working SEEK_HOLE in hope that noone will
+	 * implement a filesystem that hides more than DEV_BSIZE without
+	 * supporting SEEK_HOLE.
+	 */
+	if (info->f_flags & F_ALL_HOLE) {
+		pos = info->f_size;
+		goto scan_done;
+	}
 
 	for (;;) {
 		if (use_ai) {
@@ -1160,6 +1171,27 @@ put_sparse(fp, info)
 		return;
 	}
 	rsize = info->f_rsize;
+
+	/*
+	 * If -force-hole was specified and the file is not sparse, only write
+	 * it as sparse to the archive if the amount of all-zero data is at
+	 * least TBLOCK bytes.
+	 */
+	if (force_hole && ((info->f_flags & F_SPARSE) == 0)) {
+		if (info->f_size - rsize < TBLOCK) {
+			info->f_rsize = info->f_size;
+			put_tcb(info->f_tcb, info);
+			vprint(info);
+			/*
+			 * At this point, we found a file with no zeroed
+			 * region of at least TBLOCK size.
+			 */
+			put_file(fp, info);
+			return;
+		} else if (!silent) {
+			error("Treating '%s' as sparse\n", info->f_name);
+		}
+	}
 
 	EDEBUG(("rsize: %lld\n", (Llong)rsize));
 

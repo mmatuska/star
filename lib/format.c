@@ -1,4 +1,4 @@
-/* @(#)format.c	1.51 10/10/23 Copyright 1985-2010 J. Schilling */
+/* @(#)format.c	1.58 14/03/31 Copyright 1985-2014 J. Schilling */
 /*
  *	format
  *	common code for printf fprintf & sprintf
@@ -6,7 +6,7 @@
  *	allows recursive printf with "%r", used in:
  *	error, comerr, comerrno, errmsg, errmsgno and the like
  *
- *	Copyright (c) 1985-2010 J. Schilling
+ *	Copyright (c) 1985-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -15,6 +15,8 @@
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -45,6 +47,38 @@ extern	char	*gcvt __PR((double, int, char *));
 
 #ifdef	NO_LONGLONG
 #undef	USE_LONGLONG
+#endif
+
+#ifndef	USE_NL_ARGS
+#define	USE_NL_ARGS
+#endif
+
+#ifdef	NO_NL_ARGS
+#undef	USE_NL_ARGS
+#endif
+
+/*
+ * Avoid to keep copies of the variable arg list in case that
+ * format() was compiled without including NL support for
+ * argument reordering.
+ */
+#ifdef	USE_NL_ARGS
+#define	args		fargs.ap	/* Use working copy */
+#else
+#define	args		oargs		/* Directly use format() arg */
+#endif
+
+/*
+ * We may need to decide whether we should check whether all
+ * flags occur according to the standard which is either directly past:
+ * "%" or directly past "%n$".
+ *
+ * This however may make printf() slower in some cases.
+ */
+#ifdef	USE_CHECKFLAG
+#define	CHECKFLAG()	if (fa.flags & GOTSTAR) goto flagerror
+#else
+#define	CHECKFLAG()
 #endif
 
 #ifdef	NO_USER_XCVT
@@ -117,6 +151,11 @@ typedef struct f_args {
 #define	PLUSFLG		2	/* '+' flag */
 #define	SPACEFLG	4	/* ' ' flag */
 #define	HASHFLG		8	/* '#' flag */
+#define	APOFLG		16	/* '\'' flag */
+#define	GOTDOT		32	/* '.' found */
+#define	GOTSTAR		64	/* '*' found */
+
+#define	FMT_ARGMAX	30	/* Number of fast args */
 
 LOCAL	void	prnum  __PR((Ulong, unsigned, f_args *));
 LOCAL	void	prdnum __PR((Ulong, f_args *));
@@ -137,20 +176,41 @@ LOCAL	int	prstring __PR((const char *, f_args *));
 LOCAL	void	dbg_print __PR((char *fmt, int a, int b, int c, int d, int e, int f, int g, int h, int i));
 #endif
 
+#ifdef	USE_NL_ARGS
+#ifndef	FORMAT_FUNC_NAME
+#define	FORMAT_IMPL
+EXPORT	void	_fmtarglist __PR((const char *fmt, va_lists_t, va_lists_t arglist[]));
+EXPORT	void	_fmtgetarg  __PR((const char *fmt, int num, va_lists_t *));
+#else
+extern	void	_fmtarglist __PR((const char *fmt, va_lists_t, va_lists_t arglist[]));
+extern	void	_fmtgetarg  __PR((const char *fmt, int num, va_lists_t *));
+#endif
+#endif
+
+#ifndef	FORMAT_FUNC_NAME
+#define	FORMAT_FUNC_NAME	format
+#define	FORMAT_FUNC_PARM
+
+#define	FORMAT_FUNC_PROTO_DECL	void (*fun)(char, long),
+#define	FORMAT_FUNC_KR_DECL	register void (*fun)();
+#define	FORMAT_FUNC_KR_ARGS	fun,
+
+#define	ofun(c, fp)		(*fun)(c, fp)
+#endif
 
 #ifdef	PROTOTYPES
 EXPORT int
-format(void (*fun)(char, long),
+FORMAT_FUNC_NAME(FORMAT_FUNC_PROTO_DECL
 			long farg,
 			const char *fmt,
-			va_list args)
+			va_list oargs)
 #else
 EXPORT int
-format(fun, farg, fmt, args)
-	register void	(*fun)();
+FORMAT_FUNC_NAME(FORMAT_FUNC_KR_ARGS farg, fmt, oargs)
+	FORMAT_FUNC_KR_DECL
 	register long	farg;
 	register char	*fmt;
-	va_list		args;
+	va_list		oargs;
 #endif
 {
 #ifdef	FORMAT_LOW_MEM
@@ -165,6 +225,7 @@ format(fun, farg, fmt, args)
 	register char mode;
 	register char c;
 	int count;
+	int num;
 	int i;
 	short sh;
 	const char *str;
@@ -175,10 +236,25 @@ format(fun, farg, fmt, args)
 	Ulong res;
 	char *rfmt;
 	f_args	fa;
+#ifdef	USE_NL_ARGS
+	va_lists_t	fargs;		/* Used to get arguments */
+	va_lists_t	sargs;		/* Saved argument state */
+	va_lists_t	arglist[FMT_ARGMAX+1]; /* List of fast args */
+	const char 	*ofmt = fmt;	/* Saved original format */
+	BOOL		didlist = FALSE; /* Need to scan arguments */
+#endif
 
+#ifdef	FORMAT_FUNC_PARM
 	fa.outf = fun;
+#endif
 	fa.farg = farg;
 	count = 0;
+
+#ifdef	USE_NL_ARGS
+	va_copy(sargs.ap, oargs);	/* Keep a copy in sargs */
+	fargs = sargs;			/* Make a working copy  */
+#endif
+
 	/*
 	 * Main loop over the format string.
 	 * Increment and check for end of string is made here.
@@ -188,7 +264,7 @@ format(fun, farg, fmt, args)
 		while (c != '%') {
 			if (c == '\0')
 				return (count);
-			(*fun)(c, farg);
+			ofun(c, farg);
 			c = *(++fmt);
 			count++;
 		}
@@ -209,18 +285,28 @@ format(fun, farg, fmt, args)
 		unsflag = FALSE;
 		type = '\0';
 		mode = '\0';
+		/*
+		 * %<flags>f.s<length-mod><conversion-spec>
+		 * %<flags>*.*<length-mod><conversion-spec>
+		 * %n$<flags>f.s<length-mod><conversion-spec>
+		 * %n$<flags>*n$.*n$<length-mod><conversion-spec>
+		 */
 	newflag:
 		switch (*(++fmt)) {
 
 		case '+':
+			CHECKFLAG();
 			fa.flags |= PLUSFLG;
 			goto newflag;
 
 		case '-':
+			CHECKFLAG();
 			fa.minusflag++;
+			fa.flags |= MINUSFLG;
 			goto newflag;
 
 		case ' ':
+			CHECKFLAG();
 			/*
 			 * If the space and the + flag are present,
 			 * the space flag will be ignored.
@@ -229,46 +315,129 @@ format(fun, farg, fmt, args)
 			goto newflag;
 
 		case '#':
+			CHECKFLAG();
 			fa.flags |= HASHFLG;
+			goto newflag;
+
+		case '\'':
+			CHECKFLAG();
+			fa.flags |= APOFLG;
+			goto newflag;
+
+		case '.':
+			fa.flags |= GOTDOT;
+			fa.signific = 0;
+			goto newflag;
+
+		case '*':
+			fa.flags |= GOTSTAR;
+#ifdef	USE_NL_ARGS
+			if (is_dig(fmt[1])) {	/* *n$ */
+				fmt++;		/* Eat up '*' */
+				goto dodig;
+			}
+#endif
+			if (!(fa.flags & GOTDOT)) {
+				fa.fldwidth = va_arg(args, int);
+				/*
+				 * A negative fieldwith is a minus flag with a
+				 * positive fieldwidth.
+				 */
+				if (fa.fldwidth < 0) {
+					fa.fldwidth = -fa.fldwidth;
+					fa.minusflag = 1;
+				}
+			} else {
+				/*
+				 * A negative significance (precision) is taken
+				 * as if the precision and '.' were omitted.
+				 */
+				fa.signific = va_arg(args, int);
+				if (fa.signific < 0)
+					fa.signific = -1;
+			}
 			goto newflag;
 
 		case '0':
 			/*
-			 * '0' is a flag.
+			 * '0' may be a flag.
 			 */
-			fa.fillc = '0';
+			if (!(fa.flags & (GOTDOT | GOTSTAR | MINUSFLG)))
+				fa.fillc = '0';
+			/* FALLTHRU */
+		case '1': case '2': case '3': case '4':
+		case '5': case '6': case '7': case '8': case '9':
+#ifdef	USE_NL_ARGS
+		dodig:
+#endif
+			num = *fmt++ - '0';
+			while (c = *fmt, is_dig(c)) {
+				num *= 10;
+				num += c - '0';
+				fmt++;
+			}
+#ifdef	USE_NL_ARGS
+			if (c == '$')
+				goto doarglist;
+#endif
+			fmt--;			/* backup to last digit */
+			if (!(fa.flags & GOTDOT))
+				fa.fldwidth = num;
+			else
+				fa.signific = num;
 			goto newflag;
-		}
-		if (*fmt == '*') {
-			fmt++;
-			fa.fldwidth = va_arg(args, int);
-			/*
-			 * A negative fieldwith is a minus flag with a
-			 * positive fieldwidth.
-			 */
-			if (fa.fldwidth < 0) {
-				fa.fldwidth = -fa.fldwidth;
-				fa.minusflag = 1;
+
+#ifdef	USE_NL_ARGS
+		doarglist:
+			{
+			va_lists_t	tmp;	/* Temporary arg state */
+			if (num <= 0)		/* Illegal arg offset */
+				goto newflag;	/* Continue after '$' */
+			if (!didlist) {		/* Need to init arglist */
+				_fmtarglist(ofmt, sargs, arglist);
+				didlist = TRUE;
 			}
-		} else while (c = *fmt, is_dig(c)) {
-			fa.fldwidth *= 10;
-			fa.fldwidth += c - '0';
-			fmt++;
-		}
-		if (*fmt == '.') {
-			fmt++;
-			fa.signific = 0;
-			if (*fmt == '*') {
-				fmt++;
-				fa.signific = va_arg(args, int);
-				if (fa.signific < 0)
-					fa.signific = 0;
-			} else while (c = *fmt, is_dig(c)) {
-				fa.signific *= 10;
-				fa.signific += c - '0';
-				fmt++;
+			if (num <= FMT_ARGMAX) {
+				tmp = arglist[num-1];
+			} else {
+				tmp = arglist[FMT_ARGMAX-1];
+				_fmtgetarg(ofmt, num, &tmp);
 			}
+			if (!(fa.flags & GOTSTAR)) {
+				fargs = tmp;
+			} else {
+				if (!(fa.flags & GOTDOT)) {
+					fa.fldwidth = va_arg(tmp.ap, int);
+					/*
+					 * A negative fieldwith is a minus flag
+					 * with a positive fieldwidth.
+					 */
+					if (fa.fldwidth < 0) {
+						fa.fldwidth = -fa.fldwidth;
+						fa.minusflag = 1;
+					}
+				} else {
+					/*
+					 * A negative significance (precision)
+					 * is taken as if the precision and '.'
+					 * were omitted.
+					 */
+					fa.signific = va_arg(tmp.ap, int);
+					if (fa.signific < 0)
+						fa.signific = -1;
+				}
+			}
+			goto newflag;
+			}
+#endif
+
+#ifdef	USE_CHECKFLAG
+		flagerror:
+			fmt = ++sfmt;		/* Don't print '%'   */
+			continue;
+#endif
 		}
+
 		if (strchr("UCSIL", *fmt)) {
 			/*
 			 * Enhancements to K&R and ANSI:
@@ -297,7 +466,7 @@ format(fun, farg, fmt, args)
 				mode = *fmt;
 			} else {
 				/*
-				 * got CSIL
+				 * got CSIL type
 				 */
 				type = *fmt++;
 				if (!strchr("ZODX", mode = *fmt)) {
@@ -374,7 +543,7 @@ error sizeof (ptrdiff_t) is unknown
 		 */
 
 		getmode:
-			if (!strchr("udioxX", *(++fmt))) {
+			if (!strchr("udioxXn", *(++fmt))) {
 				/*
 				 * %hhd -> char in decimal
 				 */
@@ -390,8 +559,10 @@ error sizeof (ptrdiff_t) is unknown
 #endif
 				fmt--;
 				mode = 'D';
-			} else {
+			} else {		/* One of "udioxXn": */
 				mode = *fmt;
+				if (mode == 'n')
+					goto gotn;
 				if (mode != 'x')
 					mode = to_cap(mode);
 				if (mode == 'U')
@@ -548,27 +719,59 @@ error sizeof (ptrdiff_t) is unknown
 			 * It would be nice to have something like
 			 * __va_arg_list() in stdarg.h
 			 */
-			count += format(fun, farg, rfmt, __va_arg_list(args));
+			count += FORMAT_FUNC_NAME(FORMAT_FUNC_KR_ARGS
+					farg, rfmt, __va_arg_list(args));
 			continue;
 
+		gotn:
 		case 'n':
-			{
+			switch (type) {
+
+			case 'C': {
+				signed char *cp = va_arg(args, signed char *);
+
+				*cp = count;
+				}
+				continue;
+			case 'H': {
+				short	*sp = va_arg(args, short *);
+
+				*sp = count;
+				}
+				continue;
+			case 'L': {
+				long	*lp = va_arg(args, long *);
+
+				*lp = count;
+				}
+				continue;
+#ifdef	USE_LONGLONG
+			case 'J':		/* For now Intmax_t is Llong */
+			case 'Q': {
+				Llong *qp = va_arg(args, Llong *);
+
+				*qp = count;
+				}
+				continue;
+#endif
+			default: {
 				int	*ip = va_arg(args, int *);
 
 				*ip = count;
+				}
+				continue;
 			}
-			continue;
 
 		default:			/* Unknown '%' format */
 			sfmt++;			/* Dont't print '%'   */
 			count += fmt - sfmt;
 			while (sfmt < fmt)
-				(*fun)(*(sfmt++), farg);
+				ofun(*(sfmt++), farg);
 			if (*fmt == '\0') {
 				fmt--;
 				continue;
 			} else {
-				(*fun)(*fmt, farg);
+				ofun(*fmt, farg);
 				count++;
 				continue;
 			}
@@ -943,7 +1146,9 @@ prbuf(s, fa)
 	register int diff;
 	register int rfillc;
 	register long arg			= fa->farg;
+#ifdef	FORMAT_FUNC_PARM
 	register void (*fun) __PR((char, long))	= fa->outf;
+#endif
 	register int count;
 	register int lzero = 0;
 
@@ -961,28 +1166,28 @@ prbuf(s, fa)
 
 	if (fa->prefixlen && fa->fillc != ' ') {
 		while (*fa->prefix != '\0')
-			(*fun)(*fa->prefix++, arg);
+			ofun(*fa->prefix++, arg);
 	}
 	if (!fa->minusflag) {
 		rfillc = fa->fillc;
 		while (--diff >= 0)
-			(*fun)(rfillc, arg);
+			ofun(rfillc, arg);
 	}
 	if (fa->prefixlen && fa->fillc == ' ') {
 		while (*fa->prefix != '\0')
-			(*fun)(*fa->prefix++, arg);
+			ofun(*fa->prefix++, arg);
 	}
 	if (lzero > 0) {
 		rfillc = '0';
 		while (--lzero >= 0)
-			(*fun)(rfillc, arg);
+			ofun(rfillc, arg);
 	}
 	while (*s != '\0')
-		(*fun)(*s++, arg);
+		ofun(*s++, arg);
 	if (fa->minusflag) {
 		rfillc = ' ';
 		while (--diff >= 0)
-			(*fun)(rfillc, arg);
+			ofun(rfillc, arg);
 	}
 	return (count);
 }
@@ -1007,7 +1212,9 @@ prc(c, fa)
 	register int diff;
 	register int rfillc;
 	register long arg			= fa->farg;
+#ifdef	FORMAT_FUNC_PARM
 	register void (*fun) __PR((char, long))	= fa->outf;
+#endif
 	register int count;
 
 	count = 1;
@@ -1018,13 +1225,13 @@ prc(c, fa)
 	if (!fa->minusflag) {
 		rfillc = fa->fillc;
 		while (--diff >= 0)
-			(*fun)(rfillc, arg);
+			ofun(rfillc, arg);
 	}
-	(*fun)(c, arg);
+	ofun(c, arg);
 	if (fa->minusflag) {
 		rfillc = ' ';
 		while (--diff >= 0)
-			(*fun)(rfillc, arg);
+			ofun(rfillc, arg);
 	}
 	return (count);
 }
@@ -1069,3 +1276,368 @@ char *fmt;
 	write(STDERR_FILENO, ff, strlen(ff));
 }
 #endif
+
+#ifdef	USE_NL_ARGS
+#ifdef	FORMAT_IMPL
+/*
+ * The following code is shared between format() and fprformat().
+ */
+
+/*
+ * Format argument types.
+ * As "char" and "short" type arguments are fetched as "int"
+ * we start with size "int" and ignore the 'h' modifier when
+ * parsing sizes.
+ */
+#define	AT_NONE			0
+#define	AT_INT			1
+#define	AT_LONG			2
+#define	AT_LONG_LONG		3
+#define	AT_DOUBLE		4
+#define	AT_LONG_DOUBLE		5
+#define	AT_VOID_PTR		6
+#define	AT_CHAR_PTR		7
+#define	AT_SHORT_PTR		8
+#define	AT_INT_PTR		9
+#define	AT_LONG_PTR		10
+#define	AT_LONG_LONG_PTR	11
+#define	AT_R_FMT		12
+#define	AT_R_VA_LIST		13
+#define	AT_BOUNDS		14
+
+#define	AF_NONE			0
+#define	AF_LONG			1
+#define	AF_LONG_LONG		2
+#define	AF_LONG_DOUBLE		4
+#define	AF_STAR			8
+
+static	const char	skips[] = "+- #'.$h1234567890";
+static	const char	*digits = &skips[8];
+
+/*
+ * Parse the format string and store the first FMT_ARGMAX args in the arglist
+ * parameter.
+ *
+ * This is done in two stages:
+ *	1	parse the format string and store the types in argtypes[].
+ *	2	use the type list in argtypes[], fetch the args in order and
+ *		store the related va_list state in arglist[]
+ */
+EXPORT void
+_fmtarglist(fmt, fargs, arglist)
+	const char	*fmt;
+	va_lists_t	fargs;
+	va_lists_t	arglist[];
+{
+	int	i;
+	int	argindex;
+	int	maxindex;
+	int	thistype;
+	int	thisflag;
+	int	argtypes[FMT_ARGMAX+1];
+
+	for (i = 0; i < FMT_ARGMAX; i++)
+		argtypes[i] = AT_NONE;
+
+	maxindex = -1;
+	argindex = 0;
+	while ((fmt = strchr(fmt, '%')) != NULL) {
+		fmt++;
+		i = strspn(fmt, digits);
+		if (fmt[i] == '$') {
+			int	c;
+
+			argindex = *fmt++ - '0';
+			while (c = *fmt, is_dig(c)) {
+				argindex *= 10;
+				argindex += c - '0';
+				fmt++;
+			}
+			argindex -= 1;
+		}
+		thistype = AT_NONE;
+		thisflag = AF_NONE;
+	newarg:
+		fmt += strspn(fmt, skips);
+		switch (*fmt++) {
+
+		case '%':		/* %% format no arg */
+			continue;
+
+		case 'l':
+			if (thisflag & AF_LONG) {
+				thisflag |= AF_LONG_LONG;
+			} else {
+				thisflag |= AF_LONG;
+			}
+			goto newarg;
+		case 'j':		/* intmax_t for now is long long */
+			thisflag |= AF_LONG_LONG;
+			goto newarg;
+		case 'z':		/* size_t */
+#if	SIZEOF_SIZE_T == SIZEOF_INT
+			if (thistype == AT_NONE)
+				thistype = AT_INT;
+#else
+#if	SIZEOF_SIZE_T == SIZEOF_LONG_INT
+			if (thistype == AT_NONE)
+				thistype = AT_LONG;
+#else
+#if	SIZEOF_SIZE_T == SIZEOF_LLONG
+			if (thistype == AT_NONE)
+				thistype = AT_LONG_LONG;
+#else
+error sizeof (size_t) is unknown
+#endif
+#endif
+#endif
+			goto newarg;
+		case 't':		/* ptrdiff_t */
+#if	SIZEOF_PTRDIFF_T == SIZEOF_INT
+			if (thistype == AT_NONE)
+				thistype = AT_INT;
+#else
+#if	SIZEOF_PTRDIFF_T == SIZEOF_LONG_INT
+			if (thistype == AT_NONE)
+				thistype = AT_LONG;
+#else
+#if	SIZEOF_PTRDIFF_T == SIZEOF_LLONG
+			if (thistype == AT_NONE)
+				thistype = AT_LONG_LONG;
+#else
+error sizeof (ptrdiff_t) is unknown
+#endif
+#endif
+#endif
+			goto newarg;
+#ifndef	NO_UCSIL
+			/*
+			 * Enhancements to K&R and ANSI:
+			 *
+			 * got a type specifyer
+			 *
+			 * XXX 'S' in C99 is %ls, 'S' should become 'H'
+			 */
+		case 'U':
+			if (!strchr("CSILZODX", *fmt)) {
+				/*
+				 * Got only 'U'nsigned specifyer,
+				 * use default type and mode.
+				 */
+				thistype = AT_INT;
+				break;
+			}
+			if (!strchr("CSIL", *fmt)) {
+				/*
+				 * Got 'U' and ZODX.
+				 * no type, use default
+				 */
+				thistype = AT_INT;
+				fmt++;	/* Skip ZODX */
+				break;
+			}
+			fmt++;		/* Unsigned, skip 'U', get CSIL */
+			/* FALLTHRU */
+		case 'C':
+		case 'S':
+		case 'I':
+		case 'L':
+			fmt--;		/* Undo fmt++ from switch() */
+			{
+				/*
+				 * got CSIL type
+				 */
+				int	type = *fmt++;	/* Undo above fmt-- */
+				int	mode = *fmt;
+				if (!strchr("ZODX", mode)) {
+					/*
+					 * Check long double "Le", "Lf" or "Lg"
+					 */
+					if (type == 'L' &&
+					    (mode == 'e' ||
+					    mode == 'f' ||
+					    mode == 'g')) {
+						thisflag |= AF_LONG_DOUBLE;
+						goto newarg;
+					}
+				} else {
+					fmt++;	/* Skip ZODX */
+				}
+				if (type == 'L')
+					thistype = AT_LONG;
+				else
+					thistype = AT_INT;
+			}
+			break;
+#else
+		case 'L':
+			thisflag |= AF_LONG_DOUBLE;
+			goto newarg;
+#endif
+
+		case 'e':
+		case 'E':
+		case 'f':
+		case 'F':
+		case 'g':
+		case 'G':
+			if (thisflag & AF_LONG_DOUBLE)
+				thistype = AT_LONG_DOUBLE;
+			else
+				thistype = AT_DOUBLE;
+			break;
+
+		case 'p':
+			thistype = AT_VOID_PTR;
+			break;
+		case 's':
+			thistype = AT_CHAR_PTR;
+			break;
+		case 'b':
+			thistype = AT_BOUNDS;
+			break;
+		case 'n':
+			if (thisflag & AF_LONG_LONG)
+				thistype = AT_LONG_LONG_PTR;
+			else if (thistype & AF_LONG)
+				thistype = AT_LONG_PTR;
+			else
+				thistype = AT_INT_PTR;
+			break;
+		case 'r':
+			thistype = AT_R_FMT;
+			break;
+		default:
+			if (thistype == AT_NONE) {
+				if (thisflag & AF_LONG_LONG)
+					thistype = AT_LONG_LONG;
+				else if (thistype & AF_LONG)
+					thistype = AT_LONG;
+				else
+					thistype = AT_INT;
+			}
+			break;
+
+		case '*':
+			if (is_dig(*fmt)) {
+				int	c;
+				int	starindex;
+
+				starindex = *fmt++ - '0';
+				while (c = *fmt, is_dig(c)) {
+					starindex *= 10;
+					starindex += c - '0';
+					fmt++;
+				}
+				starindex -= 1;
+				if (starindex >= 0 && starindex < FMT_ARGMAX) {
+					argtypes[starindex] = AT_INT;
+					if (starindex > maxindex)
+						maxindex = starindex;
+				}
+				goto newarg;
+			}
+			thistype = AT_INT;
+			thisflag |= AF_STAR; /* Make sure to rescan for type */
+			break;
+		}
+		if (argindex >= 0 && argindex < FMT_ARGMAX) {
+			argtypes[argindex] = thistype;
+			if (thistype == AT_R_FMT)
+				argtypes[++argindex] = AT_R_VA_LIST;
+			else if (thistype == AT_BOUNDS)
+				argtypes[++argindex] = AT_INT;
+
+			if (argindex > maxindex)
+				maxindex = argindex;
+		}
+		++argindex;		/* Default to next arg in list */
+		if (thisflag & AF_STAR) { /* Found '*', continue for type */
+			thisflag &= ~AF_STAR;
+			goto newarg;
+		}
+	}
+
+	for (i = 0; i <= maxindex; i++) { /* Do not fetch more args than known */
+		arglist[i] = fargs;	/* Save state before fetching this */
+
+		switch (argtypes[i]) {
+
+		default:
+			/* FALLTHRU */
+		case AT_NONE:		/* This matches '*' args */
+			/* FALLTHRU */
+		case AT_INT:
+			(void) va_arg(fargs.ap, int);
+			break;
+		case AT_LONG:
+			(void) va_arg(fargs.ap, long);
+			break;
+		case AT_LONG_LONG:
+			(void) va_arg(fargs.ap, Llong);
+			break;
+		case AT_DOUBLE:
+			(void) va_arg(fargs.ap, double);
+			break;
+		case AT_LONG_DOUBLE:
+#ifdef	HAVE_LONGDOUBLE
+			(void) va_arg(fargs.ap, long double);
+#endif
+			break;
+		case AT_VOID_PTR:
+			(void) va_arg(fargs.ap, void *);
+			break;
+		case AT_CHAR_PTR:
+			(void) va_arg(fargs.ap, char *);
+			break;
+		case AT_SHORT_PTR:
+			(void) va_arg(fargs.ap, short *);
+			break;
+		case AT_INT_PTR:
+			(void) va_arg(fargs.ap, int *);
+			break;
+		case AT_LONG_PTR:
+			(void) va_arg(fargs.ap, long *);
+			break;
+		case AT_LONG_LONG_PTR:
+			(void) va_arg(fargs.ap, Llong *);
+			break;
+		case AT_R_FMT:
+			(void) va_arg(fargs.ap, char *);
+			arglist[++i] = fargs;
+			(void) __va_arg_list(fargs.ap);
+			break;
+		case AT_R_VA_LIST:
+			break;
+		case AT_BOUNDS:
+			(void) va_arg(fargs.ap, char *);
+			arglist[++i] = fargs;
+			(void) va_arg(fargs.ap, int);
+			break;
+		}
+	}
+}
+
+/*
+ * In case that the format references an argument > FMT_ARGMAX, we use this
+ * implementation. It is slow (n*n - where n is (argno - FMT_ARGMAX)).
+ * Fortunately, it is most unlikely that there are more positional args than
+ * the current FMT_ARGMAX definition of 30.
+ */
+EXPORT void
+_fmtgetarg(fmt, num, fargs)
+	const char	*fmt;
+	int		num;
+	va_lists_t	*fargs;
+{
+	const char	*sfmt = fmt;
+	int		i;
+
+	/*
+	 * Hacky preliminary support for all int type args bejond FMT_ARGMAX.
+	 */
+	for (i = FMT_ARGMAX; i < num; i++)
+		(void) va_arg((*fargs).ap, int);
+}
+#endif	/* FORMAT_IMPL */
+#endif	/* USE_NL_ARGS */

@@ -1,14 +1,14 @@
-/* @(#)xheader.c	1.85 11/08/03 Copyright 2001-2011 J. Schilling */
+/* @(#)xheader.c	1.89 14/03/31 Copyright 2001-2014 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)xheader.c	1.85 11/08/03 Copyright 2001-2011 J. Schilling";
+	"@(#)xheader.c	1.89 14/03/31 Copyright 2001-2014 J. Schilling";
 #endif
 /*
  *	Handling routines to read/write, parse/create
  *	POSIX.1-2001 extended archive headers
  *
- *	Copyright (c) 2001-2011 J. Schilling
+ *	Copyright (c) 2001-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -17,6 +17,8 @@ static	UConst char sccsid[] =
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -39,6 +41,7 @@ static	UConst char sccsid[] =
 #include "starsubs.h"
 #include "movearch.h"
 #include "xtab.h"
+#include "pathname.h"
 
 extern	BOOL	no_xheader;
 extern	BOOL	nowarn;
@@ -114,6 +117,7 @@ LOCAL	void	get_filetype	__PR((FINFO *info, char *keyword, int klen, char *arg, i
 LOCAL	void	get_acl_type	__PR((FINFO *info, char *keyword, int klen, char *arg, int len));
 LOCAL	void	get_acl_access	__PR((FINFO *info, char *keyword, int klen, char *arg, int len));
 LOCAL	void	get_acl_default	__PR((FINFO *info, char *keyword, int klen, char *arg, int len));
+LOCAL	void	get_acl_ace	__PR((FINFO *info, char *keyword, int klen, char *arg, int len));
 #endif
 #ifdef  USE_XATTR
 LOCAL	void	get_attr	__PR((FINFO *info, char *keyword, int klen, char *arg, int len));
@@ -142,7 +146,8 @@ LOCAL	Uchar	dtab[] = "0123456789";
 					(val) = (val) / (unsigned)10;	      \
 				} while ((val) > 0)
 
-#define	scopy(to, from)		while ((*(to)++ = *(from)++) != '\0');
+#define	scopy(to, from)		while ((*(to)++ = *(from)++) != '\0')	\
+					;
 
 
 LOCAL	char	*xbuf;	/* Space used to prepare I/O from/to extended headers */
@@ -189,6 +194,7 @@ LOCAL xtab_t xtab[] = {
 #ifdef	USE_ACL
 			{ "SCHILY.acl.access",	17, get_acl_access, 0	},
 			{ "SCHILY.acl.default",	18, get_acl_default, 0	},
+			{ "SCHILY.acl.ace",	14, get_acl_ace, 0	},
 			{ "SCHILY.acl.type",	15, get_acl_type, 0	},
 #else
 /*
@@ -197,6 +203,7 @@ LOCAL xtab_t xtab[] = {
  */
 			{ "SCHILY.acl.access",	17, get_dummy,	0	},
 			{ "SCHILY.acl.default",	18, get_dummy,	0	},
+			{ "SCHILY.acl.ace",	14, get_dummy,	0	},
 			{ "SCHILY.acl.type",	15, get_dummy,	0	},
 #endif
 #ifdef  USE_XATTR
@@ -494,7 +501,14 @@ extern	BOOL	dodump;
 	if (xflags & (XF_ACL_ACCESS|XF_ACL_DEFAULT)) {
 		gen_text("SCHILY.acl.type", "POSIX draft", 11, 0);
 	}
+	if (xflags & XF_ACL_ACE) {
+		gen_text("SCHILY.acl.type", "NFSv4", 5, 0);
+	}
 #endif
+	if (xflags & XF_ACL_ACE) {
+		gen_text("SCHILY.acl.ace", info->f_acl_ace, -1, T_UTF8);
+	}
+
 	if (xflags & XF_ACL_ACCESS) {
 		gen_text("SCHILY.acl.access", info->f_acl_access, -1, T_UTF8);
 	}
@@ -1377,7 +1391,7 @@ get_xtime(keyword, arg, len, secp, nsecp)
 	long	*nsecp;
 {
 #ifdef	__use_default_time__
-extern struct	timeval	ddate;
+extern struct	timespec	ddate;
 #endif
 	Llong	ll;
 	long	l;
@@ -2106,8 +2120,8 @@ get_filetype(info, keyword, klen, arg, len)
 /*
  * XXX acl_access_text/acl_default_text are a bad idea. (see acl_unix.c)
  */
-LOCAL char acl_access_text[PATH_MAX+1];
-LOCAL char acl_default_text[PATH_MAX+1];
+LOCAL pathstore_t	acl_access_text;
+LOCAL pathstore_t	acl_default_text;
 
 /* ARGSUSED */
 LOCAL void
@@ -2119,6 +2133,8 @@ get_acl_type(info, keyword, klen, arg, len)
 	int	len;
 {
 	if (len == 11 && streql(arg, "POSIX draft"))
+		return;
+	if (len == 5 && streql(arg, "NFSv4"))
 		return;
 
 	info->f_flags |= F_BAD_ACL;
@@ -2145,11 +2161,13 @@ get_acl_access(info, keyword, klen, arg, len)
 		info->f_acl_access = NULL;
 		return;
 	}
-	if (strlen(arg) > PATH_MAX)	/* XXX We should use dynamic strings */
+	if ((len + 2) > acl_access_text.ps_size)
+		grow_pspace(PS_EXIT, &acl_access_text, (len + 2));
+	if (acl_access_text.ps_path == NULL)
 		return;
-	if (from_utf8((Uchar *)acl_access_text, (Uchar *)arg)) {
+	if (from_utf8((Uchar *)acl_access_text.ps_path, (Uchar *)arg)) {
 		info->f_xflags |= XF_ACL_ACCESS;
-		info->f_acl_access = acl_access_text;
+		info->f_acl_access = acl_access_text.ps_path;
 	} else {
 		bad_utf8(keyword, arg);
 	}
@@ -2169,11 +2187,41 @@ get_acl_default(info, keyword, klen, arg, len)
 		info->f_acl_default = NULL;
 		return;
 	}
-	if (strlen(arg) > PATH_MAX)	/* XXX We should use dynamic strings */
+	if ((len + 2) > acl_default_text.ps_size)
+		grow_pspace(PS_EXIT, &acl_default_text, (len + 2));
+	if (acl_default_text.ps_path == NULL)
 		return;
-	if (from_utf8((Uchar *)acl_default_text, (Uchar *)arg)) {
+	if (from_utf8((Uchar *)acl_default_text.ps_path, (Uchar *)arg)) {
 		info->f_xflags |= XF_ACL_DEFAULT;
-		info->f_acl_default = acl_default_text;
+		info->f_acl_default = acl_default_text.ps_path;
+	} else {
+		bad_utf8(keyword, arg);
+	}
+}
+
+LOCAL pathstore_t	acl_ace_text;
+
+/* ARGSUSED */
+LOCAL void
+get_acl_ace(info, keyword, klen, arg, len)
+	FINFO	*info;
+	char	*keyword;
+	int	klen;
+	char	*arg;
+	int	len;
+{
+	if (len == 0 || (info->f_flags & F_BAD_ACL)) {
+		info->f_xflags &= ~XF_ACL_ACE;
+		info->f_acl_ace = NULL;
+		return;
+	}
+	if ((len + 2) > acl_ace_text.ps_size)
+		grow_pspace(PS_EXIT, &acl_ace_text, (len + 2));
+	if (acl_ace_text.ps_path == NULL)
+		return;
+	if (from_utf8((Uchar *)acl_ace_text.ps_path, (Uchar *)arg)) {
+		info->f_xflags |= XF_ACL_ACE;
+		info->f_acl_ace = acl_ace_text.ps_path;
 	} else {
 		bad_utf8(keyword, arg);
 	}

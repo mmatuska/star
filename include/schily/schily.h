@@ -1,4 +1,4 @@
-/* @(#)schily.h	1.106 12/04/15 Copyright 1985-2012 J. Schilling */
+/* @(#)schily.h	1.113 14/01/02 Copyright 1985-2014 J. Schilling */
 /*
  *	Definitions for libschily
  *
@@ -18,7 +18,7 @@
  *	include ctype.h past schily/schily.h as OpenBSD does not follow POSIX
  *	and defines EOF in ctype.h
  *
- *	Copyright (c) 1985-2012 J. Schilling
+ *	Copyright (c) 1985-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -27,6 +27,8 @@
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -50,12 +52,12 @@
 extern "C" {
 #endif
 
-#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_) || defined(off_t)
+#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_H) || defined(off_t)
 #	ifndef	FOUND_OFF_T
 #	define	FOUND_OFF_T
 #	endif
 #endif
-#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_) || defined(size_t)
+#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_H) || defined(size_t)
 #	ifndef	FOUND_SIZE_T
 #	define	FOUND_SIZE_T
 #	endif
@@ -218,13 +220,25 @@ extern	int	spawnv_nowait __PR((FILE *, FILE *, FILE *,
 #endif	/* __never_def__ */
 #endif	/* EOF */
 
+/*
+ * Flags for absfpath() and resolvefpath():
+ */
+#define	RSPF_EXIST		0x01	/* All path components must exist    */
+#define	RSPF_NOFOLLOW_LAST	0x02	/* Don't follow link in last pathcomp */
+
 #ifdef	FOUND_SIZE_T
 extern	char	*abspath __PR((const char *relp, char *absp, size_t asize));
 extern	char	*absnpath __PR((const char *relp, char *absp, size_t asize));
+extern	char	*absfpath __PR((const char *relp, char *absp, size_t asize,
+				int __flags));
 #ifndef	HAVE_RESOLVEPATH
-extern	int	resolvepath __PR((const char *__path, char *__buf, size_t __bufsiz));
+extern	int	resolvepath __PR((const char *__path,
+				char *__buf, size_t __bufsiz));
 #endif
-extern	int	resolvenpath __PR((const char *__path, char *__buf, size_t __bufsiz));
+extern	int	resolvenpath __PR((const char *__path,
+				char *__buf, size_t __bufsiz));
+extern	int	resolvefpath __PR((const char *__path,
+				char *__buf, size_t __bufsiz, int __flags));
 #endif
 
 #ifdef	_SCHILY_TYPES_H
@@ -274,6 +288,10 @@ extern	int	gettnum	__PR((char *arg, time_t *valp));
 #endif
 
 #ifdef	_SCHILY_TIME_H
+
+extern	int		getnstimeofday	__PR((struct timespec *__tp));
+extern	int		setnstimeofday	__PR((struct timespec *__tp));
+
 #ifdef	_SCHILY_UTYPES_H
 extern	Llong		mklgmtime	__PR((struct tm *));
 #endif
@@ -309,7 +327,11 @@ extern	int	on_comerr __PR((void (*fun)(int, void *), void *arg));
 /*PRINTFLIKE1*/
 extern	void	comerr __PR((const char *, ...)) __printflike__(1, 2);
 /*PRINTFLIKE2*/
+extern	void	xcomerr	 __PR((int, const char *, ...)) __printflike__(2, 3);
+/*PRINTFLIKE2*/
 extern	void	comerrno __PR((int, const char *, ...)) __printflike__(2, 3);
+/*PRINTFLIKE3*/
+extern	void	xcomerrno __PR((int, int, const char *, ...)) __printflike__(3, 4);
 /*PRINTFLIKE1*/
 extern	int	errmsg __PR((const char *, ...)) __printflike__(1, 2);
 /*PRINTFLIKE2*/
@@ -330,8 +352,14 @@ extern	char	*errmsgstr __PR((int));
 extern	void	fcomerr		__PR((FILE *, const char *, ...))
 					__printflike__(2, 3);
 /*PRINTFLIKE3*/
+extern	void	fxcomerr	__PR((FILE *, int, const char *, ...))
+					__printflike__(3, 4);
+/*PRINTFLIKE3*/
 extern	void	fcomerrno	__PR((FILE *, int, const char *, ...))
 					__printflike__(3, 4);
+/*PRINTFLIKE4*/
+extern	void	fxcomerrno	__PR((FILE *, int, int, const char *, ...))
+					__printflike__(4, 5);
 /*PRINTFLIKE2*/
 extern	int	ferrmsg		__PR((FILE *, const char *, ...))
 					__printflike__(2, 3);
@@ -339,8 +367,12 @@ extern	int	ferrmsg		__PR((FILE *, const char *, ...))
 extern	int	ferrmsgno	__PR((FILE *, int, const char *, ...))
 					__printflike__(3, 4);
 #ifdef	_SCHILY_VARARGS_H
+#define	COMERR_RETURN	0
+#define	COMERR_EXIT	1
+#define	COMERR_EXCODE	2
 /*PRINTFLIKE4*/
-extern	int	_comerr		__PR((FILE *, int, int, const char *, va_list));
+extern	int	_comerr		__PR((FILE *, int, int, int,
+						const char *, va_list));
 #endif
 #endif
 
@@ -409,17 +441,6 @@ extern	void	setfp __PR((void * const *));
 extern	int	wait_chld __PR((int));		/* for fspawnv_nowait() */
 extern	int	geterrno __PR((void));
 extern	void	raisecond __PR((const char *, long));
-#ifdef	FOUND_SIZE_T
-/*
- * We currently cannot define this here because there IXIX has a definition
- * than violates the standard.
- */
-#ifndef	HAVE_SNPRINTF
-/*PRINTFLIKE3*/
-extern	int	snprintf __PR((char *, size_t, const char *, ...))
-					__printflike__(3, 4);
-#endif
-#endif
 #ifdef	__never__
 /*
  * sprintf() may be declared incorrectly somewhere else
@@ -436,8 +457,10 @@ extern	int	wcseql __PR((const wchar_t *, const wchar_t *));
 #ifdef	va_arg
 extern	int	format __PR((void (*)(char, long), long, const char *,
 							va_list));
+extern	int	fprformat __PR((long, const char *, va_list));
 #else
 extern	int	format __PR((void (*)(char, long), long, const char *, void *));
+extern	int	fprformat __PR((long, const char *, void *));
 #endif
 
 extern	int	ftoes __PR((char *, double, int, int));

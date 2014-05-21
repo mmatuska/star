@@ -1,4 +1,4 @@
-. \" @(#)star.1	1.166 11/04/12 Copyr 1982-2009 J. Schilling
+. \" @(#)star.1	1.170 13/11/08 Copyr 1982-2013 J. Schilling
 . \"  Manual Seite fuer star
 . \"
 .if t .ds a \v'-0.55m'\h'0.00n'\z.\h'0.40n'\z.\v'0.55m'\h'-0.40n'a
@@ -13,7 +13,7 @@
 .if n .ds o oe
 .if n .ds u ue
 .if n .ds s sz
-.TH STAR 1 "11/04/12" "J\*org Schilling" "Schily\'s USER COMMANDS"
+.TH STAR 1 "13/11/08" "J\*org Schilling" "Schily\'s USER COMMANDS"
 .SH NAME
 star \- unique standard tape archiver
 .SH SYNOPSIS
@@ -569,6 +569,12 @@ option has been specified,
 assumes that the
 .B \-p
 option has been specified too.
+.sp
+Star currently supports the withdrawn POSIX.1e ACLs and NFSv4 ACLs.
+To check which ACL flavors are supported on the current platform, call
+.BR "star \-version" .
+Whether POSIX.1e ACLs can be converted into NFSv4 ACLs depends on the local
+ACL support library.
 .TP
 .BI artype= headertype
 Generate a tape archive in
@@ -3025,7 +3031,7 @@ The bug in old
 versions that cause a reversal of a space and a NULL byte 
 in the checksum field is not repeated. 
 If you want to have signed checksums you have to specify the
-.I \-singed\-checksum
+.I \-signed\-checksum
 option too. 
 If you want directories not to be archived in order to be compatible
 to very old historic tar archives, you need to specify the
@@ -3604,6 +3610,14 @@ See also
 .B \-p
 option.
 .TP
+.B \-uncond\-rename
+When in interactive restore mode or when the
+.B \-s
+option was specified, unconditionally ask for a new name or apply a substitution.
+This happens even when the current path name would be skipped otherwise
+because the file in the archive is not
+newer than the file with the original name on disk.
+.TP
 .B \-v
 Increment verbose level by one.
 This normally results in more output during operation.
@@ -3747,6 +3761,10 @@ will refer to the old method.
 The method used with
 .B \-xattr\-linux
 may go away in the future.
+.TP
+.B \-xcopy
+An alias for
+.B \-copy \-sparse \-acl
 .TP
 .BI xdebug= "#, " xd= #
 Set extended debug level to #.

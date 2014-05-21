@@ -1,6 +1,6 @@
-dnl @(#)configure.in	1.243 11/11/22 Copyright 1998-2011 J. Schilling
+dnl @(#)configure.in	1.257 14/04/02 Copyright 1998-2014 J. Schilling
 dnl Process this file with autoconf to produce a configure script.
-AC_REVISION(1.243)dnl
+AC_REVISION(1.257)dnl
 
 dnl AC_INIT(xconfig.h.in)
 AC_INIT(config.guess)
@@ -70,7 +70,7 @@ AC_CHECK_HEADERS(limits.h)
 AC_CHECK_HEADERS(a.out.h aouthdr.h elf.h)
 AC_CHECK_HEADERS(sysexits.h)
 AC_CHECK_HEADERS(malloc.h sgtty.h termios.h termio.h)
-AC_CHECK_HEADERS(pwd.h grp.h sys/acl.h acllib.h acl/libacl.h)
+AC_CHECK_HEADERS(pwd.h grp.h sys/acl.h aclutils.h acllib.h acl/libacl.h)
 AC_CHECK_HEADERS(signal.h siginfo.h sys/siginfo.h ucontext.h)
 AC_CHECK_HEADERS(shadow.h syslog.h)
 AC_CHECK_HEADERS(sys/time.h sys/times.h utime.h sys/utime.h sys/ioctl.h sys/filio.h sys/param.h sys/systeminfo.h sys/sysctl.h)
@@ -98,6 +98,7 @@ AC_CHECK_HEADERS(sys/bsdtty.h)
 dnl Check for Linux kernel definitions
 AC_CHECK_HEADERS(scsi/scsi.h scsi/sg.h linux/scsi.h linux.sg.h)
 AC_CHECK_HEADERS(linux/types.h linux/gfp.h asm/types.h)
+AC_CHECK_HEADERS(sys/capability.h)
 dnl Check for BeOS kernel definitions (e.g. B_PAGE_SIZE)
 AC_CHECK_HEADERS(OS.h)
 dnl needed for newer OS/2 versions of EMX
@@ -121,6 +122,7 @@ AC_CHECK_HEADERS(pthread.h thread.h)
 AC_CHECK_HEADERS(libgen.h)
 AC_CHECK_HEADERS(regex.h regexp.h regexpr.h)
 AC_CHECK_HEADERS(dlfcn.h link.h dl.h)
+AC_CHECK_HEADERS(expat.h)
 
 dnl from aclocal.m4 (uses AC_TRY_COMPILE)
 AC_HEADER_MAKEDEV
@@ -355,6 +357,7 @@ AC_HEADER_FILE__FLAGS
 AC_HEADER_FILE__IO_BUF_BASE
 AC_STRUCT_TIMEVAL
 AC_STRUCT_TIMEZONE
+AC_STRUCT_TIMESPEC
 AC_STRUCT_MTGET_TYPE
 AC_STRUCT_MTGET_MODEL
 AC_STRUCT_MTGET_DSREG
@@ -470,6 +473,7 @@ AC_CHECK_FUNCS(ftime tzset mktime gmtime localtime timegm timelocal)
 AC_CHECK_FUNCS(ctime cftime ascftime strftime)
 AC_CHECK_FUNCS(poll select isastream)
 AC_CHECK_FUNCS(chown fchown lchown chmod fchmod lchmod times utime utimes futimes lutimes)
+AC_CHECK_FUNCS(utimens lutimens)
 AC_CHECK_FUNCS(futimens utimensat)
 AC_CHECK_FUNCS(ioctl fcntl)
 dnl AC_CHECK_FUNCS(ecvt fcvt gcvt)
@@ -482,6 +486,8 @@ AC_CHECK_FUNCS(_ldecvt_r _ldfcvt_r _ldgcvt_r)
 AC_CHECK_FUNCS(econvert fconvert gconvert)
 AC_CHECK_FUNCS(qeconvert qfconvert qgconvert)
 AC_CHECK_FUNCS(isinf isnan)
+AC_CHECK_FUNCS(getc_unlocked getchar_unlocked putc_unlocked putchar_unlocked)
+AC_CHECK_FUNCS(flockfile funlockfile ftrylockfile)
 AC_CHECK_FUNCS(rand drand48)
 AC_CHECK_FUNCS(strtol strtoll strtoul strtoull strtod)
 AC_CHECK_FUNCS(setpriority DosSetPriority)
@@ -523,16 +529,16 @@ AC_CHECK_DFUNCS([
 #ifdef	HAVE_STRING_H
 #include <string.h>
 #endif
-], strcat strncat strcmp strncmp strcpy strlcat strlcpy strncpy strdup strndup strlen strnlen strchr strrchr strstr)
+], strcat strncat strcmp strncmp strcpy strlcat strlcpy strncpy strdup strndup strlen strnlen strchr strrchr strstr strspn strcspn)
 AC_CHECK_DFUNCS([
 #ifdef	HAVE_WCHAR_H
 #include <wchar.h>
 #endif
-], wcscat wcsncat wcscmp wcsncmp wcscpy wcslcat wcslcpy wcsncpy wcsdup wcsndup wcslen wcsnlen wcschr wcsrchr wcsstr)
+], wcscat wcsncat wcscmp wcsncmp wcscpy wcslcat wcslcpy wcsncpy wcsdup wcsndup wcslen wcsnlen wcschr wcsrchr wcsstr wcsspn wcscspn)
 
 AC_CHECK_FUNCS(wcwidth wcswidth wctype iswctype)
 AC_CHECK_FUNCS(basename dirname)
-AC_CHECK_FUNCS(pathconf fpathconf)
+AC_CHECK_FUNCS(pathconf fpathconf lpathconf)
 AC_CHECK_FUNCS(malloc calloc valloc realloc memalign posix_memalign)
 AC_CHECK_FUNCS(madvise)
 AC_CHECK_FUNCS(mktemp mkstemp)
@@ -540,6 +546,7 @@ AC_CHECK_FUNCS(chflags fchflags fflagstostr strtofflags)
 AC_CHECK_FUNCS(fnmatch)
 AC_CHECK_FUNCS(truncate ftruncate)
 AC_CHECK_FUNCS(getppriv setppriv priv_set)
+AC_CHECK_FUNCS(issetugid)
 AC_CHECK_FUNCS(getroles privbit_set)
 AC_CHECK_FUNCS(setlocale localeconv nl_langinfo)
 AC_CHECK_FUNCS(setbuf setvbuf)
@@ -681,6 +688,9 @@ ac_save_LIBS="$LIBS"
 AC_CHECK_LIB(c, res_init, lib_resolv="",
   [AC_CHECK_LIB(resolv, res_init, lib_resolv="-lresolv")])
 LIBS="$ac_save_LIBS"
+if test ."$lib_resolv" = .""; then
+	AC_DEFINE(HAVE_RESOLV_IN_LIBC)
+fi
 
 dnl Check for largefile support
 dnl Do this last to make sure that no large file definition
@@ -703,6 +713,9 @@ dnl AC_CHECK_LIB(crypt, crypt, lib_crypt="-lcrypt")
 
 AC_CHECK_LIB(c, crypt, lib_crypt="",
   [AC_CHECK_LIB(crypt, crypt, lib_crypt="-lcrypt")])
+if test ."$lib_crypt" = .""; then
+	AC_DEFINE(HAVE_CRYPT_IN_LIBC)
+fi
 
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_crypt"
@@ -711,6 +724,9 @@ LIBS="$ac_save_LIBS"
 
 AC_CHECK_ILIB([#include <libintl.h>], c, gettext, lib_intl="",
   [AC_CHECK_ILIB([#include <libintl.h>], intl, gettext, lib_intl="-lintl")])
+if test ."$lib_intl" = .""; then
+	AC_DEFINE(HAVE_GETTEXT_IN_LIBC)
+fi
 
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_intl"
@@ -719,6 +735,9 @@ LIBS="$ac_save_LIBS"
 
 AC_CHECK_ILIB([#include <iconv.h>], c, iconv_open, lib_iconv="",
     [AC_CHECK_ILIB([#include <iconv.h>], iconv, iconv_open, lib_iconv="-liconv")])
+if test ."$lib_iconv" = .""; then
+	AC_DEFINE(HAVE_ICONV_IN_LIBC)
+fi
 
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_iconv"
@@ -730,6 +749,61 @@ AC_CHECK_DFUNC([#include <iconv.h>], libiconv)
 AC_CHECK_DFUNC([#include <iconv.h>], libiconv_open)
 AC_CHECK_DFUNC([#include <iconv.h>], libiconv_close)
 LIBS="$ac_save_LIBS"
+
+AC_CHECK_LIB(c, XML_Parse, lib_expat="",
+  [AC_CHECK_LIB(expat, XML_Parse, lib_expat="-lexpat")])
+if test ."$lib_expat" = ."" -a "$ac_cv_lib_c_XML_Parse" = yes ; then
+	AC_DEFINE(HAVE_EXPAT_IN_LIBC)
+fi
+ac_save_LIBS="$LIBS"
+LIBS="$LIBS $lib_expat"
+AC_CHECK_FUNCS(XML_Parse)
+LIBS="$ac_save_LIBS"
+
+if test "$CC" = cl.exe; then
+	echo configure does not yet support library checks for cl.exe:
+	echo checking for SCardEstablishContext in -lwinscard... we know it is present
+	lib_pcsc="-lwinscard"
+	AC_DEFINE(HAVE_SCARDESTABLISHCONTEXT)
+else
+	AC_CHECK_LIB(c, SCardEstablishContext, lib_pcsc="",
+	  [AC_CHECK_LIB(winscard, SCardEstablishContext, lib_pcsc="-lwinscard",
+	  [AC_CHECK_LIB(pcsclite, SCardEstablishContext, lib_pcsc="-lpcsclite")])])
+	if test ."$lib_pcsc" = ."" -a "$ac_cv_lib_c_SCardEstablishContext" = yes ; then
+		AC_DEFINE(HAVE_PCSC_IN_LIBC)
+	fi
+	ac_save_LIBS="$LIBS"
+	LIBS="$LIBS $lib_pcsc"
+	AC_CHECK_FUNCS(SCardEstablishContext)
+	LIBS="$ac_save_LIBS"
+fi
+
+if test "$CC" = cl.exe; then
+	echo configure does not yet support library checks for cl.exe:
+	echo checking for CRYPTO_free in -llibeay32... we know it is present
+	echo checking for SSL_free in -lssleay32... we know it is present
+	lib_crypto="-llibeay32"
+	lib_ssl="-lssleay32"
+else
+	AC_CHECK_LIB(c, CRYPTO_free, lib_crypto="",
+	  [AC_CHECK_LIB(crypto, CRYPTO_free, lib_crypto="-lcrypto")])
+	if test ."$lib_crypto" = ."" -a "$ac_cv_lib_c_CRYPTO_free" = yes ; then
+		AC_DEFINE(HAVE_CRYPTO_IN_LIBC)
+	fi
+	ac_save_LIBS="$LIBS"
+	LIBS="$LIBS $lib_crypto"
+	AC_CHECK_FUNCS(CRYPTO_free)
+	LIBS="$ac_save_LIBS"
+	AC_CHECK_LIB(c, SSL_free, lib_ssl="",
+	  [AC_CHECK_LIB(ssl, SSL_free, lib_ssl="-lssl")])
+	if test ."$lib_ssl" = ."" -a "$ac_cv_lib_c_SSL_free" = yes ; then
+		AC_DEFINE(HAVE_SSL_IN_LIBC)
+	fi
+	ac_save_LIBS="$LIBS"
+	LIBS="$LIBS $lib_ssl"
+	AC_CHECK_FUNCS(SSL_free)
+	LIBS="$ac_save_LIBS"
+fi
 
 if test $ac_cv_header_camlib_h = yes; then
   scsi_lib=-lcam
@@ -753,13 +827,19 @@ if test "$ac_cv_header_sys_acl_h" = yes; then
   AC_CHECK_FUNCS(acl_get_file acl_set_file acl_from_text acl_to_text acl_free acl_delete_def_file)
   AC_CHECK_FUNCS(acl_extended_file)
   AC_CHECK_FUNCS(acl_get_entry)
+  AC_CHECK_FUNCS(acl_to_text_np acl_get_brand_np acl_is_trivial_np acl_strip_np)
   LIBS="$ac_save_LIBS"
 
-  AC_CHECKING(for Solaris Access Control List support)
+  AC_CHECKING(for Solaris UFS Access Control List support)
   AC_CHECK_LIB(sec, acltotext, lib_acl="-lsec")
   ac_save_LIBS="$LIBS"
   LIBS="$LIBS $lib_acl"
   AC_CHECK_FUNCS(acl facl aclfromtext acltotext)
+
+  AC_CHECKING(for NFSv4 Access Control List support)
+  dnl These functions support NFSv4 ACLs
+  dnl Do not check for acl_free because of a name clash with the withdrawn POSIX draft
+  AC_CHECK_FUNCS(acl_get acl_set facl_get facl_set acl_fromtext acl_totext)
   LIBS="$ac_save_LIBS"
 
   dnl On Solaris, there is no need for lib_acl_test as acl(2) is in -libc
@@ -808,6 +888,9 @@ LIBS="$ac_save_LIBS"
 AC_CHECK_LIB(c, clock_gettime, lib_rt="",
   [AC_CHECK_LIB(rt, clock_gettime, lib_rt="-lrt",
   [AC_CHECK_LIB(posix4, clock_gettime, lib_rt="-lposix4")])])
+if test ."$lib_rt" = .""; then
+	AC_DEFINE(HAVE_CLOCK_GETTIME_IN_LIBC)
+fi
 
 ac_save_LIBS="$LIBS"
 LIBS="$LIBS $lib_rt"
@@ -817,10 +900,17 @@ AC_CHECK_FUNCS(sched_yield)
 AC_CHECK_FUNCS(nanosleep)
 LIBS="$ac_save_LIBS"
 
+AC_CHECK_LIB(cap, cap_get_proc, lib_cap="-lcap")
+ac_save_LIBS="$LIBS"
+LIBS="$LIBS $lib_cap"
+AC_CHECK_FUNCS(cap_get_proc cap_set_proc cap_set_flag cap_clear_flag)
+LIBS="$ac_save_LIBS"
+
 dnl Misc OS checks.
 AC_CHECK_FILES(/dev/tty /dev/null /dev/zero)
 AC_CHECK_FILES(/dev/stdin /dev/stdout /dev/stderr)
 AC_CHECK_FILES(/dev/fd/0 /dev/fd/1 /dev/fd/2)
+AC_CHECK_FILES(/usr/src/linux/include)
 
 dnl Checks for OS madness.
 UNAME=`uname || true`
@@ -856,6 +946,7 @@ fi
 if test .$ac_cv_broken_src_linux_ext2_fs_h = .yes; then
 	may_linux_src_include=no
 fi
+if test .$ac_cv_file__usr_src_linux_include = .yes; then # only warn if there is /usr/src/linux/include
 if test .$may_linux_src_include = .no; then
 	echo
 	echo "Warning: *** /usr/src/linux/include contains broken include files ***"
@@ -863,6 +954,8 @@ if test .$may_linux_src_include = .no; then
 	echo "Warning: This may result in the inability to use recent Linux kernel interfaces" 
 	echo
 fi
+fi
+if test .$ac_cv_header_ext2fs_ext2_fs_h = .no; then # only if there is no <ext2fs/ext2_fs.h>
 if test .$ac_cv_usable_linux_ext2_fs_h = .no; then
 	echo
 	echo "Warning: *** linux/ext2_fs.h is not usable at all ***"
@@ -871,6 +964,7 @@ if test .$ac_cv_usable_linux_ext2_fs_h = .no; then
 	echo
 	sleep 10
 fi
+fi	# <ext2fs/ext2_fs.h> was missing
 fi	# Linux only tests
 
 AC_SUBST(may_linux_src_include)
@@ -885,6 +979,10 @@ AC_SUBST(lib_crypt)
 AC_SUBST(lib_resolv)
 AC_SUBST(lib_intl)
 AC_SUBST(lib_iconv)
+AC_SUBST(lib_expat)
+AC_SUBST(lib_pcsc)
+AC_SUBST(lib_crypto)
+AC_SUBST(lib_ssl)
 AC_SUBST(scsi_lib)
 AC_SUBST(lib_scsi)
 AC_SUBST(lib_acl)
@@ -896,5 +994,6 @@ AC_SUBST(lib_pthread)
 AC_SUBST(lib_rt)
 AC_SUBST(lib_dl)
 AC_SUBST(lib_dir)
+AC_SUBST(lib_cap)
 
 AC_OUTPUT(rules.cnf)

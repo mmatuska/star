@@ -1,9 +1,9 @@
-/* @(#)xconfig.h.in	1.228 11/11/22 Copyright 1998-2011 J. Schilling */
+/* @(#)xconfig.h.in	1.244 14/05/15 Copyright 1998-2014 J. Schilling */
 /*
  *	Dynamic autoconf C-include code.
  *	Do not edit, this file has been created automatically.
  *
- *	Copyright (c) 1998-2011 J. Schilling
+ *	Copyright (c) 1998-2014 J. Schilling
  *
  *	The layout for this file is controlled by "configure".
  *	Switch off cstyle(1) checks for now.
@@ -54,6 +54,7 @@
 #undef HAVE_SYS_SIGINFO_H /* if sys/siginfo.h exists */
 #undef HAVE_UCONTEXT_H	/* if ucontext.h exists */
 #undef HAVE_SYS_ACL_H	/* to use <sys/acl.h> for ACL definitions */
+#undef HAVE_ACLUTILS_H	/* to use <aclutils.h> for NFSv4 ACL extensions */
 #undef HAVE_ACLLIB_H	/* if HP-UX <acllib.h> is present */
 #undef HAVE_ACL_LIBACL_H /* if Linux <acl/libacl.h> is present */
 #undef HAVE_SHADOW_H	/* if shadow.h exists */
@@ -66,6 +67,9 @@
 #undef HAVE_UTIMES		/* to use BSD utimes() and sys/time.h */
 #undef HAVE_FUTIMES		/* to use BSD futimes() and sys/time.h */
 #undef HAVE_LUTIMES		/* to use BSD lutimes() and sys/time.h */
+#undef HAVE_UTIMENS		/* to use BSD utimens() and sys/time.h */
+#undef HAVE_FUTIMENS		/* to use BSD futimens() and sys/time.h */
+#undef HAVE_LUTIMENS		/* to use BSD lutimens() and sys/time.h */
 #undef HAVE_UTIME_H		/* to use utime.h for the utimbuf structure declaration, else declare struct utimbuf yourself */
 #undef HAVE_SYS_UTIME_H		/* to use sys/utime.h if utime.h does not exist */
 #undef HAVE_SYS_IOCTL_H		/* if sys/ioctl.h is present */
@@ -144,6 +148,7 @@
 #undef HAVE_LINUX_TYPES_H	/* if we may include linux/types.h */
 #undef HAVE_LINUX_GFP_H		/* if we may include linux/gfp.h */
 #undef HAVE_ASM_TYPES_H		/* if we may include asm/types.h */
+#undef HAVE_SYS_CAPABILITY_H	/* if we may include sys/capability.h */
 #undef HAVE_SYS_BSDTTY_H	/* if we have sys/bsdtty.h on HP-UX for TIOCGPGRP */
 #undef HAVE_OS_H		/* if we have the BeOS kernel definitions in OS.h */
 #undef HAVE_OS2_H		/* if we have the OS/2 definitions in os2.h */
@@ -178,8 +183,10 @@
 #undef HAVE_REGEXPR_H		/* if we may include regexpr.h */
 
 #undef HAVE_DLFCN_H		/* if we may include dlfcn.h */
-#undef HAVE_LINK_H		/* if we may include linh.h */
+#undef HAVE_LINK_H		/* if we may include link.h */
 #undef HAVE_DL_H		/* if we may include dl.h */
+
+#undef HAVE_EXPAT_H		/* if we may include expat.h */
 
 /*
  * Convert to SCHILY name
@@ -215,6 +222,7 @@
 #undef HAVE_EACCESS		/* eaccess() is present in libc */
 #undef HAVE_EUIDACCESS		/* euidaccess() is present in libc */
 #undef HAVE_ACCESS_E_OK		/* access() implements E_OK (010) for effective UIDs */
+#undef HAVE_CRYPT_IN_LIBC	/* whether crypt() is in libc (needs no -lcrypt) */
 #undef HAVE_CRYPT		/* crypt() is present in libc or libcrypt */
 #undef HAVE_STRERROR		/* strerror() is present in libc */
 #undef HAVE_MEMCHR		/* memchr() is present in libc */
@@ -253,10 +261,9 @@
 #undef HAVE_FCHMODAT		/* fchmodat() is present in libc */
 #undef HAVE_LINKAT		/* inkat() is present in libc */
 #undef HAVE_MKFIFOAT		/* mkfifoat() is present in libc */
-#undef HAVE_MKNODKAT		/* mknodat() is present in libc */
+#undef HAVE_MKNODAT		/* mknodat() is present in libc */
 #undef HAVE_READLINKAT		/* readlinkat() is present in libc */
 #undef HAVE_SYMLINKAT		/* symlinkat() is present in libc */
-#undef HAVE_FUTIMENS		/* futimens() is present in libc */
 #undef HAVE_UTIMENSAT		/* utimensat() is present in libc */
 #undef HAVE_IOCTL		/* ioctl() is present in libc */
 #undef HAVE_FCNTL		/* fcntl() is present in libc */
@@ -407,10 +414,18 @@
 #undef HAVE_ISNAN		/* isnan() is present in libc */
 #undef HAVE_C99_ISINF		/* isinf() is present in math.h/libc */
 #undef HAVE_C99_ISNAN		/* isnan() is present in math.h/libc */
+#undef HAVE_GETC_UNLOCKED	/* getc_unlocked() is present in libc */
+#undef HAVE_GETCHAR_UNLOCKED	/* getchar_unlocked() is present in libc */
+#undef HAVE_PUTC_UNLOCKED	/* putc_unlocked() is present in libc */
+#undef HAVE_PUTCHAR_UNLOCKED	/* putchar_unlocked() is present in libc */
+#undef HAVE_FLOCKFILE		/* flockfile() is present in libc */
+#undef HAVE_FUNLOCKFILE		/* funlockfile() is present in libc */
+#undef HAVE_FTRYLOCKFILE	/* ftrylockfile() is present in libc */
 #undef HAVE_FINITE		/* finite() is present in libc/ieeefp.h (SVr4) */
 #undef HAVE_ISNAND		/* isnand() is present in libc/ieeefp.h (SVr4) */
 #undef HAVE_RAND		/* rand() is present in libc */
 #undef HAVE_DRAND48		/* drand48() is present in libc */
+#undef HAVE_ICONV_IN_LIBC	/* whether iconv() is in libc (needs no -liconv) */
 #undef HAVE_ICONV		/* iconv() is present in libiconv */
 #undef HAVE_ICONV_OPEN		/* iconv_open() is present in libiconv */
 #undef HAVE_ICONV_CLOSE		/* iconv_close() is present in libiconc */
@@ -443,12 +458,15 @@
 #undef HAVE_STRCHR		/* strchr() is present in libc */
 #undef HAVE_STRRCHR		/* strrchr() is present in libc */
 #undef HAVE_STRSTR		/* strstr() is present in libc */
+#undef HAVE_STRSPN		/* strspn() is present in libc */
+#undef HAVE_STRCSPN		/* strcspn() is present in libc */
 #undef HAVE_STRCASECMP		/* strcasecmp() is present in libc */
 #undef HAVE_STRNCASECMP		/* strncasecmp() is present in libc */
 #undef HAVE_BASENAME		/* basename() is present in libc */
 #undef HAVE_DIRNAME		/* dirname() is present in libc */
 #undef HAVE_PATHCONF		/* pathconf() is present in libc */
 #undef HAVE_FPATHCONF		/* fpathconf() is present in libc */
+#undef HAVE_LPATHCONF		/* lpathconf() is present in libc */
 #undef HAVE_STRTOL		/* strtol() is present in libc */
 #undef HAVE_STRTOLL		/* strtoll() is present in libc */
 #undef HAVE_STRTOUL		/* strtoul() is present in libc */
@@ -525,6 +543,8 @@
 #undef HAVE_WCSCHR		/* wcschr() is present in libc */
 #undef HAVE_WCSRCHR		/* wcsrchr() is present in libc */
 #undef HAVE_WCSSTR		/* wcsstr() is present in libc */
+#undef HAVE_WCSSPN		/* wcsspn() is present in libc */
+#undef HAVE_WCSCSPN		/* wcscspn() is present in libc */
 #undef HAVE_WCWIDTH		/* wcwidth() is present in libc */
 #undef HAVE_WCSWIDTH		/* wcswidth() is present in libc */
 #undef HAVE_WCTYPE		/* wctype() is present in libc */
@@ -536,10 +556,23 @@
 #undef HAVE_FFLAGSTOSTR		/* fflagstostr() is present in libc */
 #undef HAVE_STRTOFFLAGS		/* strtofflags() is present in libc */
 
+#undef HAVE_GETTEXT_IN_LIBC	/* whether gettext() is in libc (needs no -lintl) */
 #undef HAVE_GETTEXT		/* gettext() is present in -lintl */
 #undef HAVE_SETLOCALE		/* setlocale() is present in libc */
 #undef HAVE_LOCALECONV		/* localeconv() is present in libc */
 #undef HAVE_NL_LANGINFO		/* nl_langinfo() is present in libc */
+
+#undef HAVE_EXPAT_IN_LIBC	/* whether XML_Parse() is in libc (needs no -lexpat) */
+#undef HAVE_XML_PARSE		/* whether XML_Parse() libc or -lexpat */
+
+#undef HAVE_PCSC_IN_LIBC	/* whether SCardEstablishContext() is in libc (needs no -lpcsclite) */
+#undef HAVE_SCARDESTABLISHCONTEXT	/* whether SCardEstablishContext() libc or -lpcsclite */
+
+#undef HAVE_CRYPTO_IN_LIBC	/* whether CRYPTO_free() is in libc (needs no -lcrypto) */
+#undef HAVE_CRYPTO_FREE		/* whether CRYPTO_free() libc or -lcrypto */
+
+#undef HAVE_SSL_IN_LIBC		/* whether SSL_free() is in libc (needs no -lssl) */
+#undef HAVE_SSL_FREE		/* whether SSL_free() libc or -lssl */
 
 #undef HAVE_SETBUF		/* setbuf() is present in libc */
 #undef HAVE_SETVBUF		/* setvbuf() is present in libc */
@@ -553,6 +586,7 @@
 #undef HAVE_GETPPRIV		/* getppriv() is present in libc */
 #undef HAVE_SETPPRIV		/* setppriv() is present in libc */
 #undef HAVE_PRIV_SET		/* priv_set() is present in libc */
+#undef HAVE_ISSETUGID		/* issetugid() is present in libc */
 #undef HAVE_GETROLES		/* getroles() is present in libc (AIX) */
 #undef HAVE_PRIVBIT_SET		/* privbit_set() is present in libc (AIX) */
 
@@ -567,6 +601,8 @@
 #undef HAVE_CREATE_AREA		/* create_area() is present in libc */
 #undef HAVE_DELETE_AREA		/* delete_area() is present in libc */
 
+#undef HAVE_RES_INIT_IN_LIBC	/* whether res_init() is in libc (needs no -lresolv) */
+
 #undef HAVE_DLOPEN_IN_LIBC	/* whether dlopen() is in libc (needs no -ldl) */
 #undef HAVE_DLOPEN		/* dlopen() is present in libc */
 #undef HAVE_DLCLOSE		/* dlclose() is present in libc */
@@ -576,7 +612,7 @@
 #undef HAVE_SHL_LOAD		/* shl_load() is present in libc */
 #undef HAVE_SHL_UNLOAD		/* shl_unload() is present in libc */
 #undef HAVE_SHL_GETHANDLE	/* shl_gethandle() is present in libc */
-#undef HAVE_LOADLOBRARY		/* LoadLibrary() as present in libc */
+#undef HAVE_LOADLIBRARY		/* LoadLibrary() as present in libc */
 #undef HAVE_FREELIBRARY		/* FreeLibrary() is present in libc */
 #undef HAVE_GETPROCADDRESS	/* GetProcAddress() is present in libc */
 
@@ -589,6 +625,7 @@
 #undef HAVE_PTHREAD_COND_WAIT	/* pthread_cond_wait() is present in libpthread */
 #undef HAVE_PTHREAD_SPIN_LOCK	/* pthread_spin_lock() is present in libpthread */
 
+#undef HAVE_CLOCK_GETTIME_IN_LIBC /* whether clock_gettime() is in libc (needs no -lrt) */
 #undef HAVE_CLOCK_GETTIME	/* clock_gettime() is present in librt */
 #undef HAVE_CLOCK_SETTIME	/* clock_settime() is present in librt */
 #undef HAVE_CLOCK_GETRES	/* clock_getres() is present in librt */
@@ -598,6 +635,16 @@
 #undef HAVE_SCHED_SETSCHEDULER	/* sched_setscheduler() is present in librt */
 #undef HAVE_SCHED_YIELD		/* sched_yield() is present in librt */
 #undef HAVE_NANOSLEEP		/* nanosleep() is present in librt */
+
+/*
+ * The POSIX.1e draft has been withdrawn in 1997.
+ * Linux started to implement this outdated concept in 1997.
+ */
+#undef HAVE_CAP_GET_PROC	/* cap_get_proc() is present in libcap */
+#undef HAVE_CAP_SET_PROC	/* cap_set_proc() is present in libcap */
+#undef HAVE_CAP_SET_FLAG	/* cap_set_flag() is present in libcap */
+#undef HAVE_CAP_CLEAR_FLAG	/* cap_clear_flag() is present in libcap */
+
 
 #undef HAVE_DIRFD		/* dirfd() is present in libc */
 #undef HAVE_ISWPRINT		/* iswprint() is present in libc */
@@ -630,7 +677,8 @@
 /*
  * Misc OS stuff
  */
-#ifndef	_MSC_VER		/* Dirty hack, better use C program not test */
+				/* Dirty hack, better use C program not test */
+#if !defined(_MSC_VER) && !defined(__MINGW32__)
 #undef HAVE__DEV_TTY		/* /dev/tty present */
 #undef HAVE__DEV_NULL		/* /dev/null present */
 #undef HAVE__DEV_ZERO		/* /dev/zero present */
@@ -640,6 +688,7 @@
 #undef HAVE__DEV_FD_0		/* /dev/fd/0 present */
 #undef HAVE__DEV_FD_1		/* /dev/fd/1 present */
 #undef HAVE__DEV_FD_2		/* /dev/fd/2 present */
+#undef HAVE__USR_SRC_LINUX_INCLUDE	/* /usr/src/linux/include present */
 #endif
 
 /*
@@ -740,6 +789,7 @@
 #undef HAVE_MTGET_BF		/* if struct mtget contains mt_bf (optimum blocking factor) */
 #undef HAVE_STRUCT_TIMEVAL	/* have struct timeval in time.h or sys/time.h */
 #undef HAVE_STRUCT_TIMEZONE	/* have struct timezone in time.h or sys/time.h */
+#undef HAVE_STRUCT_TIMESPEC	/* have struct timespec in time.h or sys/time.h */
 #undef HAVE_STRUCT_RUSAGE	/* have struct rusage in sys/resource.h */
 #undef HAVE_SI_UTIME		/* if struct siginfo contains si_utime */
 #undef HAVE_UNION_SEMUN		/* have an illegal definition for union semun in sys/sem.h */
@@ -947,13 +997,17 @@
 
 #ifdef USE_ACL			/* Enable/disable ACL support */
 /*
- * POSIX ACL support
+ * The withdrawn POSIX.1e ACL draft support
  */
 #undef HAVE_ACL_GET_FILE	/* acl_get_file() function */
 #undef HAVE_ACL_SET_FILE	/* acl_set_file() function */
 #undef HAVE_ACL_GET_ENTRY	/* acl_get_entry() function */
 #undef HAVE_ACL_FROM_TEXT	/* acl_from_text() function */
 #undef HAVE_ACL_TO_TEXT		/* acl_to_text() function */
+#undef HAVE_ACL_TO_TEXT_NP	/* acl_to_text_np() function */
+#undef HAVE_ACL_GET_BRAND_NP	/* acl_get_brand_np() function */
+#undef HAVE_ACL_IS_TRIVIAL_NP	/* acl_is_trivial_np() function */
+#undef HAVE_ACL_STRIP_NP	/* acl_strip_np() function */
 #undef HAVE_ACL_FREE		/* acl_free() function */
 #undef HAVE_ACL_DELETE_DEF_FILE	/* acl_delete_def_file() function */
 #undef HAVE_ACL_EXTENDED_FILE	/* acl_extended_file() function (Linux only)*/
@@ -961,11 +1015,11 @@
 #if defined(HAVE_ACL_GET_FILE) && defined(HAVE_ACL_SET_FILE) && \
     defined(HAVE_ACL_FROM_TEXT) && defined(HAVE_ACL_TO_TEXT) && \
     defined(HAVE_ACL_FREE)
-#	define	HAVE_POSIX_ACL	1 /* POSIX ACL's present */
+#	define	HAVE_POSIX_ACL	1 /* Withdrawn POSIX draft ACL's present */
 #endif
 
 /*
- * Sun ACL support.
+ * Sun UFS ACL support.
  * Note: unfortunately, HP-UX has an (undocumented) acl() function in libc.
  */
 #undef HAVE_ACL			/* acl() function */
@@ -973,9 +1027,28 @@
 #undef HAVE_ACLFROMTEXT		/* aclfromtext() function */
 #undef HAVE_ACLTOTEXT		/* acltotext() function */
 
+/*
+ * NFSv4 ACL support.
+ * Note: There is an unfortunate name clash for acl_free() with the
+ *	 withdrawn POSIX.1e draft. We correct this below.
+ */
+#undef HAVE_ACL_GET		/* acl_get() function */
+#undef HAVE_ACL_SET		/* acl_set() function */
+#undef HAVE_FACL_GET		/* facl_get() function */
+#undef HAVE_FACL_SET		/* facl_set() function */
+#undef HAVE_ACL_FROMTEXT	/* acl_fromtext() function */
+#undef HAVE_ACL_TOTEXT		/* acl_totext() function */
+
 #if defined(HAVE_ACL) && defined(HAVE_FACL) && \
     defined(HAVE_ACLFROMTEXT) && defined(HAVE_ACLTOTEXT)
-#	define	HAVE_SUN_ACL	1 /* Sun ACL's present */
+#	define	HAVE_SUN_ACL	1 /* Sun UFS ACL's present */
+#endif
+
+#if defined(HAVE_ACL_GET) && defined(HAVE_ACL_SET) && \
+    defined(HAVE_FACL_GET) && defined(HAVE_FACL_SET) && \
+    defined(HAVE_ACL_FROMTEXT) && defined(HAVE_ACL_TOTEXT)
+#	define	HAVE_ACL_FREE	1 /* acl_fre() function */
+#	define	HAVE_NFSV4_ACL	1 /* NFSv4 ACL's present */
 #endif
 
 /*
@@ -1005,7 +1078,7 @@
  * As HP-UX differs too much from other implementations, HAVE_HP_ACL is not
  * included in HAVE_ANY_ACL.
  */
-#if defined(HAVE_POSIX_ACL) || defined(HAVE_SUN_ACL)
+#if defined(HAVE_POSIX_ACL) || defined(HAVE_SUN_ACL) || defined(HAVE_NFSV4_ACL)
 #	define	HAVE_ANY_ACL	1 /* Any ACL implementation present */
 #endif
 

@@ -1,6 +1,9 @@
-/* @(#)libport.h	1.33 11/11/24 Copyright 1995-2011 J. Schilling */
+/* @(#)libport.h	1.43 14/05/11 Copyright 1995-2014 J. Schilling */
 /*
- *	Copyright (c) 1995-2011 J. Schilling
+ *	Prototypes for POSIX standard functions that may be missing on the
+ *	local platform and thus are implemented inside libschily.
+ *
+ *	Copyright (c) 1995-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -9,6 +12,8 @@
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -33,7 +38,7 @@
 extern "C" {
 #endif
 
-#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_) || defined(size_t)
+#if	defined(_INCL_SYS_TYPES_H) || defined(_INCL_TYPES_H) || defined(size_t)
 #	ifndef	FOUND_SIZE_T
 #	define	FOUND_SIZE_T
 #	endif
@@ -54,6 +59,18 @@ extern "C" {
 /* #undef	HAVE_USLEEP */
 #endif
 
+#ifdef	FOUND_SIZE_T
+/*
+ * We currently cannot define this here because there IXIX has a definition
+ * than violates the standard.
+ */
+#ifndef	HAVE_SNPRINTF
+/*PRINTFLIKE3*/
+extern	int	snprintf __PR((char *, size_t, const char *, ...))
+					__printflike__(3, 4);
+#endif
+#endif
+
 #ifndef	HAVE_GETHOSTID
 extern	long		gethostid	__PR((void));
 #endif
@@ -68,8 +85,9 @@ extern	int		usleep		__PR((int usec));
 extern	int		strcasecmp	__PR((const char *, const char *));
 #endif
 #ifdef	FOUND_SIZE_T
-#ifndef	HAVE_STRCASECMP
-extern 	int		strncasecmp	__PR((const char *, const char *, size_t));
+#ifndef	HAVE_STRNCASECMP
+extern 	int		strncasecmp	__PR((const char *, const char *,
+						size_t));
 #endif
 #endif
 
@@ -181,7 +199,8 @@ extern	wchar_t		*wcsrchr	__PR((const wchar_t *s1, wchar_t c));
 #endif
 
 #ifndef	HAVE_WCSSTR
-extern	wchar_t		*wcsstr		__PR((const wchar_t *s1, const wchar_t *s2));
+extern	wchar_t		*wcsstr		__PR((const wchar_t *s1,
+							const wchar_t *s2));
 #endif
 #endif	/* _SCHILY_WCHAR_H */
 
@@ -278,6 +297,109 @@ extern	int		fchdir __PR((int fd));
 #ifndef	HAVE_OPENAT
 extern	int		openat __PR((int fd, const char *name, int oflag, ...));
 #endif
+
+
+#ifndef	HAVE_GETTIMEOFDAY
+#ifdef	_SCHILY_TIME_H
+extern	int		gettimeofday __PR((struct timeval *__tp, void *__tzp));
+#endif
+#endif
+
+#ifndef	HAVE_FACCESSAT
+extern	int		faccessat __PR((int fd, const char *name,
+					int amode, int flag));
+#endif
+#ifndef	HAVE_FCHMODAT
+extern	int		fchmodat __PR((int fd, const char *name,
+					mode_t mode, int flag));
+#endif
+#ifndef	HAVE_LCHMOD
+extern	int		lchmod __PR((const char *name, mode_t mode));
+#endif
+
+#ifndef	HAVE_FCHOWNAT
+extern	int		fchownat __PR((int fd, const char *name,
+					uid_t owner, gid_t group, int flag));
+#endif
+
+#ifndef	HAVE_FDOPENDIR
+#ifdef _SCHILY_DIRENT_H
+extern	DIR		*fdopendir __PR((int fd));
+#endif
+#endif
+
+#ifdef	_SCHILY_STAT_H
+#ifndef	HAVE_FSTATAT
+extern	int		fstatat __PR((int fd, const char *name,
+					struct stat *sbuf, int flag));
+#endif
+#endif	/* _SCHILY_STAT_H */
+#ifdef	_SCHILY_TIME_H
+#ifndef	HAVE_FUTIMENS
+extern	int		futimens __PR((int fd,
+					const struct timespec __times[2]));
+#endif
+#ifndef	HAVE_FUTIMESAT
+extern	int		futimesat __PR((int fd, const char *name,
+					const struct timeval __times[2]));
+#endif
+#ifndef	HAVE_LUTIMENS
+extern	int		lutimens __PR((const char *name,
+					const struct timespec __times[2]));
+#endif
+#endif	/* _SCHILY_TIME_H */
+#ifndef	HAVE_LINKAT
+extern	int		linkat __PR((int fd1, const char *name1,
+					int fd2, const char *name2, int flag));
+#endif
+#ifndef	HAVE_MKDIRAT
+extern	int		mkdirat __PR((int fd, const char *name, mode_t mode));
+#endif
+#ifndef	HAVE_MKFIFO
+extern	int		mkfifo __PR((const char *name, mode_t mode));
+#endif
+#ifndef	HAVE_MKFIFOAT
+extern	int		mkfifoat __PR((int fd, const char *name, mode_t mode));
+#endif
+#ifndef	HAVE_MKNODAT
+extern	int		mknodat __PR((int fd, const char *name,
+					mode_t mode, dev_t dev));
+#endif
+#ifndef	HAVE_READLINKAT
+extern	ssize_t		readlinkat __PR((int fd, const char *name,
+					char *lbuf, size_t lbufsize));
+#endif
+#ifndef	HAVE_RENAMEAT
+extern	int		renameat __PR((int oldfd, const char *old,
+					int newfd, const char *new));
+#endif
+#ifndef	HAVE_SYMLINKAT
+extern	int		symlinkat __PR((const char *content,
+					int fd, const char *name));
+#endif
+#ifndef	HAVE_UNLINKAT
+extern	int		unlinkat __PR((int fd, const char *name, int flag));
+#endif
+#ifdef	_SCHILY_TIME_H
+#ifndef	HAVE_UTIMENS
+extern	int		utimens __PR((const char *name,
+					const struct timespec __times[2]));
+#endif
+#ifndef	HAVE_UTIMENSAT
+extern	int		utimensat __PR((int fd, const char *name,
+					const struct timespec __times[2],
+					int flag));
+#endif
+#endif	/* _SCHILY_TIME_H */
+
+#ifdef	__SUNOS4
+/*
+ * Define prototypes for POSIX standard functions that are missing on SunOS-4.x
+ * to make compilation smooth.
+ */
+#include <schily/sunos4_proto.h>
+
+#endif	/* __SUNOS4 */
 
 #ifdef	__cplusplus
 }

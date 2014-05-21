@@ -22,7 +22,7 @@ CFILES_REST=	astoi.c astoll.c astoull.c \
 		fconv.c fexec.c fillbytes.c \
 		findinpath.c \
 		fnmatch.c \
-		format.c \
+		format.c fprformat.c \
 		getfp.c \
 		getargs.c getav0.c geterrno.c \
 		getpagesize.c \
@@ -30,13 +30,23 @@ CFILES_REST=	astoi.c astoll.c astoull.c \
 		getnum.c getxnum.c \
 		gettnum.c getxtnum.c \
 		getperm.c \
+		getnstimeofday.c gettimeofday.c \
 		jsprintf.c jssnprintf.c jssprintf.c \
 		match.c movebytes.c \
 		mem.c jmem.c fjmem.c \
 		raisecond.c \
 		rename.c \
 		saveargs.c seterrno.c \
-		strcatl.c streql.c \
+		setnstimeofday.c \
+		strcasecmp.c strcasemap.c \
+		strcat.c strcatl.c \
+		strchr.c strcmp.c strcpy.c \
+		strcspn.c \
+		strdup.c \
+		streql.c strlcat.c strlcpy.c strlen.c \
+		strncasecmp.c \
+		strncat.c strncmp.c strncpy.c strndup.c strnlen.c \
+		strrchr.c strspn.c strstr.c \
 		swabbytes.c \
 		usleep.c
 

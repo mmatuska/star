@@ -1,11 +1,11 @@
-/* @(#)create.c	1.132 11/12/03 Copyright 1985, 1995, 2001-2011 J. Schilling */
+/* @(#)create.c	1.135 14/02/05 Copyright 1985, 1995, 2001-2014 J. Schilling */
 #include <schily/mconfig.h>
 #ifndef lint
 static	UConst char sccsid[] =
-	"@(#)create.c	1.132 11/12/03 Copyright 1985, 1995, 2001-2011 J. Schilling";
+	"@(#)create.c	1.135 14/02/05 Copyright 1985, 1995, 2001-2014 J. Schilling";
 #endif
 /*
- *	Copyright (c) 1985, 1995, 2001-2011 J. Schilling
+ *	Copyright (c) 1985, 1995, 2001-2014 J. Schilling
  */
 /*
  * The contents of this file are subject to the terms of the
@@ -14,6 +14,8 @@ static	UConst char sccsid[] =
  * with the License.
  *
  * See the file CDDL.Schily.txt in this distribution for details.
+ * A copy of the CDDL is also available via the Internet at
+ * http://www.opensource.org/licenses/cddl1.txt
  *
  * When distributing Covered Code, include this CDDL HEADER in each
  * file and include the License file CDDL.Schily.txt from this distribution.
@@ -113,7 +115,7 @@ extern	char	*bigptr;
 extern	BOOL	havepat;
 extern	dev_t	curfs;
 extern	Ullong	maxsize;
-extern	struct timeval	Newer;
+extern	struct timespec	Newer;
 extern	Ullong	tsize;
 extern	BOOL	prblockno;
 extern	BOOL	debug;
@@ -708,10 +710,10 @@ createi(sname, name, namlen, info, last)
 		} else if (do_sparse && force_hole) {
 			/*
 			 * Treat all files as sparse when -force-hole
-			 * option is given.
+			 * option is given. Files that do not contain
+			 * any zeroed region will however still be
+			 * archived as plain files by put_sparse().
 			 */
-			if (!silent)
-				error("Treating '%s' as sparse\n", info->f_name);
 			put_sparse(&fd, info);
 		} else {
 			put_tcb(ptb, info);
@@ -747,7 +749,7 @@ createlist()
 	 */
 	name = ___malloc(nsize, "name buffer");
 
-	for (nlen = 1; nlen > 0; ) {
+	for (nlen = 1; nlen >= 0; ) {
 		if ((nlen = readnull ? ngetline(listf, name, nsize) :
 					fgetline(listf, name, nsize)) < 0)
 			break;
